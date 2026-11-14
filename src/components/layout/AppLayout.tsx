@@ -31,7 +31,7 @@ export default function AppLayout() {
   const sidebar = (
     <aside className="w-64 bg-slate-900 border-r border-slate-700 flex flex-col shadow-xl text-slate-100 h-full">
       <div className="px-6 py-6 border-b border-slate-700 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-teal-700 flex items-center justify-center text-white font-bold text-lg">L</div>
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="w-9 h-9 rounded-xl" />
         <div><h1 className="text-base font-semibold leading-tight">Legacy Manager</h1><p className="text-xs text-slate-400">Patrimonio familiar</p></div>
       </div>
       <nav className="flex-1 px-4 py-6 space-y-1.5">
