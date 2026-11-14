@@ -56,6 +56,15 @@ export function subscribeToYearPayments(
   )
 }
 
+export function subscribeToAllYearPayments(year: number, onSuccess: (payments: RentPayment[]) => void, onError?: (error: Error) => void): Unsubscribe {
+  return onSnapshot(query(collection(db, COLLECTION_NAME), where('year', '==', year)), (snapshot) => {
+    onSuccess(snapshot.docs.map((docSnap) => {
+      const data = docSnap.data()
+      return { id: docSnap.id, propertyId: data.propertyId, year: Number(data.year), month: Number(data.month), amount: Number(data.amount) || 0, receivedAmount: data.receivedAmount === undefined ? undefined : Number(data.receivedAmount) || 0, isPaid: Boolean(data.isPaid), paidAt: data.paidAt ?? undefined, invoiceIssued: Boolean(data.invoiceIssued), notes: data.notes ?? '', updatedBy: data.updatedBy ?? '', createdAt: data.createdAt, updatedAt: data.updatedAt } as RentPayment
+    }))
+  }, (error) => { console.error('Error loading annual rent matrix:', error); onError?.(error) })
+}
+
 /** Listen to rent records through the selected year to identify accumulated arrears. */
 export function subscribeToPaymentsThroughYear(
   year: number,

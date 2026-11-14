@@ -324,8 +324,7 @@ export default function PropertyModal({
           </div>
 
           {/* Rental data is kept separate from the physical property details. */}
-          {(
-            <div className="space-y-4">
+          <div className="space-y-4">
               <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
                 <div className="mb-3 flex items-center justify-between"><div><h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Inquilinos vinculados al inmueble</h4><p className="mt-1 text-[11px] text-slate-400">Añade todas las personas que figuran como inquilinas.</p></div><button type="button" onClick={() => setTenants((items) => [...items, { id: `tenant-${Date.now()}-${items.length}`, name: '' }])} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:border-teal-500">+ Añadir</button></div>
                 {tenants.length === 0 && <p className="rounded-lg border border-dashed border-slate-700 p-3 text-xs text-slate-500">No hay inquilinos registrados.</p>}
@@ -337,8 +336,7 @@ export default function PropertyModal({
                 <label className="mt-3 flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={rentRequiresInvoice} onChange={(e) => setRentRequiresInvoice(e.target.checked)} className="accent-teal-500"/>El alquiler requiere factura / recibo</label>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs text-slate-300">Fianza (€)<input type="number" min="0" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="Importe depositado" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"/></label><label className="text-xs text-slate-300">Referencia del depósito de fianza<input value={avraReference} onChange={(e) => setAvraReference(e.target.value)} placeholder="Referencia autonómica (opcional)" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono text-slate-100"/></label></div>
               </section>}
-            </div>
-          )}
+          </div>
 
           {/* Finanzas: Gastos fijos y Valor estimado */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

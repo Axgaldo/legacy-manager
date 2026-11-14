@@ -6,6 +6,7 @@ import { subscribeToAssets } from '@/features/collections/assetsService'
 import { subscribeToPaymentsThroughYear } from './paymentsService'
 import PropertyModal from './PropertyModal'
 import PropertyExpensesOverview from './PropertyExpensesOverview'
+import RentPaymentsOverview from './RentPaymentsOverview'
 import { rentAmountForMonth } from './rentRates'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { propertySlug } from '@/utils/slugs'
@@ -31,7 +32,7 @@ const TYPE_LABELS: Record<string, string> = {
 
 export default function PropertiesPage() {
   const navigate = useNavigate()
-  const [overview, setOverview] = useState<'properties' | 'expenses'>('properties')
+  const [overview, setOverview] = useState<'properties' | 'rentals' | 'expenses'>('properties')
   const [properties, setProperties] = useState<Property[]>([])
   const [assets, setAssets] = useState<AssetItem[]>([])
   const [rentPayments, setRentPayments] = useState<RentPayment[]>([])
@@ -208,13 +209,13 @@ export default function PropertiesPage() {
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Inmuebles</h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            Gestión y seguimiento patrimonial de propiedades en Andalucía
+            Gestión y seguimiento patrimonial de inmuebles en España
           </p>
         </div>
         {overview === 'properties' && <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-teal-600"><span className="text-lg">＋</span>Añadir Inmueble</button>}
       </div>
 
-      <div className="flex w-fit gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1"><button onClick={() => setOverview('properties')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'properties' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-100'}`}>Inmuebles</button><button onClick={() => setOverview('expenses')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'expenses' ? 'bg-teal-950 text-teal-200' : 'text-slate-400 hover:text-slate-100'}`}>Gastos de todos los pisos</button></div>
+      <div className="flex w-fit flex-wrap gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1"><button onClick={() => setOverview('properties')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'properties' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-100'}`}>Inmuebles</button><button onClick={() => setOverview('rentals')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'rentals' ? 'bg-teal-950 text-teal-200' : 'text-slate-400 hover:text-slate-100'}`}>Alquileres</button><button onClick={() => setOverview('expenses')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'expenses' ? 'bg-teal-950 text-teal-200' : 'text-slate-400 hover:text-slate-100'}`}>Gastos generales</button></div>
 
       {/* Firestore Security Rules Banner if error */}
       {firestoreError && (
@@ -564,7 +565,7 @@ export default function PropertiesPage() {
         </div>
       )}
 
-      </> : <PropertyExpensesOverview properties={properties} />}
+      </> : overview === 'rentals' ? <RentPaymentsOverview properties={properties} /> : <PropertyExpensesOverview properties={properties} />}
 
       {/* Property Modal (Create / Edit) */}
       <PropertyModal

@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { ExpenseCategory, RecurringExpenseOccurrence, RecurringExpenseSchedule } from '@/types'
 import { EXPENSE_CATEGORIES } from './expenseCategories'
-import { addRecurringExpenseSchedule, createRecurringExpenseScheduleVersion, endRecurringExpenseSchedule, subscribeToRecurringExpenseOccurrences, subscribeToRecurringExpenseSchedules, updateRecurringExpenseSchedule, updateRecurringOccurrence } from './recurringExpensesService'
+import { addRecurringExpenseSchedule, createRecurringExpenseScheduleVersion, endRecurringExpensesFromMonth, subscribeToRecurringExpenseOccurrences, subscribeToRecurringExpenseSchedules, updateRecurringExpenseSchedule, updateRecurringOccurrence } from './recurringExpensesService'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const today = () => new Date().toLocaleDateString('sv-SE')
@@ -14,7 +14,6 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
   const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({})
   const [isAdding, setIsAdding] = useState(false)
   const [category, setCategory] = useState<ExpenseCategory>('luz')
-  const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [startDate, setStartDate] = useState(today())
   const [endMonth, setEndMonth] = useState('')
@@ -44,7 +43,6 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
   const openCreate = () => {
     setEditingSchedule(null)
     setCategory('luz')
-    setDescription('')
     setAmount('')
     setStartDate(today())
     setEndMonth('')
@@ -56,10 +54,9 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     setIsAdding(true)
   }
 
-  const openEdit = (schedule: RecurringExpenseSchedule) => {
+  const openEdit = (schedule: RecurringExpenseSchedule, month: number) => {
     setEditingSchedule(schedule)
     setCategory(schedule.category)
-    setDescription(schedule.description)
     setAmount(String(schedule.amount))
     setStartDate(schedule.startDate)
     setEndMonth(schedule.endDate?.slice(0, 7) ?? '')
@@ -68,13 +65,13 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     setAutoPayOnInvoiceReceived(Boolean(schedule.autoPayOnInvoiceReceived))
     setChargeToTenant(schedule.chargeToTenant ?? false)
     setIsDeductible(schedule.isDeductible)
-    setEffectiveFrom('')
+    setEffectiveFrom(`${year}-${String(month).padStart(2, '0')}`)
     setIsAdding(true)
   }
 
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault()
-    if (!description.trim() || !amount || Number(intervalMonths) < 1) return
+    if (!amount || Number(intervalMonths) < 1) return
     const startMonth = editingSchedule ? effectiveFrom : startDate.slice(0, 7)
     if (!startMonth) {
       setError('Indica el mes desde el que se aplicará la obligación.')
@@ -84,9 +81,8 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
       setError('El mes de finalización no puede ser anterior al inicio de esta versión.')
       return
     }
-    const hasHistory = editingSchedule && occurrences.some((occurrence) => occurrence.scheduleId === editingSchedule.id)
-    if (editingSchedule && startMonth <= editingSchedule.startDate.slice(0, 7) && hasHistory) {
-      setError('Esta obligación ya tiene estados mensuales guardados. Para conservarlos, los cambios deben empezar después del inicio de la versión actual.')
+    if (editingSchedule && startMonth < editingSchedule.startDate.slice(0, 7)) {
+      setError('El cambio no puede empezar antes del inicio de esta versión.')
       return
     }
     if (editingSchedule?.endDate && startMonth > editingSchedule.endDate.slice(0, 7)) {
@@ -96,7 +92,8 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     setSaving(true)
     setError('')
     try {
-      const version = {
+    const description = EXPENSE_CATEGORIES.find((item) => item.value === category)?.label ?? category
+    const version = {
         propertyId,
         category,
         description: description.trim(),
@@ -111,18 +108,18 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
         isActive: true,
       }
       if (editingSchedule) {
-        if (startMonth > editingSchedule.startDate.slice(0, 7)) {
+        const hasHistory = occurrences.some((occurrence) => occurrence.scheduleId === editingSchedule.id)
+        if (startMonth > editingSchedule.startDate.slice(0, 7) || hasHistory) {
           const previousMonth = new Date(`${startMonth}-01T00:00:00`)
           previousMonth.setMonth(previousMonth.getMonth() - 1)
           const previousEnd = `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, '0')}-01`
-          await createRecurringExpenseScheduleVersion(editingSchedule.id, previousEnd, version)
+          await createRecurringExpenseScheduleVersion(editingSchedule.id, previousEnd, version, startMonth)
         } else {
           await updateRecurringExpenseSchedule(editingSchedule.id, version)
         }
       } else {
         await addRecurringExpenseSchedule(version)
       }
-      setDescription('')
       setAmount('')
       setStartDate(today())
       setEndMonth('')
@@ -161,43 +158,51 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     tenantPaid: !occurrence?.tenantPaid,
     tenantPaidAt: !occurrence?.tenantPaid ? (occurrence?.tenantPaidAt || today()) : '',
   })
+  const removeFromMonth = async (schedule: RecurringExpenseSchedule, month: number) => {
+    const fromMonth = `${year}-${String(month).padStart(2, '0')}`
+    const label = EXPENSE_CATEGORIES.find((item) => item.value === schedule.category)?.label ?? schedule.category
+    if (!window.confirm(`¿Eliminar «${label}» desde ${MONTHS[month - 1]} ${year} y los meses siguientes? Los estados anteriores se conservarán.`)) return
+    try {
+      await endRecurringExpensesFromMonth(schedules, propertyId, schedule.category, fromMonth)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar el gasto desde ese mes.')
+    }
+  }
 
   return <div className="space-y-5">
     <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-400">Obligaciones recurrentes</p><h2 className="mt-1 text-2xl font-semibold text-slate-100">Gastos periódicos</h2><p className="mt-1 text-sm text-slate-400">Configura cada gasto una vez y define cuándo cambia, cuándo termina y cómo se liquida.</p></div>
-      <div className="flex gap-2"><select aria-label="Año" value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">{[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((value) => <option key={value} value={value}>{value}</option>)}</select><button onClick={openCreate} className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600">+ Añadir obligación</button></div>
+      <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-400">Gastos recurrentes</p><h2 className="mt-1 text-2xl font-semibold text-slate-100">Gastos periódicos</h2><p className="mt-1 text-sm text-slate-400">Configura una vez cada tipo de gasto y gestiona sus repeticiones por mes.</p></div>
+      <div className="flex gap-2"><select aria-label="Año" value={year} onChange={(e) => setYear(Number(e.target.value))} className="rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">{[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((value) => <option key={value} value={value}>{value}</option>)}</select><button onClick={openCreate} className="rounded-xl bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600">+ Añadir gasto periódico</button></div>
     </header>
     {error && <p className="rounded-xl border border-red-900 bg-red-950/40 p-3 text-sm text-red-200">{error}</p>}
-    {schedules.length > 0 && <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><h3 className="mb-3 text-sm font-semibold text-slate-200">Obligaciones y versiones</h3><div className="flex flex-wrap gap-2">{schedules.map((schedule) => <span key={schedule.id} className="inline-flex flex-wrap items-center gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">{EXPENSE_CATEGORIES.find((item) => item.value === schedule.category)?.label}: {schedule.description} · {formatEuro(schedule.amount)} cada {schedule.intervalMonths} {schedule.intervalMonths === 1 ? 'mes' : 'meses'} · desde {schedule.startDate.slice(0, 7)}{schedule.endDate ? ` hasta ${schedule.endDate.slice(0, 7)}` : ''}<button onClick={() => openEdit(schedule)} className="ml-1 text-teal-300 hover:text-teal-200">Editar desde…</button>{schedule.isActive && <button aria-label={`Finalizar ${schedule.description}`} title="Finaliza al terminar el mes actual; conserva las versiones anteriores" onClick={() => { const current = today(); const finalEnd = schedule.endDate && schedule.endDate.slice(0, 7) < current.slice(0, 7) ? schedule.endDate : current; if (window.confirm(`¿Finalizar «${schedule.description}» al terminar ${finalEnd.slice(0, 7)}? Los vencimientos históricos se conservarán.`)) void endRecurringExpenseSchedule(schedule.id, finalEnd) }} className="ml-1 text-amber-300 hover:text-amber-200">Finalizar</button>}</span>)}</div></section>}
-
     <div className="space-y-4">{MONTHS.map((monthName, index) => {
       const month = index + 1
       const due = schedules.filter((schedule) => scheduledFor(schedule, month))
       if (!due.length) return null
-      return <section key={month} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900"><header className="flex items-center justify-between border-b border-slate-800 px-4 py-3"><h3 className="font-semibold text-slate-200">{monthName} {year}</h3><span className="text-xs text-slate-400">{formatEuro(due.reduce((sum, item) => sum + item.amount, 0))} previsto</span></header><div className="divide-y divide-slate-800">{due.map((schedule) => {
+      return <section key={month} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900"><header className="flex items-center justify-between border-b border-slate-800 px-4 py-3"><h3><span className="rounded-lg border border-emerald-800 bg-emerald-950/60 px-2.5 py-1 text-sm font-semibold capitalize text-emerald-200">{monthName} {year}</span></h3><span className="text-xs text-slate-400">{formatEuro(due.reduce((sum, item) => sum + item.amount, 0))} previsto</span></header><div className="divide-y divide-slate-800">{due.map((schedule) => {
         const occurrence = occurrenceById.get(`${schedule.id}_${year}-${String(month).padStart(2, '0')}`)
         const occurrenceKey = `${schedule.id}_${year}-${String(month).padStart(2, '0')}`
         return <article key={schedule.id} className="grid gap-4 p-4 lg:grid-cols-[minmax(180px,1fr)_minmax(0,2fr)] lg:items-start">
-          <div className="min-w-0"><p className="font-semibold text-slate-100">{EXPENSE_CATEGORIES.find((item) => item.value === schedule.category)?.label ?? schedule.category} · {schedule.description}</p><p className="mt-1 text-xs text-slate-400">{schedule.intervalMonths === 1 ? 'Mensual' : `Cada ${schedule.intervalMonths} meses`} · {formatEuro(occurrence?.amount ?? schedule.amount)}</p></div>
+          <div className="min-w-0"><p className="font-semibold text-slate-100">{EXPENSE_CATEGORIES.find((item) => item.value === schedule.category)?.label ?? schedule.category}</p><p className="mt-1 text-xs text-slate-400">{schedule.intervalMonths === 1 ? 'Mensual' : `Cada ${schedule.intervalMonths} meses`} · {formatEuro(occurrence?.amount ?? schedule.amount)}</p></div>
           <div className="grid gap-3 sm:grid-cols-2">
             <section className="space-y-2 rounded-xl border border-amber-900/60 bg-amber-950/15 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-amber-200">Salida · paga el propietario</h4>
               <label className="block text-[11px] text-slate-400">Importe real <input aria-label={`Importe de ${schedule.description} en ${monthName}`} type="number" min="0" step="0.01" value={amountDrafts[occurrenceKey] ?? String(occurrence?.amount ?? schedule.amount)} onChange={(e) => setAmountDrafts((drafts) => ({ ...drafts, [occurrenceKey]: e.target.value }))} onBlur={() => { const value = Number(amountDrafts[occurrenceKey]); if (Number.isFinite(value) && value >= 0 && value !== (occurrence?.amount ?? schedule.amount)) void updateRecurringOccurrence(schedule, year, month, { amount: value }); setAmountDrafts((drafts) => { const next = { ...drafts }; delete next[occurrenceKey]; return next }) }} className="ml-1 w-24 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100" /></label>
               {schedule.requiresInvoice ? <button onClick={() => void changeInvoice(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.invoiceReceived ? 'border-teal-800 bg-teal-950 text-teal-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.invoiceReceived ? `✓ Factura del proveedor recibida${schedule.autoPayOnInvoiceReceived && occurrence.isPaid ? ' y pagada' : ''} ${occurrence.invoiceReceivedDate ?? ''}` : 'Factura del proveedor pendiente'}</button> : <span className="block text-[11px] text-slate-400">Sin factura del proveedor</span>}
-              <button onClick={() => void changePayment(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.isPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.isPaid ? `✓ Gasto pagado ${occurrence.paidAt ?? ''}` : schedule.autoPayOnInvoiceReceived ? 'Pendiente · se marcará pagado al recibir la factura' : 'Pago del propietario pendiente'}</button>
+              <button onClick={() => void changePayment(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.isPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.isPaid ? `✓ Gasto pagado ${occurrence.paidAt ?? ''}` : schedule.autoPayOnInvoiceReceived ? 'Pago pendiente (automático)' : 'Pago del propietario pendiente'}</button>
             </section>
-            {schedule.chargeToTenant ? <section className="space-y-2 rounded-xl border border-teal-900/60 bg-teal-950/15 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-teal-200">Entrada · se repercute al inquilino</h4><button onClick={() => void changeTenantInvoice(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.tenantInvoiceIssued ? 'border-teal-800 bg-teal-950 text-teal-200' : 'border-slate-700 text-slate-300'}`}>{occurrence?.tenantInvoiceIssued ? `✓ Factura enviada al inquilino ${occurrence.tenantInvoiceIssuedDate ?? ''}` : 'Factura enviada al inquilino · pendiente'}</button><button onClick={() => void changeTenantPayment(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.tenantPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.tenantPaid ? `✓ Cobro del inquilino recibido ${occurrence.tenantPaidAt ?? ''}` : 'Cobro al inquilino pendiente'}</button></section> : <section className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sin repercusión al inquilino</h4><p className="mt-1 text-[11px] text-slate-500">Este gasto es asumido por el propietario.</p></section>}
+            {schedule.chargeToTenant ? <section className="space-y-2 rounded-xl border border-teal-900/60 bg-teal-950/15 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-teal-200">Entrada · se repercute al inquilino</h4><button onClick={() => void changeTenantInvoice(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.tenantInvoiceIssued ? 'border-teal-800 bg-teal-950 text-teal-200' : 'border-slate-700 text-slate-300'}`}>{occurrence?.tenantInvoiceIssued ? `✓ Factura enviada al inquilino ${occurrence.tenantInvoiceIssuedDate ?? ''}` : 'Factura no enviada al inquilino'}</button><button onClick={() => void changeTenantPayment(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.tenantPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.tenantPaid ? `✓ Cobro del inquilino recibido ${occurrence.tenantPaidAt ?? ''}` : 'Cobro al inquilino pendiente'}</button></section> : <section className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sin repercusión al inquilino</h4><p className="mt-1 text-[11px] text-slate-500">Este gasto es asumido por el propietario.</p></section>}
           </div>
+          <div className="flex flex-wrap justify-end gap-2 lg:col-start-2"><button type="button" onClick={() => openEdit(schedule, month)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-[11px] font-semibold text-slate-300 hover:border-teal-700 hover:text-teal-200">Editar desde este mes</button><button type="button" onClick={() => void removeFromMonth(schedule, month)} className="rounded-lg border border-red-900/70 px-3 py-1.5 text-[11px] text-red-300 hover:bg-red-950/40">Eliminar desde este mes</button></div>
         </article>
       })}</div></section>
     })}</div>
-    {!schedules.length && <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-10 text-center text-sm text-slate-400">Aún no hay obligaciones periódicas. Añade una para que sus vencimientos aparezcan en los meses correspondientes.</div>}
+    {!schedules.length && <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-10 text-center text-sm text-slate-400">Aún no hay gastos periódicos. Añade uno para que sus vencimientos aparezcan en los meses correspondientes.</div>}
 
     {isAdding && <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4"><form onSubmit={handleCreate} className="my-auto w-full max-w-lg space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-      <div><h3 className="text-lg font-semibold text-slate-100">{editingSchedule ? 'Nueva versión de la obligación' : 'Nueva obligación periódica'}</h3><p className="mt-1 text-sm text-slate-400">{editingSchedule ? 'Los datos anteriores y sus estados mensuales se conservarán.' : 'Se crea una vez y genera filas mensuales de control automáticamente.'}</p></div>
-      {editingSchedule && <label className="block text-xs text-slate-300">Aplicar los cambios desde<input required type="month" min={editingSchedule.startDate.slice(0, 7)} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /><span className="mt-1 block text-[11px] text-slate-500">Si ya hay estados mensuales guardados, el cambio debe empezar después para conservarlos.</span></label>}
+      <div><h3 className="text-lg font-semibold text-slate-100">{editingSchedule ? 'Editar gasto periódico' : 'Añadir gasto periódico'}</h3><p className="mt-1 text-sm text-slate-400">{editingSchedule ? `Se aplicará desde ${effectiveFrom}; los meses anteriores conservarán sus datos.` : 'Se configura una vez y sus repeticiones aparecen en el control mensual.'}</p></div>
+      {editingSchedule && <label className="block text-xs text-slate-300">Aplicar desde el mes de esta fila<input required type="month" min={editingSchedule.startDate.slice(0, 7)} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="text-xs text-slate-300">Categoría<select value={category} onChange={(e) => { const value = e.target.value as ExpenseCategory; setCategory(value); if (value === 'comunidad') setRequiresInvoice(false); setAutoPayOnInvoiceReceived(['luz', 'agua', 'gas', 'suministros'].includes(value)) }} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">{EXPENSE_CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-        <label className="text-xs text-slate-300">Concepto / nombre<input required value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ej. Electricidad vivienda" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>
+        <label className="text-xs text-slate-300 sm:col-span-2">Gasto<select value={category} onChange={(e) => { const value = e.target.value as ExpenseCategory; setCategory(value); setRequiresInvoice(value !== 'comunidad'); setAutoPayOnInvoiceReceived(['luz', 'agua', 'gas', 'suministros'].includes(value)) }} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">{EXPENSE_CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         <label className="text-xs text-slate-300">Importe estimado por vencimiento (€)<input required type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>
         {!editingSchedule && <label className="text-xs text-slate-300">Primer mes de vencimiento<input required type="month" value={startDate.slice(0, 7)} onChange={(e) => setStartDate(`${e.target.value}-01`)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>}
         <label className="text-xs text-slate-300">Termina después de este mes (opcional)<input type="month" value={endMonth} onChange={(e) => setEndMonth(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>
@@ -211,7 +216,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
       </div>
       <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={isDeductible} onChange={(e) => setIsDeductible(e.target.checked)} className="accent-teal-500" />Marcar como deducible para el resumen fiscal</label>
       {error && <p className="text-xs text-red-300">{error}</p>}
-      <div className="flex justify-end gap-2 border-t border-slate-800 pt-3"><button type="button" onClick={() => { setIsAdding(false); setError('') }} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancelar</button><button disabled={saving} className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Guardando…' : editingSchedule ? 'Guardar desde ese mes' : 'Crear obligación'}</button></div>
+      <div className="flex justify-end gap-2 border-t border-slate-800 pt-3"><button type="button" onClick={() => { setIsAdding(false); setError('') }} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancelar</button><button disabled={saving} className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Guardando…' : editingSchedule ? 'Guardar desde ese mes' : 'Crear gasto'}</button></div>
     </form></div>}
   </div>
 }
