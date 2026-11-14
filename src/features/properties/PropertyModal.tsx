@@ -1,19 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Property, PropertyType, PropertyStatus } from '@/types'
+import { Property, PropertyTenant, PropertyType, PropertyStatus } from '@/types'
 import { createProperty, updateProperty } from './propertiesService'
-import { normalizeRentHistory } from './rentRates'
 import { resolveOwnerName } from '@/utils/owners'
 
-const ANDALUCIA_PROVINCES = [
-  'Almería',
-  'Cádiz',
-  'Córdoba',
-  'Granada',
-  'Huelva',
-  'Jaén',
-  'Málaga',
-  'Sevilla',
-]
+const SPANISH_PROVINCES = ['A Coruña', 'Álava', 'Albacete', 'Alicante', 'Almería', 'Asturias', 'Ávila', 'Badajoz', 'Barcelona', 'Bizkaia', 'Burgos', 'Cáceres', 'Cádiz', 'Cantabria', 'Castellón', 'Ciudad Real', 'Córdoba', 'Cuenca', 'Girona', 'Granada', 'Guadalajara', 'Gipuzkoa', 'Huelva', 'Huesca', 'Illes Balears', 'Jaén', 'La Rioja', 'Las Palmas', 'León', 'Lleida', 'Lugo', 'Madrid', 'Málaga', 'Murcia', 'Navarra', 'Ourense', 'Palencia', 'Pontevedra', 'Salamanca', 'Santa Cruz de Tenerife', 'Segovia', 'Sevilla', 'Soria', 'Tarragona', 'Teruel', 'Toledo', 'Valencia', 'Valladolid', 'Zamora', 'Zaragoza', 'Ceuta', 'Melilla']
 
 const PROPERTY_TYPES: { value: PropertyType; label: string; icon: string }[] = [
   { value: 'apartment', label: 'Piso / Apartamento', icon: '🏢' },
@@ -58,11 +48,7 @@ export default function PropertyModal({
   const [cadastralReference, setCadastralReference] = useState('')
   const [monthlyRent, setMonthlyRent] = useState('')
   const [rentRequiresInvoice, setRentRequiresInvoice] = useState(false)
-  const [rentEffectiveFrom, setRentEffectiveFrom] = useState(() => new Date().toLocaleDateString('sv-SE').slice(0, 7))
-  const [tenantName, setTenantName] = useState('')
-  const [tenantPhone, setTenantPhone] = useState('')
-  const [tenantEmail, setTenantEmail] = useState('')
-  const [tenantNif, setTenantNif] = useState('')
+  const [tenants, setTenants] = useState<PropertyTenant[]>([])
   const [depositAmount, setDepositAmount] = useState('')
   const [avraReference, setAvraReference] = useState('')
   const [fixedExpensesMonthly, setFixedExpensesMonthly] = useState('')
@@ -83,13 +69,9 @@ export default function PropertyModal({
       setProvince(propertyToEdit.province || 'Sevilla')
       setPostalCode(propertyToEdit.postalCode || '')
       setCadastralReference(propertyToEdit.cadastralReference || '')
-      setMonthlyRent(propertyToEdit.monthlyRent ? String(propertyToEdit.monthlyRent) : '')
+      setMonthlyRent('')
       setRentRequiresInvoice(propertyToEdit.rentRequiresInvoice ?? false)
-      setRentEffectiveFrom(new Date().toLocaleDateString('sv-SE').slice(0, 7))
-      setTenantName(propertyToEdit.tenantName || '')
-      setTenantPhone(propertyToEdit.tenantPhone || '')
-      setTenantEmail(propertyToEdit.tenantEmail || '')
-      setTenantNif(propertyToEdit.tenantNif || '')
+      setTenants(propertyToEdit.tenants?.length ? propertyToEdit.tenants : propertyToEdit.tenantName ? [{ id: 'legacy-tenant', name: propertyToEdit.tenantName, phone: propertyToEdit.tenantPhone, email: propertyToEdit.tenantEmail, nif: propertyToEdit.tenantNif }] : [])
       setDepositAmount(propertyToEdit.depositAmount ? String(propertyToEdit.depositAmount) : '')
       setAvraReference(propertyToEdit.avraReference || '')
       setFixedExpensesMonthly(
@@ -109,11 +91,7 @@ export default function PropertyModal({
       setCadastralReference('')
       setMonthlyRent('')
       setRentRequiresInvoice(false)
-      setRentEffectiveFrom(new Date().toLocaleDateString('sv-SE').slice(0, 7))
-      setTenantName('')
-      setTenantPhone('')
-      setTenantEmail('')
-      setTenantNif('')
+      setTenants([])
       setDepositAmount('')
       setAvraReference('')
       setFixedExpensesMonthly('')
@@ -137,18 +115,10 @@ export default function PropertyModal({
 
     try {
       const parsedRent = monthlyRent ? parseFloat(monthlyRent) : undefined
-      let rentHistory = propertyToEdit?.rentHistory ?? []
-      if (parsedRent !== undefined && propertyToEdit?.monthlyRent !== parsedRent) {
-        if (!rentHistory.length && propertyToEdit?.monthlyRent !== undefined) {
-          let baselineMonth = new Date().toLocaleDateString('sv-SE').slice(0, 7)
-          const createdAt = propertyToEdit.createdAt?.toDate?.() ?? (propertyToEdit.createdAt instanceof Date ? propertyToEdit.createdAt : null)
-          if (createdAt && !Number.isNaN(createdAt.getTime())) baselineMonth = createdAt.toLocaleDateString('sv-SE').slice(0, 7)
-          rentHistory = [{ effectiveFrom: baselineMonth, amount: propertyToEdit.monthlyRent }]
-        }
-        rentHistory = normalizeRentHistory([...rentHistory, { effectiveFrom: rentEffectiveFrom, amount: parsedRent }])
-      } else if (!propertyToEdit && parsedRent !== undefined) {
-        rentHistory = [{ effectiveFrom: rentEffectiveFrom, amount: parsedRent }]
-      }
+      const normalizedTenants = tenants.map((tenant) => ({ ...tenant, name: tenant.name.trim(), phone: tenant.phone?.trim() || undefined, email: tenant.email?.trim() || undefined, nif: tenant.nif?.trim() || undefined })).filter((tenant) => tenant.name)
+      const legacyBaselineMonth = new Date().toLocaleDateString('sv-SE').slice(0, 7)
+      const rentHistory = propertyToEdit?.rentHistory ?? (parsedRent !== undefined ? [{ effectiveFrom: legacyBaselineMonth, amount: parsedRent }] : [])
+      const primaryTenant = normalizedTenants[0]
       const payload = {
         name: name.trim(),
         owner: resolveOwnerName(owner, owners, defaultOwner),
@@ -159,13 +129,14 @@ export default function PropertyModal({
         province,
         postalCode: postalCode.trim() || undefined,
         cadastralReference: cadastralReference.trim() || undefined,
-        monthlyRent: parsedRent,
+        ...(propertyToEdit ? {} : { monthlyRent: parsedRent, rentHistory }),
         rentRequiresInvoice,
-        rentHistory,
-        tenantName: tenantName.trim() || undefined,
-        tenantPhone: tenantPhone.trim() || undefined,
-        tenantEmail: tenantEmail.trim() || undefined,
-        tenantNif: tenantNif.trim() || undefined,
+        ...(propertyToEdit?.rentHistory ? { rentHistory: propertyToEdit.rentHistory } : {}),
+        tenants: normalizedTenants,
+        tenantName: primaryTenant?.name ?? '',
+        tenantPhone: primaryTenant?.phone ?? '',
+        tenantEmail: primaryTenant?.email ?? '',
+        tenantNif: primaryTenant?.nif ?? '',
         depositAmount: depositAmount ? parseFloat(depositAmount) : undefined,
         avraReference: avraReference.trim() || undefined,
         fixedExpensesMonthly: fixedExpensesMonthly ? parseFloat(fixedExpensesMonthly) : undefined,
@@ -297,7 +268,7 @@ export default function PropertyModal({
           {/* Ubicación: Dirección, Ciudad, Provincia */}
           <div className="p-4 bg-slate-50 rounded-xl space-y-3.5 border border-slate-200/60">
             <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-              Ubicación en Andalucía
+              Inmueble en España
             </h4>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -331,7 +302,7 @@ export default function PropertyModal({
                   onChange={(e) => setProvince(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
                 >
-                  {ANDALUCIA_PROVINCES.map((p) => (
+                  {SPANISH_PROVINCES.map((p) => (
                     <option key={p} value={p}>
                       {p}
                     </option>
@@ -352,118 +323,20 @@ export default function PropertyModal({
             </div>
           </div>
 
-          {/* Si está alquilado: Datos de inquilino, renta y fianza */}
-          {status === 'rented' && (
-            <div className="p-4 bg-slate-800/80 rounded-xl space-y-3.5 border border-slate-700 animate-in fade-in duration-150">
-              <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                Datos del Alquiler, Inquilino y Fianza
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Renta mensual pactada (€)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={monthlyRent}
-                    onChange={(e) => setMonthlyRent(e.target.value)}
-                    placeholder="750"
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden font-semibold"
-                  />
-                  <label className="mt-2 block text-[11px] font-semibold text-emerald-800">Mes desde el que se aplica este importe</label>
-                  <input
-                    type="month"
-                    required
-                    value={rentEffectiveFrom}
-                    onChange={(e) => setRentEffectiveFrom(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                  <span className="mt-1 block text-[10px] text-emerald-800">Si cambias el importe, se aplicará desde el mes seleccionado. Los meses anteriores conservarán su importe.</span>
-                  <label className="mt-3 flex items-center gap-2 text-[11px] font-medium text-slate-300"><input type="checkbox" checked={rentRequiresInvoice} onChange={(e) => setRentRequiresInvoice(e.target.checked)} className="accent-emerald-600" />El alquiler requiere factura / recibo</label>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Nombre del inquilino
-                  </label>
-                  <input
-                    type="text"
-                    value={tenantName}
-                    onChange={(e) => setTenantName(e.target.value)}
-                    placeholder="Ej. Juan Pérez"
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Teléfono del inquilino
-                  </label>
-                  <input
-                    type="tel"
-                    value={tenantPhone}
-                    onChange={(e) => setTenantPhone(e.target.value)}
-                    placeholder="600 123 456"
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Correo del inquilino</label>
-                  <input
-                    type="email"
-                    value={tenantEmail}
-                    onChange={(e) => setTenantEmail(e.target.value)}
-                    placeholder="inquilino@ejemplo.com"
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">DNI / NIF del inquilino</label>
-                  <input
-                    type="text"
-                    value={tenantNif}
-                    onChange={(e) => setTenantNif(e.target.value)}
-                    placeholder="Opcional"
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
-
-              {/* Fianza y Depósito AVRA */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-700/60">
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Fianza depositada (€)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    placeholder="Ej. 1500 (2 meses)"
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">
-                    Ref. depósito fianza AVRA (Junta de Andalucía)
-                  </label>
-                  <input
-                    type="text"
-                    value={avraReference}
-                    onChange={(e) => setAvraReference(e.target.value)}
-                    placeholder="Ej. EXP-AVRA-41/2024/..."
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm font-mono focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-                  />
-                </div>
-              </div>
+          {/* Rental data is kept separate from the physical property details. */}
+          {(
+            <div className="space-y-4">
+              <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+                <div className="mb-3 flex items-center justify-between"><div><h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Inquilinos vinculados al inmueble</h4><p className="mt-1 text-[11px] text-slate-400">Añade todas las personas que figuran como inquilinas.</p></div><button type="button" onClick={() => setTenants((items) => [...items, { id: `tenant-${Date.now()}-${items.length}`, name: '' }])} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:border-teal-500">+ Añadir</button></div>
+                {tenants.length === 0 && <p className="rounded-lg border border-dashed border-slate-700 p-3 text-xs text-slate-500">No hay inquilinos registrados.</p>}
+                <div className="space-y-3">{tenants.map((tenant, index) => <div key={tenant.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"><div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-slate-300">Inquilino {index + 1}</span><button type="button" onClick={() => setTenants((items) => items.filter((item) => item.id !== tenant.id))} className="text-xs text-red-300 hover:text-red-200">Quitar</button></div><div className="grid gap-2 sm:grid-cols-2"><input value={tenant.name} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, name: e.target.value } : item))} placeholder="Nombre completo" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/><input value={tenant.phone || ''} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, phone: e.target.value } : item))} placeholder="Teléfono" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/><input type="email" value={tenant.email || ''} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, email: e.target.value } : item))} placeholder="Correo" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/><input value={tenant.nif || ''} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, nif: e.target.value } : item))} placeholder="DNI / NIF" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/></div></div>)}</div>
+              </section>
+              {status === 'rented' && <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Condiciones del alquiler</h4>
+                {propertyToEdit ? <p className="mt-2 text-xs text-slate-400">La renta se cambia desde el control mensual, con el botón «Cambio de renta» del mes a partir del que se aplique.</p> : <label className="mt-3 block text-xs text-slate-300">Renta mensual inicial (€)<input type="number" min="0" step="0.01" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} placeholder="750" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100"/></label>}
+                <label className="mt-3 flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={rentRequiresInvoice} onChange={(e) => setRentRequiresInvoice(e.target.checked)} className="accent-teal-500"/>El alquiler requiere factura / recibo</label>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs text-slate-300">Fianza (€)<input type="number" min="0" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="Importe depositado" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"/></label><label className="text-xs text-slate-300">Referencia del depósito de fianza<input value={avraReference} onChange={(e) => setAvraReference(e.target.value)} placeholder="Referencia autonómica (opcional)" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono text-slate-100"/></label></div>
+              </section>}
             </div>
           )}
 

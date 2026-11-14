@@ -21,7 +21,8 @@ const SCHEDULES = 'recurringExpenseSchedules'
 const OCCURRENCES = 'recurringExpenseOccurrences'
 
 function mapSchedule(id: string, data: Record<string, any>): RecurringExpenseSchedule {
-  return { id, ...data, amount: Number(data.amount) || 0, intervalMonths: Math.max(1, Number(data.intervalMonths) || 1), isActive: data.isActive !== false, requiresInvoice: data.requiresInvoice !== false, isDeductible: data.isDeductible !== false } as RecurringExpenseSchedule
+  const utilityCategory = ['agua', 'luz', 'gas', 'suministros'].includes(data.category)
+  return { id, ...data, amount: Number(data.amount) || 0, intervalMonths: Math.max(1, Number(data.intervalMonths) || 1), isActive: data.isActive !== false, requiresInvoice: data.requiresInvoice !== false, autoPayOnInvoiceReceived: data.autoPayOnInvoiceReceived ?? utilityCategory, isDeductible: data.isDeductible !== false } as RecurringExpenseSchedule
 }
 
 function mapOccurrence(id: string, data: Record<string, any>): RecurringExpenseOccurrence {

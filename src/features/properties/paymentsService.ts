@@ -37,6 +37,7 @@ export function subscribeToYearPayments(
           year: d.year,
           month: d.month,
           amount: Number(d.amount) || 0,
+          receivedAmount: d.receivedAmount === undefined ? undefined : Number(d.receivedAmount) || 0,
           isPaid: Boolean(d.isPaid),
           paidAt: d.paidAt ?? undefined,
           invoiceIssued: Boolean(d.invoiceIssued),
@@ -71,6 +72,7 @@ export function subscribeToPaymentsThroughYear(
         year: Number(d.year),
         month: Number(d.month),
         amount: Number(d.amount) || 0,
+        receivedAmount: d.receivedAmount === undefined ? undefined : Number(d.receivedAmount) || 0,
         isPaid: Boolean(d.isPaid),
         paidAt: d.paidAt ?? undefined,
         invoiceIssued: Boolean(d.invoiceIssued),
@@ -103,6 +105,7 @@ export async function toggleRentPayment(
     year,
     month,
     amount,
+    receivedAmount: isPaid ? amount : 0,
     isPaid,
     paidAt: isPaid ? new Date().toISOString().split('T')[0] : null,
     updatedBy: userName || 'Usuario',
@@ -110,6 +113,22 @@ export async function toggleRentPayment(
   })
 
   return await setDoc(docRef, payload, { merge: true })
+}
+
+export async function recordRentReceipt(propertyId: string, year: number, month: number, expectedAmount: number, receivedAmount: number, userName?: string) {
+  const docId = `${propertyId}_${year}_${month}`
+  const isPaid = receivedAmount >= expectedAmount
+  return setDoc(doc(db, COLLECTION_NAME, docId), cleanPayload({
+    propertyId,
+    year,
+    month,
+    amount: expectedAmount,
+    receivedAmount,
+    isPaid,
+    paidAt: receivedAmount > 0 ? new Date().toISOString().split('T')[0] : null,
+    updatedBy: userName || 'Usuario',
+    updatedAt: serverTimestamp(),
+  }), { merge: true })
 }
 
 export async function toggleInvoiceIssued(

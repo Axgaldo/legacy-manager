@@ -20,6 +20,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
   const [endMonth, setEndMonth] = useState('')
   const [intervalMonths, setIntervalMonths] = useState('1')
   const [requiresInvoice, setRequiresInvoice] = useState(true)
+  const [autoPayOnInvoiceReceived, setAutoPayOnInvoiceReceived] = useState(true)
   const [chargeToTenant, setChargeToTenant] = useState(false)
   const [isDeductible, setIsDeductible] = useState(true)
   const [editingSchedule, setEditingSchedule] = useState<RecurringExpenseSchedule | null>(null)
@@ -49,6 +50,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     setEndMonth('')
     setIntervalMonths('1')
     setRequiresInvoice(true)
+    setAutoPayOnInvoiceReceived(true)
     setChargeToTenant(false)
     setIsDeductible(true)
     setIsAdding(true)
@@ -63,6 +65,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     setEndMonth(schedule.endDate?.slice(0, 7) ?? '')
     setIntervalMonths(String(schedule.intervalMonths))
     setRequiresInvoice(schedule.requiresInvoice)
+    setAutoPayOnInvoiceReceived(Boolean(schedule.autoPayOnInvoiceReceived))
     setChargeToTenant(schedule.chargeToTenant ?? false)
     setIsDeductible(schedule.isDeductible)
     setEffectiveFrom('')
@@ -102,6 +105,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
         endDate: endMonth ? `${endMonth}-01` : null,
         intervalMonths: Number(intervalMonths),
         requiresInvoice,
+        autoPayOnInvoiceReceived: requiresInvoice && autoPayOnInvoiceReceived,
         chargeToTenant,
         isDeductible,
         isActive: true,
@@ -124,6 +128,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
       setEndMonth('')
       setIntervalMonths('1')
       setRequiresInvoice(true)
+      setAutoPayOnInvoiceReceived(true)
       setChargeToTenant(false)
       setIsDeductible(true)
       setIsAdding(false)
@@ -135,10 +140,15 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     }
   }
 
-  const changeInvoice = (schedule: RecurringExpenseSchedule, month: number, occurrence?: RecurringExpenseOccurrence) => updateRecurringOccurrence(schedule, year, month, {
-    invoiceReceived: !occurrence?.invoiceReceived,
-    invoiceReceivedDate: !occurrence?.invoiceReceived ? (occurrence?.invoiceReceivedDate || today()) : '',
-  })
+  const changeInvoice = (schedule: RecurringExpenseSchedule, month: number, occurrence?: RecurringExpenseOccurrence) => {
+    const received = !occurrence?.invoiceReceived
+    const autoPay = received && Boolean(schedule.autoPayOnInvoiceReceived)
+    return updateRecurringOccurrence(schedule, year, month, {
+      invoiceReceived: received,
+      invoiceReceivedDate: received ? (occurrence?.invoiceReceivedDate || today()) : '',
+      ...(autoPay ? { isPaid: true, paidAt: occurrence?.paidAt || today() } : {}),
+    })
+  }
   const changePayment = (schedule: RecurringExpenseSchedule, month: number, occurrence?: RecurringExpenseOccurrence) => updateRecurringOccurrence(schedule, year, month, {
     isPaid: !occurrence?.isPaid,
     paidAt: !occurrence?.isPaid ? (occurrence?.paidAt || today()) : '',
@@ -167,13 +177,15 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
       return <section key={month} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900"><header className="flex items-center justify-between border-b border-slate-800 px-4 py-3"><h3 className="font-semibold text-slate-200">{monthName} {year}</h3><span className="text-xs text-slate-400">{formatEuro(due.reduce((sum, item) => sum + item.amount, 0))} previsto</span></header><div className="divide-y divide-slate-800">{due.map((schedule) => {
         const occurrence = occurrenceById.get(`${schedule.id}_${year}-${String(month).padStart(2, '0')}`)
         const occurrenceKey = `${schedule.id}_${year}-${String(month).padStart(2, '0')}`
-        return <article key={schedule.id} className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0"><p className="font-semibold text-slate-100">{EXPENSE_CATEGORIES.find((item) => item.value === schedule.category)?.label ?? schedule.category} · {schedule.description}</p><p className="mt-1 text-xs text-slate-400">{schedule.intervalMonths === 1 ? 'Mensual' : `Cada ${schedule.intervalMonths} meses`}</p></div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="text-[11px] text-slate-400">Importe real <input aria-label={`Importe de ${schedule.description} en ${monthName}`} type="number" min="0" step="0.01" value={amountDrafts[occurrenceKey] ?? String(occurrence?.amount ?? schedule.amount)} onChange={(e) => setAmountDrafts((drafts) => ({ ...drafts, [occurrenceKey]: e.target.value }))} onBlur={() => { const value = Number(amountDrafts[occurrenceKey]); if (Number.isFinite(value) && value >= 0 && value !== (occurrence?.amount ?? schedule.amount)) void updateRecurringOccurrence(schedule, year, month, { amount: value }); setAmountDrafts((drafts) => { const next = { ...drafts }; delete next[occurrenceKey]; return next }) }} className="ml-1 w-24 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100" /></label>
-            {schedule.requiresInvoice ? <button onClick={() => void changeInvoice(schedule, month, occurrence)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${occurrence?.invoiceReceived ? 'border-teal-800 bg-teal-950 text-teal-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.invoiceReceived ? `✓ Factura proveedor recibida ${occurrence.invoiceReceivedDate ?? ''}` : 'Factura proveedor pendiente'}</button> : <span className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] text-slate-400">Sin factura de proveedor</span>}
-            <button onClick={() => void changePayment(schedule, month, occurrence)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${occurrence?.isPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.isPaid ? `✓ Pagado por propietario ${occurrence.paidAt ?? ''}` : 'Pendiente propietario'}</button>
-            {schedule.chargeToTenant && <><button onClick={() => void changeTenantInvoice(schedule, month, occurrence)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${occurrence?.tenantInvoiceIssued ? 'border-teal-800 bg-teal-950 text-teal-200' : 'border-slate-700 text-slate-300'}`}>{occurrence?.tenantInvoiceIssued ? `✓ Factura al inquilino ${occurrence.tenantInvoiceIssuedDate ?? ''}` : 'Factura al inquilino pendiente'}</button><button onClick={() => void changeTenantPayment(schedule, month, occurrence)} className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${occurrence?.tenantPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.tenantPaid ? `✓ Inquilino pagó ${occurrence.tenantPaidAt ?? ''}` : 'Cobro al inquilino pendiente'}</button></>}
+        return <article key={schedule.id} className="grid gap-4 p-4 lg:grid-cols-[minmax(180px,1fr)_minmax(0,2fr)] lg:items-start">
+          <div className="min-w-0"><p className="font-semibold text-slate-100">{EXPENSE_CATEGORIES.find((item) => item.value === schedule.category)?.label ?? schedule.category} · {schedule.description}</p><p className="mt-1 text-xs text-slate-400">{schedule.intervalMonths === 1 ? 'Mensual' : `Cada ${schedule.intervalMonths} meses`} · {formatEuro(occurrence?.amount ?? schedule.amount)}</p></div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <section className="space-y-2 rounded-xl border border-amber-900/60 bg-amber-950/15 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-amber-200">Salida · paga el propietario</h4>
+              <label className="block text-[11px] text-slate-400">Importe real <input aria-label={`Importe de ${schedule.description} en ${monthName}`} type="number" min="0" step="0.01" value={amountDrafts[occurrenceKey] ?? String(occurrence?.amount ?? schedule.amount)} onChange={(e) => setAmountDrafts((drafts) => ({ ...drafts, [occurrenceKey]: e.target.value }))} onBlur={() => { const value = Number(amountDrafts[occurrenceKey]); if (Number.isFinite(value) && value >= 0 && value !== (occurrence?.amount ?? schedule.amount)) void updateRecurringOccurrence(schedule, year, month, { amount: value }); setAmountDrafts((drafts) => { const next = { ...drafts }; delete next[occurrenceKey]; return next }) }} className="ml-1 w-24 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-100" /></label>
+              {schedule.requiresInvoice ? <button onClick={() => void changeInvoice(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.invoiceReceived ? 'border-teal-800 bg-teal-950 text-teal-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.invoiceReceived ? `✓ Factura del proveedor recibida${schedule.autoPayOnInvoiceReceived && occurrence.isPaid ? ' y pagada' : ''} ${occurrence.invoiceReceivedDate ?? ''}` : 'Factura del proveedor pendiente'}</button> : <span className="block text-[11px] text-slate-400">Sin factura del proveedor</span>}
+              <button onClick={() => void changePayment(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.isPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.isPaid ? `✓ Gasto pagado ${occurrence.paidAt ?? ''}` : schedule.autoPayOnInvoiceReceived ? 'Pendiente · se marcará pagado al recibir la factura' : 'Pago del propietario pendiente'}</button>
+            </section>
+            {schedule.chargeToTenant ? <section className="space-y-2 rounded-xl border border-teal-900/60 bg-teal-950/15 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-teal-200">Entrada · se repercute al inquilino</h4><button onClick={() => void changeTenantInvoice(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.tenantInvoiceIssued ? 'border-teal-800 bg-teal-950 text-teal-200' : 'border-slate-700 text-slate-300'}`}>{occurrence?.tenantInvoiceIssued ? `✓ Factura enviada al inquilino ${occurrence.tenantInvoiceIssuedDate ?? ''}` : 'Factura enviada al inquilino · pendiente'}</button><button onClick={() => void changeTenantPayment(schedule, month, occurrence)} className={`w-full rounded-lg border px-2.5 py-1.5 text-left text-[11px] ${occurrence?.tenantPaid ? 'border-emerald-800 bg-emerald-950 text-emerald-200' : 'border-amber-800 bg-amber-950 text-amber-200'}`}>{occurrence?.tenantPaid ? `✓ Cobro del inquilino recibido ${occurrence.tenantPaidAt ?? ''}` : 'Cobro al inquilino pendiente'}</button></section> : <section className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sin repercusión al inquilino</h4><p className="mt-1 text-[11px] text-slate-500">Este gasto es asumido por el propietario.</p></section>}
           </div>
         </article>
       })}</div></section>
@@ -184,7 +196,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
       <div><h3 className="text-lg font-semibold text-slate-100">{editingSchedule ? 'Nueva versión de la obligación' : 'Nueva obligación periódica'}</h3><p className="mt-1 text-sm text-slate-400">{editingSchedule ? 'Los datos anteriores y sus estados mensuales se conservarán.' : 'Se crea una vez y genera filas mensuales de control automáticamente.'}</p></div>
       {editingSchedule && <label className="block text-xs text-slate-300">Aplicar los cambios desde<input required type="month" min={editingSchedule.startDate.slice(0, 7)} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /><span className="mt-1 block text-[11px] text-slate-500">Si ya hay estados mensuales guardados, el cambio debe empezar después para conservarlos.</span></label>}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="text-xs text-slate-300">Categoría<select value={category} onChange={(e) => { const value = e.target.value as ExpenseCategory; setCategory(value); if (value === 'comunidad') setRequiresInvoice(false) }} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">{EXPENSE_CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+        <label className="text-xs text-slate-300">Categoría<select value={category} onChange={(e) => { const value = e.target.value as ExpenseCategory; setCategory(value); if (value === 'comunidad') setRequiresInvoice(false); setAutoPayOnInvoiceReceived(['luz', 'agua', 'gas', 'suministros'].includes(value)) }} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100">{EXPENSE_CATEGORIES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
         <label className="text-xs text-slate-300">Concepto / nombre<input required value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ej. Electricidad vivienda" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>
         <label className="text-xs text-slate-300">Importe estimado por vencimiento (€)<input required type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>
         {!editingSchedule && <label className="text-xs text-slate-300">Primer mes de vencimiento<input required type="month" value={startDate.slice(0, 7)} onChange={(e) => setStartDate(`${e.target.value}-01`)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100" /></label>}
@@ -195,6 +207,7 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
         <p className="text-xs font-semibold text-slate-200">Relación con el inquilino</p>
         <label className="flex items-start gap-2 text-sm text-slate-300"><input type="checkbox" checked={chargeToTenant} onChange={(e) => setChargeToTenant(e.target.checked)} className="mt-0.5 accent-teal-500" /><span><strong>Repercutir el importe al inquilino</strong><span className="block text-[11px] text-slate-500">Añade estado de factura emitida al inquilino y cobro. El pago al proveedor se controla por separado.</span></span></label>
         <label className="flex items-start gap-2 text-sm text-slate-300"><input type="checkbox" checked={requiresInvoice} onChange={(e) => setRequiresInvoice(e.target.checked)} className="mt-0.5 accent-teal-500" /><span>El proveedor emite una factura que debe recibirse</span></label>
+        {requiresInvoice && <label className="ml-6 flex items-start gap-2 text-sm text-slate-300"><input type="checkbox" checked={autoPayOnInvoiceReceived} onChange={(e) => setAutoPayOnInvoiceReceived(e.target.checked)} className="mt-0.5 accent-teal-500" /><span>Al marcar la factura del proveedor como recibida, marcar también el gasto como pagado <span className="block text-[11px] text-slate-500">Útil para recibos domiciliados de luz, agua y gas; puedes desactivarlo para este gasto.</span></span></label>}
       </div>
       <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={isDeductible} onChange={(e) => setIsDeductible(e.target.checked)} className="accent-teal-500" />Marcar como deducible para el resumen fiscal</label>
       {error && <p className="text-xs text-red-300">{error}</p>}

@@ -29,12 +29,13 @@ export interface Property extends TimestampedDoc {
   status: PropertyStatus
   address: string
   city: string
-  province: string              // Andalucía provinces
+  province: string              // Spanish province or autonomous city
   postalCode?: string
   cadastralReference?: string
   monthlyRent?: number          // Renta mensual pactada (EUR)
   rentRequiresInvoice?: boolean
   rentHistory?: RentRate[]      // Rate changes by effective month; independent of contract history.
+  tenants?: PropertyTenant[]    // Current or historical occupants linked to the property
   tenantName?: string           // Inquilino actual
   tenantPhone?: string          // Teléfono de contacto
   tenantEmail?: string
@@ -44,6 +45,14 @@ export interface Property extends TimestampedDoc {
   fixedExpensesMonthly?: number // Gastos fijos mensuales (comunidad, IBI/12)
   currentValue?: number         // Valor de mercado estimado (EUR)
   notes?: string
+}
+
+export interface PropertyTenant {
+  id: string
+  name: string
+  phone?: string
+  email?: string
+  nif?: string
 }
 
 export interface RentRate {
@@ -93,6 +102,7 @@ export interface RentPayment extends TimestampedDoc {
   year: number
   month: number                 // 1-12
   amount: number                // EUR
+  receivedAmount?: number       // Actual amount received; omitted means use isPaid/amount legacy behavior
   isPaid: boolean
   paidAt?: string               // YYYY-MM-DD
   invoiceIssued: boolean        // Si se emitió recibo / factura
@@ -145,6 +155,7 @@ export interface RecurringExpenseSchedule extends TimestampedDoc {
   endDate?: string | null       // YYYY-MM-DD; last month due when the schedule is ended
   intervalMonths: number
   requiresInvoice: boolean
+  autoPayOnInvoiceReceived?: boolean
   chargeToTenant: boolean
   isDeductible: boolean
   isActive: boolean

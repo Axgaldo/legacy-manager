@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { Property, RentPayment, Expense, Contract, ExpenseCategory } from '@/types'
 import { subscribeToProperties } from './propertiesService'
-import { subscribeToYearPayments, toggleRentPayment, toggleInvoiceIssued, updateRentNotes } from './paymentsService'
+import { subscribeToYearPayments, toggleRentPayment, toggleInvoiceIssued, updateRentNotes, recordRentReceipt } from './paymentsService'
 import { subscribeToPropertyExpenses, addExpense, deleteExpense, updateExpenseStatus } from './expensesService'
 import { subscribeToPropertyContracts } from './contractsService'
-import { rentAmountForMonth } from './rentRates'
+import { normalizeRentHistory, rentAmountForMonth } from './rentRates'
+import { updateProperty } from './propertiesService'
 import { EXPENSE_CATEGORIES } from './expenseCategories'
 import { useAuth } from '@/features/auth/AuthProvider'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -56,6 +57,10 @@ export default function PropertyDetailPage() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
   const [isPropertyEditOpen, setIsPropertyEditOpen] = useState(false)
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null)
+  const [rentEditMonth, setRentEditMonth] = useState<number | null>(null)
+  const [rentEditAmount, setRentEditAmount] = useState('')
+  const [receiptEditMonth, setReceiptEditMonth] = useState<number | null>(null)
+  const [receiptEditAmount, setReceiptEditAmount] = useState('')
 
   // New Expense form state
   const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0])
@@ -136,15 +141,16 @@ export default function PropertyDetailPage() {
     let annualCollected = 0
     const dueMonths = selectedYear < currentYear ? 12 : selectedYear === currentYear ? currentMonth : 0
 
-    paymentsByMonth.forEach((payment) => { if (payment.isPaid) annualCollected += payment.amount })
+    paymentsByMonth.forEach((payment) => { annualCollected += payment.receivedAmount ?? (payment.isPaid ? payment.amount : 0) })
     for (let m = 1; m <= dueMonths; m++) {
       const p = paymentsByMonth.get(m)
-      const amount = p?.isPaid && p.amount ? p.amount : property ? rentAmountForMonth(property, selectedYear, m) : 0
-      if (p?.isPaid) {
-        totalCollected += amount
+      const amount = property ? rentAmountForMonth(property, selectedYear, m) : 0
+      const received = p?.receivedAmount ?? (p?.isPaid ? (p.amount || amount) : 0)
+      totalCollected += received
+      if (received >= amount && amount > 0) {
         paidMonthsCount++
       } else if (p || (selectedYear === currentYear && m === currentMonth)) {
-        totalPending += amount
+        totalPending += Math.max(0, amount - received)
       }
     }
     paymentsByMonth.forEach((payment) => { if (payment.invoiceIssued) invoicesCount++ })
@@ -222,6 +228,25 @@ export default function PropertyDetailPage() {
     const newPaid = !current?.isPaid
     const amount = current?.isPaid && current.amount ? current.amount : rentAmountForMonth(property, selectedYear, month)
     await toggleRentPayment(property.id, selectedYear, month, amount, newPaid, user?.displayName || user?.email || 'Usuario')
+  }
+
+  const saveRentChange = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!property || rentEditMonth === null || rentEditAmount === '' || !Number.isFinite(Number(rentEditAmount))) return
+    const effectiveFrom = `${selectedYear}-${String(rentEditMonth).padStart(2, '0')}`
+    const amount = Number(rentEditAmount)
+    const existingHistory = property.rentHistory ?? []
+    const legacyStart = '1900-01'
+    const previous = existingHistory.length ? existingHistory : property.monthlyRent !== undefined ? [{ effectiveFrom: legacyStart, amount: property.monthlyRent }] : []
+    await updateProperty(property.id, { rentHistory: normalizeRentHistory([...previous, { effectiveFrom, amount }]), monthlyRent: amount })
+    setRentEditMonth(null)
+  }
+
+  const saveReceiptAmount = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!property || receiptEditMonth === null || receiptEditAmount === '' || !Number.isFinite(Number(receiptEditAmount)) || Number(receiptEditAmount) < 0) return
+    await recordRentReceipt(property.id, selectedYear, receiptEditMonth, rentAmountForMonth(property, selectedYear, receiptEditMonth), Number(receiptEditAmount), user?.displayName || user?.email || 'Usuario')
+    setReceiptEditMonth(null)
   }
 
   const handleToggleInvoice = async (month: number) => {
@@ -314,7 +339,7 @@ export default function PropertyDetailPage() {
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-400">Ref: {property.cadastralReference || 'Sin ref. catastral'}</span>
           <button type="button" onClick={() => setIsPropertyEditOpen(true)} className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-teal-600 hover:text-teal-300">
-            Editar piso, alquiler e inquilino
+            Editar inmueble e inquilinos
           </button>
         </div>
       </div>
@@ -346,9 +371,9 @@ export default function PropertyDetailPage() {
 
           {/* Quick Info Badges */}
           <div className="flex flex-wrap items-center gap-2 mt-3">
-            {property.tenantName && (
+            {(property.tenants?.length || property.tenantName) && (
               <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-700">
-                👤 Inquilino: <strong>{property.tenantName}</strong> {property.tenantPhone && `(${property.tenantPhone})`}
+                👤 Inquilinos: <strong>{property.tenants?.map((tenant) => tenant.name).filter(Boolean).join(', ') || property.tenantName}</strong>
               </span>
             )}
             {property.depositAmount !== undefined && property.depositAmount > 0 && (
@@ -358,7 +383,7 @@ export default function PropertyDetailPage() {
             )}
             {property.avraReference && (
               <span className="px-2.5 py-1 bg-slate-800 rounded-lg text-xs font-medium text-teal-200 border border-slate-700 font-mono">
-                🏛️ AVRA: {property.avraReference}
+              🏛️ Ref. fianza: {property.avraReference}
               </span>
             )}
           </div>
@@ -470,10 +495,11 @@ export default function PropertyDetailPage() {
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="py-3 px-4 w-32">Mes</th>
-                  <th className="py-3 px-4 w-28">Importe</th>
+                  <th className="py-3 px-4 w-36">Renta / cobro</th>
                   <th className="py-3 px-4 w-44">Estado del Pago</th>
                   {property.rentRequiresInvoice && <th className="py-3 px-4 w-36">Factura / Recibo</th>}
                   <th className="py-3 px-4">Anotaciones puntuales del mes</th>
+                  <th className="py-3 px-4 w-56">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -482,7 +508,9 @@ export default function PropertyDetailPage() {
                   const payment = paymentsByMonth.get(monthNum)
                   const isPaid = payment ? payment.isPaid : false
                   const invoiceIssued = payment ? payment.invoiceIssued : false
-                  const amount = payment?.isPaid && payment.amount ? payment.amount : rentAmountForMonth(property, selectedYear, monthNum)
+                  const amount = rentAmountForMonth(property, selectedYear, monthNum)
+                  const received = payment?.receivedAmount ?? (payment?.isPaid ? (payment.amount || amount) : 0)
+                  const rentChanged = property.rentHistory?.some((rate) => rate.effectiveFrom === `${selectedYear}-${String(monthNum).padStart(2, '0')}`) ?? false
                   const isCurrentMonth = selectedYear === currentYear && monthNum === currentMonth
                   const isFutureMonth = selectedYear > currentYear || (selectedYear === currentYear && monthNum > currentMonth)
                   const isOverdue = Boolean(payment) && !isPaid && !isCurrentMonth && !isFutureMonth
@@ -501,8 +529,9 @@ export default function PropertyDetailPage() {
                       </td>
 
                       {/* Importe */}
-                      <td className="py-3 px-4 font-semibold text-slate-700">
-                        {formatEuro(amount)}
+                      <td className="py-3 px-4 font-semibold">
+                        <span className={rentChanged ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800' : 'text-slate-800'}>{formatEuro(amount)}</span>
+                        {payment && (payment.receivedAmount !== undefined || payment.isPaid) && <span className={`mt-1 block text-[10px] ${received < amount ? 'text-red-700' : received > amount ? 'text-amber-700' : 'text-emerald-700'}`}>Recibido: {formatEuro(received)}{received < amount ? ` · faltan ${formatEuro(amount - received)}` : received > amount ? ` · exceso ${formatEuro(received - amount)}` : ''}</span>}
                       </td>
 
                       {/* Estado: 1-Click Interactive Button */}
@@ -521,7 +550,7 @@ export default function PropertyDetailPage() {
                           }`}
                           title="Haz clic para cambiar de Pagado a Pendiente en tiempo real"
                         >
-                          <span>{isPaid ? '✓ COBRADO' : isOverdue ? '⚠ ATRASADO' : isCurrentMonth ? '◷ EN CURSO' : isUnrecordedPast ? '• SIN REGISTRO' : '◷ PRÓXIMO'}</span>
+                          <span>{isPaid ? '✓ COBRADO' : received > 0 ? '◒ PAGO PARCIAL' : isOverdue ? '⚠ ATRASADO' : isCurrentMonth ? '◷ EN CURSO' : isUnrecordedPast ? '• SIN REGISTRO' : '◷ PRÓXIMO'}</span>
                         </button>
                         {payment?.updatedBy && isPaid && (
                           <span className="block text-[10px] text-slate-400 mt-0.5 truncate max-w-[150px]">
@@ -556,6 +585,7 @@ export default function PropertyDetailPage() {
                           className="w-full px-2.5 py-1.5 bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-200 focus:border-teal-500 rounded-lg text-xs transition focus:outline-hidden"
                         />
                       </td>
+                      <td className="px-3 py-2"><div className="flex flex-col items-start gap-1.5"><button type="button" onClick={() => { setRentEditMonth(monthNum); setRentEditAmount(String(amount)) }} className="rounded-md border border-teal-800 bg-teal-950/50 px-2 py-1 text-[10px] font-bold text-teal-200 hover:bg-teal-900">CAMBIO DE RENTA</button><button type="button" onClick={() => { setReceiptEditMonth(monthNum); setReceiptEditAmount(String(received)) }} className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-amber-700 hover:text-amber-200">AJUSTAR IMPORTE COBRADO</button></div></td>
                     </tr>
                   )
                 })}
@@ -786,6 +816,9 @@ export default function PropertyDetailPage() {
           </div>
         </div>
       )}
+
+      {rentEditMonth !== null && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 p-4"><form onSubmit={(event) => void saveRentChange(event)} className="w-full max-w-md space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"><div><h3 className="text-lg font-bold text-slate-100">Cambio de renta</h3><p className="mt-1 text-sm text-slate-400">Desde {MONTH_NAMES[rentEditMonth - 1]} {selectedYear} y para los meses siguientes.</p></div><label className="block text-sm text-slate-300">Nueva renta mensual (€)<input autoFocus required type="number" min="0" step="0.01" value={rentEditAmount} onChange={(event) => setRentEditAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" /></label><div className="flex justify-end gap-2"><button type="button" onClick={() => setRentEditMonth(null)} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancelar</button><button className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white">Guardar cambio</button></div></form></div>}
+      {receiptEditMonth !== null && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/75 p-4"><form onSubmit={(event) => void saveReceiptAmount(event)} className="w-full max-w-md space-y-4 rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"><div><h3 className="text-lg font-bold text-slate-100">Importe recibido</h3><p className="mt-1 text-sm text-slate-400">{MONTH_NAMES[receiptEditMonth - 1]} {selectedYear}: renta esperada {formatEuro(rentAmountForMonth(property, selectedYear, receiptEditMonth))}. Indica el total recibido.</p></div><label className="block text-sm text-slate-300">Importe recibido (€)<input autoFocus required type="number" min="0" step="0.01" value={receiptEditAmount} onChange={(event) => setReceiptEditAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100" /></label><p className="text-xs text-slate-500">Si es menor, se conservará la diferencia como pendiente. Si es mayor, el exceso quedará señalado.</p><div className="flex justify-end gap-2"><button type="button" onClick={() => setReceiptEditMonth(null)} className="rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancelar</button><button className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white">Guardar importe</button></div></form></div>}
 
       {/* Delete Expense Modal */}
       <ConfirmModal

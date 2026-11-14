@@ -69,7 +69,13 @@ export default function ContractsPanel({ property, contracts }: Props) {
       ? [{ effectiveFrom: (property.createdAt?.toDate?.() as Date | undefined)?.toISOString().slice(0, 7) || month, amount: property.monthlyRent }]
       : []
     const rentHistory = normalizeRentHistory([...existing, { effectiveFrom: month, amount: data.monthlyRent }])
+    const tenants = property.tenants ?? (property.tenantName ? [{ id: 'legacy-tenant', name: property.tenantName, phone: property.tenantPhone, email: property.tenantEmail, nif: property.tenantNif }] : [])
+    const existingTenant = tenants.find((tenant) => tenant.name.trim().toLocaleLowerCase() === data.tenantName.trim().toLocaleLowerCase())
+    const nextTenants = existingTenant
+      ? tenants.map((tenant) => tenant.id === existingTenant.id ? { ...tenant, name: data.tenantName, phone: data.tenantPhone || '', email: data.tenantEmail || '', nif: data.tenantNif || '' } : tenant)
+      : [...tenants, { id: `tenant-${Date.now()}`, name: data.tenantName, phone: data.tenantPhone || '', email: data.tenantEmail || '', nif: data.tenantNif || '' }]
     await updateProperty(property.id, {
+      tenants: nextTenants,
       tenantName: data.tenantName,
       tenantPhone: data.tenantPhone || '',
       tenantEmail: data.tenantEmail || '',
