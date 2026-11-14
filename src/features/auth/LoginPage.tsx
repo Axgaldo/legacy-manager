@@ -5,7 +5,7 @@ import { useAuth } from '@/features/auth/AuthProvider'
  * Full-screen login page shown to unauthenticated or unauthorised users.
  */
 export default function LoginPage() {
-  const { user, isAllowed, loading, signIn } = useAuth()
+  const { user, isAllowed, loading, signIn, signOutUser } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -34,7 +34,7 @@ export default function LoginPage() {
               Contacta con el administrador.
             </p>
             <button
-              onClick={() => useAuth().signOutUser()}
+              onClick={signOutUser}
               className="text-sm text-gray-400 hover:underline"
             >
               Cerrar sesión
