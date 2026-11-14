@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <script>
+      const pendingPath = sessionStorage.getItem('legacy-manager:route')
+      if (pendingPath) {
+        sessionStorage.removeItem('legacy-manager:route')
+        history.replaceState(null, '', `/legacy-manager${pendingPath}`)
+      }
+    </script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Legacy Manager</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

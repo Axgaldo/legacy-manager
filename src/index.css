@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { font-family: Inter, system-ui, sans-serif; color-scheme: dark; }
+  body { background-color: #111213; color: #e5e5e5; @apply antialiased; }
+  button, input, select, textarea { font: inherit; }
+  input, select, textarea { color-scheme: dark; }
+}
+
+/* Neutral charcoal surfaces with teal reserved for active controls and highlights. */
+@layer utilities {
+  .bg-white { background-color: #1b1c1d !important; }
+  .bg-white\/60 { background-color: rgb(27 28 29 / 60%) !important; }
+  .bg-white\/95 { background-color: rgb(27 28 29 / 95%) !important; }
+  .bg-slate-950 { background-color: #111213 !important; }
+  .bg-slate-900 { background-color: #1b1c1d !important; }
+  .bg-slate-800 { background-color: #262728 !important; }
+  .bg-slate-700 { background-color: #333435 !important; }
+  .bg-slate-50, .bg-gray-50 { background-color: #171819 !important; }
+  .bg-slate-100, .bg-gray-100 { background-color: #202122 !important; }
+  .bg-slate-200 { background-color: #2b2c2d !important; }
+  .bg-slate-50\/50, .bg-slate-50\/70, .bg-slate-50\/80 { background-color: rgb(30 31 32 / 75%) !important; }
+  .bg-slate-200\/60 { background-color: rgb(43 44 45 / 60%) !important; }
+  .bg-slate-800\/60 { background-color: rgb(38 39 40 / 60%) !important; }
+  .bg-slate-800\/80 { background-color: rgb(38 39 40 / 80%) !important; }
+  .bg-slate-900\/50 { background-color: rgb(27 28 29 / 50%) !important; }
+  .bg-slate-900\/75 { background-color: rgb(27 28 29 / 75%) !important; }
+  .bg-slate-900\/80 { background-color: rgb(27 28 29 / 80%) !important; }
+  .bg-slate-900\/95 { background-color: rgb(27 28 29 / 95%) !important; }
+  .bg-slate-950\/70 { background-color: rgb(17 18 19 / 70%) !important; }
+  .bg-slate-950\/80 { background-color: rgb(17 18 19 / 80%) !important; }
+  .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover { background-color: #303132 !important; }
+  .hover\:bg-slate-700:hover { background-color: #3a3b3c !important; }
+  .hover\:bg-slate-800:hover, .hover\:bg-slate-800\/60:hover { background-color: #303132 !important; }
+  .hover\:bg-emerald-50\/20:hover { background-color: rgb(34 52 44 / 60%) !important; }
+  .hover\:bg-white:hover, .focus\:bg-white:focus { background-color: #202122 !important; }
+  .border-slate-200\/50, .border-slate-200\/60, .border-slate-200\/80, .border-slate-200\/90, .border-slate-700\/60 { border-color: rgb(56 57 58 / 80%) !important; }
+  .divide-slate-100 > :not([hidden]) ~ :not([hidden]), .divide-slate-800 > :not([hidden]) ~ :not([hidden]) { border-color: #343536 !important; }
+  .bg-emerald-50, .bg-emerald-100 { background-color: #252927 !important; }
+  .bg-emerald-50\/60 { background-color: rgb(37 41 39 / 90%) !important; }
+  .bg-emerald-50\/10 { background-color: rgb(26 49 40 / 35%) !important; }
+  .bg-amber-50, .bg-amber-100 { background-color: #302b20 !important; }
+  .bg-red-50 { background-color: #302323 !important; }
+  .border-slate-100, .border-slate-200, .border-slate-300, .border-slate-500, .border-slate-700, .border-slate-800 { border-color: #38393a !important; }
+  .text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600, .text-gray-900 { color: #e5e5e5 !important; }
+  .text-slate-500, .text-slate-400, .text-gray-500 { color: #a1a1a1 !important; }
+  .text-slate-300 { color: #c7c7c7 !important; }
+  .text-slate-200 { color: #dedede !important; }
+  .text-slate-100 { color: #f2f2f2 !important; }
+  .text-emerald-600, .text-emerald-700, .text-emerald-800 { color: #6ee7b7 !important; }
+  .text-amber-600, .text-amber-700, .text-amber-800 { color: #fcd34d !important; }
+  .text-red-600, .text-red-700, .text-red-800 { color: #fca5a5 !important; }
+}

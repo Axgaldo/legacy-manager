@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Authorised users whitelist ───────────────────────────────────────────
+    function isAllowedUser() {
+      return request.auth != null
+          && request.auth.uid in [
+               'tAn1QIbfN0S40JTudP0XNcpSOcA2', // Administrador principal
+             ];
+    }
+
+    // ── All collections: only allowed users have read/write access ───────────
+    match /{document=**} {
+      allow read, write: if isAllowedUser();
+    }
+  }
+}
