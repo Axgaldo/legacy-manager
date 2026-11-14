@@ -3,17 +3,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Authorised users whitelist ───────────────────────────────────────────
-    function isAllowedUser() {
-      return request.auth != null
-          && request.auth.uid in [
-               'tAn1QIbfN0S40JTudP0XNcpSOcA2', // Administrador principal
-             ];
+    // Authorization records are managed from the Firebase Console.
+    // A signed-in user can read only their own record; clients cannot edit the list.
+    match /authorizedUsers/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid;
+      allow list: if false;
+      allow create, update, delete: if false;
     }
 
-    // ── All collections: only allowed users have read/write access ───────────
-    match /{document=**} {
-      allow read, write: if isAllowedUser();
+    function isAllowedUser() {
+      return request.auth != null
+          && exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid))
+          && get(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid)).data.enabled == true;
+    }
+
+    // Only enabled users can access application data. The authorization collection
+    // is explicitly excluded so an approved user cannot authorize other accounts.
+    match /{collection}/{document=**} {
+      allow read, write: if collection != 'authorizedUsers' && isAllowedUser();
     }
   }
 }

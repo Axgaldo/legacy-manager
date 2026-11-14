@@ -1,13 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth'
-import { auth, googleProvider } from '@/lib/firebase'
-
-// ─── Whitelist ────────────────────────────────────────────────────────────────
-// Add the Firebase UID of each authorised user here.
-// You can find UIDs in Firebase Console → Authentication → Users.
-const ALLOWED_UIDS: string[] = [
-  'tAn1QIbfN0S40JTudP0XNcpSOcA2', // Administrador principal
-]
+import { doc, getDoc } from 'firebase/firestore'
+import { auth, db, googleProvider } from '@/lib/firebase'
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -23,21 +17,42 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser]       = useState<User | null>(null)
+  const [isAllowed, setIsAllowed] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser)
-      setLoading(false)
-    })
-    return unsubscribe
-  }, [])
+    let active = true
+    let accessCheck = 0
 
-  const isAllowed =
-    user !== null &&
-    (ALLOWED_UIDS.length === 0 || ALLOWED_UIDS.includes(user.uid))
-  //  ↑ During initial setup (empty list) all logged-in users pass.
-  //    Once you add UIDs, only those UIDs are allowed.
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      const currentCheck = ++accessCheck
+      setUser(firebaseUser)
+      setIsAllowed(false)
+      setLoading(true)
+
+      if (!firebaseUser) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        const accessDoc = await getDoc(doc(db, 'authorizedUsers', firebaseUser.uid))
+        if (!active || currentCheck !== accessCheck) return
+        setIsAllowed(accessDoc.exists() && accessDoc.data().enabled === true)
+      } catch (error) {
+        console.error('Could not verify the signed-in user access.', error)
+        if (!active || currentCheck !== accessCheck) return
+        setIsAllowed(false)
+      } finally {
+        if (active && currentCheck === accessCheck) setLoading(false)
+      }
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
 
   async function signIn() {
     await signInWithPopup(auth, googleProvider)
