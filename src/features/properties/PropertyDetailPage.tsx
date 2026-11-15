@@ -238,7 +238,7 @@ export default function PropertyDetailPage() {
     const existingHistory = property.rentHistory ?? []
     const legacyStart = '1900-01'
     const previous = existingHistory.length ? existingHistory : property.monthlyRent !== undefined ? [{ effectiveFrom: legacyStart, amount: property.monthlyRent }] : []
-    await updateProperty(property.id, { rentHistory: normalizeRentHistory([...previous, { effectiveFrom, amount }]), monthlyRent: amount })
+    await updateProperty(property.id, { rentHistory: normalizeRentHistory([...previous, { effectiveFrom, amount }]) })
     setRentEditMonth(null)
   }
 

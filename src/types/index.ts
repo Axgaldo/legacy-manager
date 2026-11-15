@@ -32,7 +32,7 @@ export interface Property extends TimestampedDoc {
   province: string              // Spanish province or autonomous city
   postalCode?: string
   cadastralReference?: string
-  monthlyRent?: number          // Renta mensual pactada (EUR)
+  monthlyRent?: number          // Legacy/base rent fallback; dated changes belong in rentHistory
   rentRequiresInvoice?: boolean
   rentHistory?: RentRate[]      // Rate changes by effective month; independent of contract history.
   tenants?: PropertyTenant[]    // Current or historical occupants linked to the property
