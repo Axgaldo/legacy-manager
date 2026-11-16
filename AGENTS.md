@@ -62,6 +62,8 @@
     - Inquilinos is now a tab inside the Inmuebles section; each tab has its own URL: `/inmuebles`, `/inmuebles/alquileres`, `/inmuebles/gastos`, `/inmuebles/inquilinos`. Tenant detail lives at `/inmuebles/inquilinos/:id`; old `/inquilinos` URLs redirect.
     - Legacy embedded property tenants are migrated automatically to tenant entities the first time a property or the Inquilinos page is opened.
     - Storage rules must be published (`firebase deploy --only storage`) to allow tenant documents up to 25 MiB.
+    - Versioning: `package.json` version + short git commit + build date are injected by `vite.config.ts` (`__APP_VERSION__`, `__APP_COMMIT__`, `__APP_BUILD_DATE__`, declared in `src/vite-env.d.ts`) and shown in the sidebar footer above the account block. Bump with `npm version patch|minor|major`; do not hardcode versions in components.
+    - License: MIT in `LICENSE`, copyright Antonio Galdó Seiquer (2026); referenced in the sidebar footer and README.
     - **VERIFIED:** `npm run build` passes after restoring strict TypeScript checks.
 
 ---

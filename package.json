@@ -1,7 +1,10 @@
 {
   "name": "legacy-manager",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Gestión privada de patrimonio familiar: inmuebles, alquileres, inquilinos, contratos y bienes.",
+  "author": "Antonio Galdó Seiquer",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

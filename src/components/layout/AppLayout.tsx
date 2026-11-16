@@ -2,6 +2,10 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 
+const BUILD_DATE = new Date(__APP_BUILD_DATE__)
+const BUILD_DATE_LABEL = BUILD_DATE.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+const BUILD_YEAR = BUILD_DATE.getFullYear()
+
 const navItems = [
   {
     to: '/inmuebles',
@@ -37,6 +41,25 @@ export default function AppLayout() {
       <nav className="flex-1 px-4 py-6 space-y-1.5">
         {navItems.map(({ to, label, icon }) => <NavLink key={to} to={to} onClick={() => setMenuOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive ? 'bg-teal-950 text-teal-200 ring-1 ring-teal-900' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>{icon}{label}</NavLink>)}
       </nav>
+      <div className="border-t border-slate-800 px-4 py-3 text-[10px] leading-relaxed text-slate-500">
+        <p className="flex flex-wrap items-center gap-x-1.5 font-mono text-slate-400">
+          <span>v{__APP_VERSION__}</span>
+          <span aria-hidden="true" className="text-slate-600">·</span>
+          <span title="Commit de esta build">{__APP_COMMIT__}</span>
+        </p>
+        <p>Build del {BUILD_DATE_LABEL}</p>
+        <p className="mt-1">
+          © {BUILD_YEAR} Antonio Galdó Seiquer ·{' '}
+          <a
+            href="https://github.com/Axgaldo/legacy-manager/blob/main/LICENSE"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-slate-700 underline-offset-2 hover:text-slate-300"
+          >
+            MIT
+          </a>
+        </p>
+      </div>
       {user && <div className="p-4 border-t border-slate-700">
         <div className="flex items-center gap-3">{user.photoURL ? <img src={user.photoURL} alt={user.displayName ?? 'Usuario'} className="w-9 h-9 rounded-full" /> : <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center">{user.displayName?.[0] ?? user.email?.[0] ?? 'U'}</div>}<div className="min-w-0"><p className="text-xs font-semibold truncate">{user.displayName ?? 'Usuario'}</p><p className="text-[11px] text-slate-400 truncate">{user.email}</p></div></div>
         <button onClick={signOutUser} className="mt-3 w-full py-2 rounded-lg text-xs text-slate-300 hover:bg-red-950 hover:text-red-300 border border-slate-700">Cerrar sesión</button>

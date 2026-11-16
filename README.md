@@ -65,3 +65,31 @@ If the `tenants/` block is missing, uploading any tenant document fails with `st
 - Tenant document MIME types are derived from the file **extension** first (see `resolveTenantDocumentContentType`), because browsers often report `application/octet-stream` for Office/ZIP files and Storage rules check the declared MIME type.
 - Storage paths for tenant documents are `tenants/{tenantId}/{documentId}.{extension}`; the metadata lives in Firestore `tenantDocuments`.
 - Any new Storage path (for example a future module) needs its own explicit `match` block; the wildcard at the end denies everything unknown.
+
+## Versioning
+
+The version lives in `package.json`. At build time, `vite.config.ts` injects three constants used by the sidebar footer:
+
+| Constant | Value | Source |
+|---|---|---|
+| `__APP_VERSION__` | `1.0.0` | `package.json` → `version` |
+| `__APP_COMMIT__` | short git hash (e.g. `a1b2c3d`) or `local` | `git rev-parse --short HEAD` |
+| `__APP_BUILD_DATE__` | ISO timestamp | build time |
+
+They are declared in `src/vite-env.d.ts` and displayed in `src/components/layout/AppLayout.tsx` above the account block, e.g. `v1.0.0 · a1b2c3d` and the build date. Nothing needs to be edited by hand.
+
+Use [Semantic Versioning](https://semver.org/lang/es/): `MAJOR.MINOR.PATCH`.
+
+- `npm version patch` — bug fixes (1.0.0 → 1.0.1).
+- `npm version minor` — new features, backwards compatible (1.0.0 → 1.1.0).
+- `npm version major` — breaking changes (1.0.0 → 2.0.0).
+
+These commands update `package.json` and `package-lock.json`; then `git push` and, if you want a release marker, `git push --tags`. The deploy workflow does not read tags, but the commit hash and version shown in the app always identify the build.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+Copyright (c) 2026 **Antonio Galdó Seiquer**.
+
+MIT is a permissive open-source license: the copyright stays with the author, and anyone who copies or redistributes the software must keep the copyright and license notice. It does allow others to use, modify and redistribute the code. If you later prefer to reserve all rights instead, replace `LICENSE` with an "All rights reserved" notice and remove the `MIT` link in the sidebar footer (`src/components/layout/AppLayout.tsx`).
