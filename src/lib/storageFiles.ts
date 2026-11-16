@@ -1,7 +1,7 @@
 import { deleteObject, getBlob, getMetadata, ref, uploadBytesResumable } from 'firebase/storage'
 import { storage } from './firebase'
 
-export const MAX_CONTRACT_PDF_BYTES = 50 * 1024 * 1024
+export const MAX_CONTRACT_PDF_BYTES = 100 * 1024 * 1024
 export const MAX_ASSET_IMAGE_BYTES = 2 * 1024 * 1024
 
 export function isStoragePath(value: string): boolean {
