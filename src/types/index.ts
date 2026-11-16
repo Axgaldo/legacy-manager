@@ -97,6 +97,8 @@ export interface ContractFileVersion extends TimestampedDoc {
   storagePath?: string
 }
 
+export type RentPaymentManualStatus = 'auto' | 'paid' | 'partial' | 'overdue' | 'overpaid' | 'rent-change'
+
 export interface RentPayment extends TimestampedDoc {
   propertyId: string
   year: number
@@ -109,6 +111,10 @@ export interface RentPayment extends TimestampedDoc {
   invoiceReceivedDate?: string
   notes?: string
   updatedBy?: string
+  /** Visual status selected by the user. `auto` keeps the calculated colour. */
+  manualStatus?: RentPaymentManualStatus
+  /** Whether the "faltan / exceso" warning is displayed for this month. */
+  showWarning?: boolean
 }
 
 export type ExpenseCategory =

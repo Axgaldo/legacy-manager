@@ -4,9 +4,20 @@ import { Property, RentPayment } from '@/types'
 import { subscribeToAllYearPayments } from './paymentsService'
 import { isRentApplicableForMonth, rentAmountForMonth } from './rentRates'
 import { propertySlug } from '@/utils/slugs'
+import { resolveAutoRentStatus, resolveRentStatus } from './rentPaymentStatus'
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const euro = (amount: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount)
+const STATUS_TEXT: Record<string, string> = {
+  paid: 'text-emerald-300',
+  partial: 'text-red-300',
+  overdue: 'text-red-300',
+  overpaid: 'text-amber-300',
+  'rent-change': 'text-sky-300',
+  current: 'text-amber-300',
+  future: 'text-slate-600',
+  na: 'text-slate-600',
+}
 
 export default function RentPaymentsOverview({ properties }: { properties: Property[] }) {
   const now = new Date()
@@ -28,14 +39,17 @@ export default function RentPaymentsOverview({ properties }: { properties: Prope
           const received = applicable ? payment?.receivedAmount ?? (payment?.isPaid ? payment.amount : 0) : 0
           const due = rentAmountForMonth(property, year, month)
           const isFuture = year > now.getFullYear() || (year === now.getFullYear() && month > now.getMonth() + 1)
-          const color = !applicable || due <= 0 && received <= 0 ? 'text-slate-600' : received <= 0 ? (isFuture ? 'text-slate-600' : 'text-red-300') : received < due ? 'text-red-300' : received > due ? 'text-amber-300' : 'text-emerald-300'
+          const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1
+          const rentChanged = property.rentHistory?.some((rate) => rate.effectiveFrom === `${year}-${String(month).padStart(2, '0')}`) ?? false
+          const status = resolveRentStatus(payment?.manualStatus, resolveAutoRentStatus({ rentApplicable: applicable, received, due, isFuture, isCurrent, rentChanged }))
+          const color = STATUS_TEXT[status] ?? 'text-slate-600'
           return <td key={month} className={`px-2 py-3 text-center font-semibold tabular-nums ${color}`}>{received > 0 ? euro(received) : '—'}</td>
         })}</tr>)}</tbody>
         {properties.length > 0 && <tfoot><tr className="border-t border-slate-700 bg-slate-950/50 font-semibold text-slate-300"><th className="sticky left-0 bg-slate-950 px-4 py-3 text-left">Total recibido</th>{MONTHS.map((_, index) => { const total = properties.reduce((sum, property) => { const payment = paymentByPropertyMonth.get(`${property.id}_${index + 1}`); return sum + (payment?.receivedAmount ?? (payment?.isPaid ? payment.amount : 0)) }, 0); return <td key={index} className="px-2 py-3 text-center tabular-nums">{total ? euro(total) : '—'}</td> })}</tr></tfoot>}
       </table>
       {properties.length === 0 && <p className="p-8 text-center text-sm text-slate-400">No hay inmuebles registrados.</p>}
     </div>
-    <p className="text-[11px] text-slate-500">Verde: renta completa · rojo: importe parcial o sin pago vencido · ámbar: exceso recibido.</p>
+    <p className="text-[11px] text-slate-500">Verde: renta completa · rojo: importe parcial o sin pago vencido · ámbar: en curso o exceso recibido · azul: cambio de renta estimado. Los colores pueden ajustarse manualmente desde la ficha del inmueble.</p>
   </section>
 }
 

@@ -7,12 +7,40 @@ import {
   where,
   serverTimestamp,
   Unsubscribe,
+  DocumentData,
+  QueryDocumentSnapshot,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { RentPayment } from '@/types'
+import { RentPayment, RentPaymentManualStatus } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
 
 const COLLECTION_NAME = 'rentPayments'
+
+function isManualStatus(value: unknown): value is RentPaymentManualStatus {
+  return value === 'auto' || value === 'paid' || value === 'partial' || value === 'overdue' || value === 'overpaid' || value === 'rent-change'
+}
+
+function mapRentPayment(docSnap: QueryDocumentSnapshot<DocumentData>): RentPayment {
+  const data = docSnap.data()
+  return {
+    id: docSnap.id,
+    propertyId: data.propertyId,
+    year: Number(data.year),
+    month: Number(data.month),
+    amount: Number(data.amount) || 0,
+    receivedAmount: data.receivedAmount === undefined ? undefined : Number(data.receivedAmount) || 0,
+    isPaid: Boolean(data.isPaid),
+    paidAt: data.paidAt ?? undefined,
+    invoiceIssued: Boolean(data.invoiceIssued),
+    invoiceReceivedDate: data.invoiceReceivedDate ?? undefined,
+    notes: data.notes ?? '',
+    updatedBy: data.updatedBy ?? '',
+    manualStatus: isManualStatus(data.manualStatus) ? data.manualStatus : 'auto',
+    showWarning: data.showWarning !== false,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  }
+}
 
 export function subscribeToYearPayments(
   propertyId: string,
@@ -29,25 +57,7 @@ export function subscribeToYearPayments(
   return onSnapshot(
     q,
     (snapshot) => {
-      const items: RentPayment[] = snapshot.docs.map((docSnap) => {
-        const d = docSnap.data()
-        return {
-          id: docSnap.id,
-          propertyId: d.propertyId,
-          year: d.year,
-          month: d.month,
-          amount: Number(d.amount) || 0,
-          receivedAmount: d.receivedAmount === undefined ? undefined : Number(d.receivedAmount) || 0,
-          isPaid: Boolean(d.isPaid),
-          paidAt: d.paidAt ?? undefined,
-          invoiceIssued: Boolean(d.invoiceIssued),
-          notes: d.notes ?? '',
-          updatedBy: d.updatedBy ?? '',
-          createdAt: d.createdAt,
-          updatedAt: d.updatedAt,
-        }
-      })
-      onSuccess(items)
+      onSuccess(snapshot.docs.map(mapRentPayment))
     },
     (err) => {
       console.error('Error in rent payments subscription:', err)
@@ -58,10 +68,7 @@ export function subscribeToYearPayments(
 
 export function subscribeToAllYearPayments(year: number, onSuccess: (payments: RentPayment[]) => void, onError?: (error: Error) => void): Unsubscribe {
   return onSnapshot(query(collection(db, COLLECTION_NAME), where('year', '==', year)), (snapshot) => {
-    onSuccess(snapshot.docs.map((docSnap) => {
-      const data = docSnap.data()
-      return { id: docSnap.id, propertyId: data.propertyId, year: Number(data.year), month: Number(data.month), amount: Number(data.amount) || 0, receivedAmount: data.receivedAmount === undefined ? undefined : Number(data.receivedAmount) || 0, isPaid: Boolean(data.isPaid), paidAt: data.paidAt ?? undefined, invoiceIssued: Boolean(data.invoiceIssued), notes: data.notes ?? '', updatedBy: data.updatedBy ?? '', createdAt: data.createdAt, updatedAt: data.updatedAt } as RentPayment
-    }))
+    onSuccess(snapshot.docs.map(mapRentPayment))
   }, (error) => { console.error('Error loading annual rent matrix:', error); onError?.(error) })
 }
 
@@ -73,25 +80,7 @@ export function subscribeToPaymentsThroughYear(
 ): Unsubscribe {
   const q = query(collection(db, COLLECTION_NAME), where('year', '<=', year))
   return onSnapshot(q, (snapshot) => {
-    const items: RentPayment[] = snapshot.docs.map((docSnap) => {
-      const d = docSnap.data()
-      return {
-        id: docSnap.id,
-        propertyId: d.propertyId,
-        year: Number(d.year),
-        month: Number(d.month),
-        amount: Number(d.amount) || 0,
-        receivedAmount: d.receivedAmount === undefined ? undefined : Number(d.receivedAmount) || 0,
-        isPaid: Boolean(d.isPaid),
-        paidAt: d.paidAt ?? undefined,
-        invoiceIssued: Boolean(d.invoiceIssued),
-        notes: d.notes ?? '',
-        updatedBy: d.updatedBy ?? '',
-        createdAt: d.createdAt,
-        updatedAt: d.updatedAt,
-      }
-    })
-    onSuccess(items)
+    onSuccess(snapshot.docs.map(mapRentPayment))
   }, (error) => {
     console.error('Error fetching rent payment overview:', error)
     onError?.(error)
@@ -178,6 +167,30 @@ export async function updateRentNotes(
     month,
     amount,
     notes,
+    updatedAt: serverTimestamp(),
+  })
+
+  return await setDoc(docRef, payload, { merge: true })
+}
+
+/** Persist the visual status and warning visibility selected for one month. */
+export async function updateRentPaymentMeta(
+  propertyId: string,
+  year: number,
+  month: number,
+  amount: number,
+  updates: { manualStatus?: RentPaymentManualStatus; showWarning?: boolean },
+) {
+  const docId = `${propertyId}_${year}_${month}`
+  const docRef = doc(db, COLLECTION_NAME, docId)
+
+  const payload = cleanPayload({
+    propertyId,
+    year,
+    month,
+    amount,
+    manualStatus: updates.manualStatus,
+    showWarning: updates.showWarning,
     updatedAt: serverTimestamp(),
   })
 
