@@ -5,7 +5,7 @@ export const MAX_CONTRACT_PDF_BYTES = 100 * 1024 * 1024
 export const MAX_ASSET_IMAGE_BYTES = 2 * 1024 * 1024
 
 export function isStoragePath(value: string): boolean {
-  return value.startsWith('assets/') || value.startsWith('contracts/')
+  return value.startsWith('assets/') || value.startsWith('contracts/') || value.startsWith('tenants/')
 }
 
 export async function getPrivateStorageBlob(path: string): Promise<Blob> {

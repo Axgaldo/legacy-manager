@@ -58,7 +58,7 @@ export default function CollectionsPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [firestoreError, setFirestoreError] = useState<string | null>(null)
-  const [storageUsage, setStorageUsage] = useState<AppStorageUsage>({ pdfBytes: 0, imageBytes: 0, pdfCount: 0, imageCount: 0 })
+  const [storageUsage, setStorageUsage] = useState<AppStorageUsage>({ pdfBytes: 0, imageBytes: 0, documentBytes: 0, pdfCount: 0, imageCount: 0, documentCount: 0 })
   const [photoMigration, setPhotoMigration] = useState('')
   const [isMigratingPhotos, setIsMigratingPhotos] = useState(false)
 
@@ -327,9 +327,10 @@ export default function CollectionsPage() {
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
         <div className="flex flex-wrap gap-x-5 gap-y-1">
-          <span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes)}</strong> / 5 GB-mes sin coste</span>
+          <span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes + storageUsage.documentBytes)}</strong> / 5 GB-mes sin coste</span>
           <span>PDF: {formatStorageBytes(storageUsage.pdfBytes)} ({storageUsage.pdfCount})</span>
           <span>Fotos: {formatStorageBytes(storageUsage.imageBytes)} ({storageUsage.imageCount})</span>
+          <span>Docs inquilinos: {formatStorageBytes(storageUsage.documentBytes)} ({storageUsage.documentCount})</span>
         </div>
       </div>
 
@@ -551,7 +552,7 @@ export default function CollectionsPage() {
         defaultOwner={defaultOwner}
         defaultCategory={defaultCategory}
         storageUsedBytes={storageUsage.imageBytes}
-        storageFreeBytes={Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes)}
+        storageFreeBytes={Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes - storageUsage.documentBytes)}
         numismaticaSuggestions={numismaticaSuggestions}
         onClose={handleCloseAssetModal}
         onSaved={handleAssetSaved}

@@ -34,6 +34,10 @@ export interface Property extends TimestampedDoc {
   rentRequiresInvoice?: boolean
   rentHistory?: RentRate[]
   tenants?: PropertyTenant[]
+  /** Linked tenant entity ids. Tenants live in the `tenants` collection. */
+  tenantIds?: string[]
+  /** Set once legacy embedded tenants have been turned into tenant entities. */
+  tenantsMigrated?: boolean
   tenantName?: string
   tenantPhone?: string
   tenantEmail?: string
@@ -51,6 +55,44 @@ export interface PropertyTenant {
   phone?: string
   email?: string
   nif?: string
+}
+
+// Tenant directory (Inquilinos)
+export type TenantDocumentKind =
+  | 'dni'
+  | 'pasaporte'
+  | 'contrato'
+  | 'nomina'
+  | 'recibo'
+  | 'seguro'
+  | 'certificado'
+  | 'otro'
+
+export interface Tenant extends TimestampedDoc {
+  name: string
+  nif?: string
+  phone?: string
+  email?: string
+  birthDate?: string
+  address?: string
+  city?: string
+  province?: string
+  postalCode?: string
+  iban?: string
+  notes?: string
+  isActive?: boolean
+}
+
+export interface TenantDocument extends TimestampedDoc {
+  tenantId: string
+  fileName: string
+  contentType: string
+  sizeBytes: number
+  storedSizeBytes?: number
+  storagePath: string
+  kind: TenantDocumentKind
+  label?: string
+  uploadedBy?: string
 }
 
 export interface RentRate {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory } from '@/types'
+import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument } from '@/types'
 import { subscribeToProperties } from './propertiesService'
 import { subscribeToYearPayments, toggleInvoiceIssued, updateRentNotes, recordRentReceipt, updateRentPaymentMeta } from './paymentsService'
 import { subscribeToPropertyExpenses, addExpense, deleteExpense, updateExpenseStatus } from './expensesService'
@@ -13,6 +13,8 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import PropertyModal from './PropertyModal'
 import RecurringExpensesPanel from './RecurringExpensesPanel'
 import ContractsPanel from './ContractsPanel'
+import PropertyTenantsPanel from '@/features/tenants/PropertyTenantsPanel'
+import { countDocumentsByTenant, migratePropertyTenants, subscribeToAllTenantDocuments, subscribeToTenants } from '@/features/tenants/tenantsService'
 import { propertySlug } from '@/utils/slugs'
 import { useOwnerDirectory } from '@/hooks/useOwnerDirectory'
 import { MANUAL_STATUS_OPTIONS, RENT_STATUS_META, resolveAutoRentStatus, resolveRentStatus } from './rentPaymentStatus'
@@ -69,11 +71,11 @@ export default function PropertyDetailPage() {
   // Selected sub-tab
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
-  const activeTab = tabParam === 'gastos' ? 'expenses' : tabParam === 'recurrentes' ? 'recurring' : tabParam === 'contratos' ? 'contracts' : tabParam === 'fiscal' ? 'tax' : 'payments'
-  const setActiveTab = (tab: 'payments' | 'expenses' | 'recurring' | 'contracts' | 'tax') => {
+  const activeTab = tabParam === 'gastos' ? 'expenses' : tabParam === 'recurrentes' ? 'recurring' : tabParam === 'contratos' ? 'contracts' : tabParam === 'inquilinos' ? 'tenants' : tabParam === 'fiscal' ? 'tax' : 'payments'
+  const setActiveTab = (tab: 'payments' | 'expenses' | 'recurring' | 'contracts' | 'tenants' | 'tax') => {
     const next = new URLSearchParams(searchParams)
     if (tab === 'payments') next.delete('tab')
-    else next.set('tab', tab === 'expenses' ? 'gastos' : tab === 'recurring' ? 'recurrentes' : tab === 'contracts' ? 'contratos' : 'fiscal')
+    else next.set('tab', tab === 'expenses' ? 'gastos' : tab === 'recurring' ? 'recurrentes' : tab === 'contracts' ? 'contratos' : tab === 'tenants' ? 'inquilinos' : 'fiscal')
     setSearchParams(next)
   }
 
@@ -86,6 +88,8 @@ export default function PropertyDetailPage() {
   const [payments, setPayments] = useState<RentPayment[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [contracts, setContracts] = useState<Contract[]>([])
+  const [tenants, setTenants] = useState<Tenant[]>([])
+  const [tenantDocuments, setTenantDocuments] = useState<TenantDocument[]>([])
 
   // Modal states for new expense / contract
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
@@ -157,12 +161,28 @@ export default function PropertyDetailPage() {
     return () => unsub()
   }, [property?.id])
 
+  // Tenant directory and document index (used by the tenants tab and hero badges)
+  useEffect(() => subscribeToTenants(setTenants, (error) => console.error('No se pudieron cargar los inquilinos:', error)), [])
+  useEffect(() => subscribeToAllTenantDocuments(setTenantDocuments, (error) => console.error('No se pudo cargar el índice de documentos:', error)), [])
+
+  // Turn legacy embedded tenants into tenant entities the first time the property is opened.
+  useEffect(() => {
+    if (!property || !id) return
+    void migratePropertyTenants(property)
+  }, [property])
+
   // Map of payments by month (1..12)
   const paymentsByMonth = useMemo(() => {
     const map = new Map<number, RentPayment>()
     payments.forEach((p) => map.set(p.month, p))
     return map
   }, [payments])
+
+  const tenantDocumentCounts = useMemo(() => countDocumentsByTenant(tenantDocuments), [tenantDocuments])
+  const linkedTenants = useMemo(() => {
+    const ids = new Set(property?.tenantIds ?? [])
+    return tenants.filter((tenant) => ids.has(tenant.id))
+  }, [property?.tenantIds, tenants])
 
   // Payments summary
   const paymentsSummary = useMemo(() => {
@@ -413,9 +433,9 @@ export default function PropertyDetailPage() {
 
           {/* Quick Info Badges */}
           <div className="flex flex-wrap items-center gap-2 mt-3">
-            {(property.tenants?.length || property.tenantName) && (
+            {(linkedTenants.length > 0 || property.tenants?.length || property.tenantName) && (
               <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-700">
-                👤 Inquilinos: <strong>{property.tenants?.map((tenant) => tenant.name).filter(Boolean).join(', ') || property.tenantName}</strong>
+                👤 Inquilinos: <strong>{linkedTenants.map((tenant) => tenant.name).filter(Boolean).join(', ') || property.tenants?.map((tenant) => tenant.name).filter(Boolean).join(', ') || property.tenantName}</strong>
               </span>
             )}
             {property.depositAmount !== undefined && property.depositAmount > 0 && (
@@ -482,6 +502,16 @@ export default function PropertyDetailPage() {
           }`}
         >
           📑 Historial de Contratos ({contracts.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('tenants')}
+          className={`pb-3 px-3.5 border-b-2 transition ${
+            activeTab === 'tenants'
+              ? 'border-teal-700 text-teal-300'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          👥 Inquilinos ({linkedTenants.length})
         </button>
         <button
           onClick={() => setActiveTab('tax')}
@@ -742,7 +772,14 @@ export default function PropertyDetailPage() {
       {activeTab === 'recurring' && property && <RecurringExpensesPanel propertyId={property.id} />}
 
       {/* ─── TAB 3: HISTORIAL DE CONTRATOS ──────────────────────────────── */}
-      {activeTab === 'contracts' && property && <ContractsPanel property={property} contracts={contracts} />}
+      {activeTab === 'contracts' && property && <ContractsPanel property={property} contracts={contracts} tenants={linkedTenants} />}
+
+      {/* ─── TAB: INQUILINOS ────────────────────────────────────────────── */}
+      {activeTab === 'tenants' && property && (
+        <div className="animate-in fade-in duration-150">
+          <PropertyTenantsPanel property={property} tenants={tenants} documentCounts={tenantDocumentCounts} />
+        </div>
+      )}
 
       {/* ─── TAB 4: RESUMEN FISCAL (RENTA / IRPF) ────────────────────────── */}
       {activeTab === 'tax' && (

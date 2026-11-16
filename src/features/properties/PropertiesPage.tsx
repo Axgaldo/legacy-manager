@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Property, PropertyStatus, AssetItem, RentPayment } from '@/types'
+import { Property, PropertyStatus, AssetItem, RentPayment, Tenant } from '@/types'
 import { subscribeToProperties, deleteProperty } from './propertiesService'
+import { subscribeToTenants } from '@/features/tenants/tenantsService'
 import { subscribeToAssets } from '@/features/collections/assetsService'
 import { subscribeToPaymentsThroughYear } from './paymentsService'
 import PropertyModal from './PropertyModal'
@@ -11,6 +12,16 @@ import { isRentApplicableForMonth, rentAmountForMonth } from './rentRates'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { propertySlug } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
+import TenantsPage from '@/features/tenants/TenantsPage'
+
+export type PropertiesTab = 'properties' | 'rentals' | 'expenses' | 'tenants'
+
+const OVERVIEW_TABS: Array<{ value: PropertiesTab; label: string; to: string }> = [
+  { value: 'properties', label: 'Inmuebles', to: '/inmuebles' },
+  { value: 'rentals', label: 'Alquileres', to: '/inmuebles/alquileres' },
+  { value: 'expenses', label: 'Gastos generales', to: '/inmuebles/gastos' },
+  { value: 'tenants', label: 'Inquilinos', to: '/inmuebles/inquilinos' },
+]
 
 const TYPE_ICONS: Record<string, string> = {
   apartment: '🏢',
@@ -30,11 +41,12 @@ const TYPE_LABELS: Record<string, string> = {
   rural: 'Finca',
 }
 
-export default function PropertiesPage() {
+export default function PropertiesPage({ tab = 'properties' }: { tab?: PropertiesTab }) {
   const navigate = useNavigate()
-  const [overview, setOverview] = useState<'properties' | 'rentals' | 'expenses'>('properties')
+  const overview = tab
   const [properties, setProperties] = useState<Property[]>([])
   const [assets, setAssets] = useState<AssetItem[]>([])
+  const [tenants, setTenants] = useState<Tenant[]>([])
   const [rentPayments, setRentPayments] = useState<RentPayment[]>([])
   const [today, setToday] = useState(() => new Date())
   const [loading, setLoading] = useState(true)
@@ -69,6 +81,7 @@ export default function PropertiesPage() {
   }, [])
 
   useEffect(() => subscribeToAssets(setAssets, (error) => console.error('No se pudieron cargar los propietarios de bienes:', error)), [])
+  useEffect(() => subscribeToTenants(setTenants, (error) => console.error('No se pudieron cargar los inquilinos:', error)), [])
 
   const ownerOptions = useMemo(() => getOwnerOptions(properties, assets), [properties, assets])
   const defaultOwner = useMemo(() => getDefaultOwner(properties, assets), [properties, assets])
@@ -154,6 +167,16 @@ export default function PropertiesPage() {
   }, [properties, currentYear, currentMonth])
 
   // Filtered properties
+  const tenantNamesFor = (property: Property): string[] => {
+    const linked = (property.tenantIds ?? [])
+      .map((tenantId) => tenants.find((tenant) => tenant.id === tenantId)?.name)
+      .filter((name): name is string => Boolean(name))
+    if (linked.length) return linked
+    const embedded = property.tenants?.map((tenant) => tenant.name).filter(Boolean) ?? []
+    if (embedded.length) return embedded
+    return property.tenantName ? [property.tenantName] : []
+  }
+
   const filteredProperties = useMemo(() => {
     return properties.filter((p) => {
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter
@@ -164,13 +187,12 @@ export default function PropertiesPage() {
         p.name.toLowerCase().includes(query) ||
         p.address.toLowerCase().includes(query) ||
         p.city.toLowerCase().includes(query) ||
-        (p.tenantName && p.tenantName.toLowerCase().includes(query)) ||
-        p.tenants?.some((tenant) => tenant.name.toLowerCase().includes(query)) ||
+        tenantNamesFor(p).some((tenantName) => tenantName.toLowerCase().includes(query)) ||
         (p.owner && p.owner.toLowerCase().includes(query))
 
       return matchesStatus && matchesOwner && matchesSearch
     })
-  }, [properties, statusFilter, ownerFilter, searchQuery])
+  }, [properties, statusFilter, ownerFilter, searchQuery, tenants])
 
   const handleOpenAddModal = () => {
     setEditingProperty(null)
@@ -217,7 +239,25 @@ export default function PropertiesPage() {
         {overview === 'properties' && <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-teal-600"><span className="text-lg">＋</span>Añadir Inmueble</button>}
       </div>
 
-      <div className="flex w-fit flex-wrap gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1"><button onClick={() => setOverview('properties')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'properties' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-100'}`}>Inmuebles</button><button onClick={() => setOverview('rentals')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'rentals' ? 'bg-teal-950 text-teal-200' : 'text-slate-400 hover:text-slate-100'}`}>Alquileres</button><button onClick={() => setOverview('expenses')} className={`rounded-lg px-4 py-2 text-sm font-medium ${overview === 'expenses' ? 'bg-teal-950 text-teal-200' : 'text-slate-400 hover:text-slate-100'}`}>Gastos generales</button></div>
+      <div className="flex w-fit flex-wrap gap-1 rounded-xl border border-slate-800 bg-slate-900 p-1">
+        {OVERVIEW_TABS.map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => navigate(item.to)}
+            aria-current={overview === item.value ? 'page' : undefined}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              overview === item.value
+                ? item.value === 'properties'
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-teal-950 text-teal-200'
+                : 'text-slate-400 hover:text-slate-100'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
 
       {/* Firestore Security Rules Banner if error */}
       {firestoreError && (
@@ -506,11 +546,11 @@ export default function PropertiesPage() {
                   return <div className="mt-2 rounded-lg border border-amber-900 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">◷ Cobro de {currentMonthLabel} pendiente · mes en curso</div>
                 })()}
 
-                {(prop.tenants?.length || prop.tenantName) && prop.status === 'rented' && (
+                {tenantNamesFor(prop).length > 0 && prop.status === 'rented' && (
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50">
                     <span className="text-slate-500">Inquilino:</span>
                     <span className="font-medium text-slate-800 truncate ml-2">
-                      {prop.tenants?.map((tenant) => tenant.name).filter(Boolean).join(', ') || prop.tenantName}
+                      {tenantNamesFor(prop).join(', ')}
                     </span>
                   </div>
                 )}
@@ -568,7 +608,7 @@ export default function PropertiesPage() {
         </div>
       )}
 
-      </> : overview === 'rentals' ? <RentPaymentsOverview properties={properties} /> : <PropertyExpensesOverview properties={properties} />}
+      </> : overview === 'rentals' ? <RentPaymentsOverview properties={properties} /> : overview === 'expenses' ? <PropertyExpensesOverview properties={properties} /> : <TenantsPage embedded />}
 
       {/* Property Modal (Create / Edit) */}
       <PropertyModal

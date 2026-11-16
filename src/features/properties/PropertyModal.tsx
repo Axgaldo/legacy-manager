@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Property, PropertyTenant, PropertyType, PropertyStatus } from '@/types'
+import { Property, PropertyType, PropertyStatus } from '@/types'
 import { createProperty, updateProperty } from './propertiesService'
 import { resolveOwnerName } from '@/utils/owners'
 
@@ -49,7 +49,6 @@ export default function PropertyModal({
   const [monthlyRent, setMonthlyRent] = useState('')
   const [rentRequiresInvoice, setRentRequiresInvoice] = useState(false)
   const [rentStartMonth, setRentStartMonth] = useState('')
-  const [tenants, setTenants] = useState<PropertyTenant[]>([])
   const [depositAmount, setDepositAmount] = useState('')
   const [avraReference, setAvraReference] = useState('')
   const [fixedExpensesMonthly, setFixedExpensesMonthly] = useState('')
@@ -73,7 +72,6 @@ export default function PropertyModal({
       setMonthlyRent('')
       setRentRequiresInvoice(propertyToEdit.rentRequiresInvoice ?? false)
       setRentStartMonth(propertyToEdit.rentStartMonth || '')
-      setTenants(propertyToEdit.tenants?.length ? propertyToEdit.tenants : propertyToEdit.tenantName ? [{ id: 'legacy-tenant', name: propertyToEdit.tenantName, phone: propertyToEdit.tenantPhone, email: propertyToEdit.tenantEmail, nif: propertyToEdit.tenantNif }] : [])
       setDepositAmount(propertyToEdit.depositAmount ? String(propertyToEdit.depositAmount) : '')
       setAvraReference(propertyToEdit.avraReference || '')
       setFixedExpensesMonthly(
@@ -94,7 +92,6 @@ export default function PropertyModal({
       setMonthlyRent('')
       setRentRequiresInvoice(false)
       setRentStartMonth(new Date().toLocaleDateString('sv-SE').slice(0, 7))
-      setTenants([])
       setDepositAmount('')
       setAvraReference('')
       setFixedExpensesMonthly('')
@@ -118,10 +115,8 @@ export default function PropertyModal({
 
     try {
       const parsedRent = monthlyRent ? parseFloat(monthlyRent) : undefined
-      const normalizedTenants = tenants.map((tenant) => ({ ...tenant, name: tenant.name.trim(), phone: tenant.phone?.trim() || undefined, email: tenant.email?.trim() || undefined, nif: tenant.nif?.trim() || undefined })).filter((tenant) => tenant.name)
       const legacyBaselineMonth = new Date().toLocaleDateString('sv-SE').slice(0, 7)
       const rentHistory = propertyToEdit?.rentHistory ?? (parsedRent !== undefined ? [{ effectiveFrom: legacyBaselineMonth, amount: parsedRent }] : [])
-      const primaryTenant = normalizedTenants[0]
       const payload = {
         name: name.trim(),
         owner: resolveOwnerName(owner, owners, defaultOwner),
@@ -136,11 +131,6 @@ export default function PropertyModal({
         rentRequiresInvoice,
         rentStartMonth,
         ...(propertyToEdit?.rentHistory ? { rentHistory: propertyToEdit.rentHistory } : {}),
-        tenants: normalizedTenants,
-        tenantName: primaryTenant?.name ?? '',
-        tenantPhone: primaryTenant?.phone ?? '',
-        tenantEmail: primaryTenant?.email ?? '',
-        tenantNif: primaryTenant?.nif ?? '',
         depositAmount: depositAmount ? parseFloat(depositAmount) : undefined,
         avraReference: avraReference.trim() || undefined,
         fixedExpensesMonthly: fixedExpensesMonthly ? parseFloat(fixedExpensesMonthly) : undefined,
@@ -330,9 +320,17 @@ export default function PropertyModal({
           {/* Rental data is kept separate from the physical property details. */}
           <div className="space-y-4">
               <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
-                <div className="mb-3 flex items-center justify-between"><div><h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Inquilinos vinculados al inmueble</h4><p className="mt-1 text-[11px] text-slate-400">Añade todas las personas que figuran como inquilinas.</p></div><button type="button" onClick={() => setTenants((items) => [...items, { id: `tenant-${Date.now()}-${items.length}`, name: '' }])} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:border-teal-500">+ Añadir</button></div>
-                {tenants.length === 0 && <p className="rounded-lg border border-dashed border-slate-700 p-3 text-xs text-slate-500">No hay inquilinos registrados.</p>}
-                <div className="space-y-3">{tenants.map((tenant, index) => <div key={tenant.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"><div className="mb-2 flex items-center justify-between"><span className="text-xs font-semibold text-slate-300">Inquilino {index + 1}</span><button type="button" onClick={() => setTenants((items) => items.filter((item) => item.id !== tenant.id))} className="text-xs text-red-300 hover:text-red-200">Quitar</button></div><div className="grid gap-2 sm:grid-cols-2"><input value={tenant.name} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, name: e.target.value } : item))} placeholder="Nombre completo" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/><input value={tenant.phone || ''} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, phone: e.target.value } : item))} placeholder="Teléfono" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/><input type="email" value={tenant.email || ''} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, email: e.target.value } : item))} placeholder="Correo" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/><input value={tenant.nif || ''} onChange={(e) => setTenants((items) => items.map((item) => item.id === tenant.id ? { ...item, nif: e.target.value } : item))} placeholder="DNI / NIF" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"/></div></div>)}</div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Inquilinos</h4>
+                <p className="mt-2 text-xs text-slate-400">
+                  {propertyToEdit
+                    ? 'Los inquilinos se gestionan desde la pestaña «Inquilinos» de la ficha del inmueble. Allí puedes crear fichas, vincularlas y subir sus documentos.'
+                    : 'Primero guarda el inmueble. Después podrás crear inquilinos y vincularlos desde su ficha, en la pestaña «Inquilinos».'}
+                </p>
+                {propertyToEdit && (
+                  <p className="mt-2 text-xs font-semibold text-slate-200">
+                    Vinculados actualmente: {propertyToEdit.tenantIds?.length ?? 0}
+                  </p>
+                )}
               </section>
               {status === 'rented' && <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Condiciones del alquiler</h4>

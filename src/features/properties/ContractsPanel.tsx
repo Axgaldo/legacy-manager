@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Contract, ContractAddendum, ContractFileKind, ContractFileVersion, Property } from '@/types'
+import { Contract, ContractAddendum, ContractFileKind, ContractFileVersion, Property, Tenant } from '@/types'
 import { addContract, setActiveContract, softDeleteContract, updateContract } from './contractsService'
 import { addContractAddendum, addContractPdfVersion, getContractPdfBlob, migrateContractPdfVersionToStorage, subscribeToPropertyAddenda, subscribeToPropertyContractFiles, validateContractPdf } from './contractFilesService'
 import { MAX_CONTRACT_PDF_BYTES } from '@/lib/storageFiles'
 import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
 import { updateProperty } from './propertiesService'
 import { normalizeRentHistory } from './rentRates'
+import { ensureTenantFromLegacyData } from '@/features/tenants/tenantsService'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 
-type Props = { property: Property; contracts: Contract[] }
+type Props = { property: Property; contracts: Contract[]; tenants?: Tenant[] }
 
 const fieldClass = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none'
 const labelClass = 'mb-1 block text-xs font-medium text-slate-300'
 
-export default function ContractsPanel({ property, contracts }: Props) {
+export default function ContractsPanel({ property, contracts, tenants = [] }: Props) {
   const [versions, setVersions] = useState<ContractFileVersion[]>([])
   const [addenda, setAddenda] = useState<ContractAddendum[]>([])
   const [error, setError] = useState('')
@@ -27,10 +28,10 @@ export default function ContractsPanel({ property, contracts }: Props) {
   const [newAddendumFor, setNewAddendumFor] = useState<string | null>(null)
   const [applyContractData, setApplyContractData] = useState(false)
   const [applyAddendumRent, setApplyAddendumRent] = useState(false)
-  const [tenantName, setTenantName] = useState(property.tenantName || '')
-  const [tenantPhone, setTenantPhone] = useState(property.tenantPhone || '')
-  const [tenantEmail, setTenantEmail] = useState(property.tenantEmail || '')
-  const [tenantNif, setTenantNif] = useState(property.tenantNif || '')
+  const [tenantName, setTenantName] = useState(tenants[0]?.name || property.tenantName || '')
+  const [tenantPhone, setTenantPhone] = useState(tenants[0]?.phone || property.tenantPhone || '')
+  const [tenantEmail, setTenantEmail] = useState(tenants[0]?.email || property.tenantEmail || '')
+  const [tenantNif, setTenantNif] = useState(tenants[0]?.nif || property.tenantNif || '')
   const [startDate, setStartDate] = useState(new Date().toLocaleDateString('sv-SE'))
   const [endDate, setEndDate] = useState('')
   const [rent, setRent] = useState(String(property.monthlyRent ?? ''))
@@ -46,7 +47,7 @@ export default function ContractsPanel({ property, contracts }: Props) {
   const [addendumRent, setAddendumRent] = useState('')
   const [rentEffectiveFrom, setRentEffectiveFrom] = useState(new Date().toLocaleDateString('sv-SE').slice(0, 7))
   const [addendumPdf, setAddendumPdf] = useState<File | null>(null)
-  const [storageUsage, setStorageUsage] = useState<AppStorageUsage>({ pdfBytes: 0, imageBytes: 0, pdfCount: 0, imageCount: 0 })
+  const [storageUsage, setStorageUsage] = useState<AppStorageUsage>({ pdfBytes: 0, imageBytes: 0, documentBytes: 0, pdfCount: 0, imageCount: 0, documentCount: 0 })
   const [uploadNotice, setUploadNotice] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [migrationMessage, setMigrationMessage] = useState('')
@@ -77,17 +78,13 @@ export default function ContractsPanel({ property, contracts }: Props) {
       ? [{ effectiveFrom: (property.createdAt?.toDate?.() as Date | undefined)?.toISOString().slice(0, 7) || month, amount: property.monthlyRent }]
       : []
     const rentHistory = normalizeRentHistory([...existing, { effectiveFrom: month, amount: data.monthlyRent }])
-    const tenants = property.tenants ?? (property.tenantName ? [{ id: 'legacy-tenant', name: property.tenantName, phone: property.tenantPhone, email: property.tenantEmail, nif: property.tenantNif }] : [])
-    const existingTenant = tenants.find((tenant) => tenant.name.trim().toLocaleLowerCase() === data.tenantName.trim().toLocaleLowerCase())
-    const nextTenants = existingTenant
-      ? tenants.map((tenant) => tenant.id === existingTenant.id ? { ...tenant, name: data.tenantName, phone: data.tenantPhone || '', email: data.tenantEmail || '', nif: data.tenantNif || '' } : tenant)
-      : [...tenants, { id: `tenant-${Date.now()}`, name: data.tenantName, phone: data.tenantPhone || '', email: data.tenantEmail || '', nif: data.tenantNif || '' }]
-    await updateProperty(property.id, {
-      tenants: nextTenants,
+    await ensureTenantFromLegacyData(property, {
       tenantName: data.tenantName,
-      tenantPhone: data.tenantPhone || '',
-      tenantEmail: data.tenantEmail || '',
-      tenantNif: data.tenantNif || '',
+      tenantPhone: data.tenantPhone,
+      tenantEmail: data.tenantEmail,
+      tenantNif: data.tenantNif,
+    })
+    await updateProperty(property.id, {
       monthlyRent: data.monthlyRent,
       rentStartMonth: month,
       rentHistory,
@@ -254,7 +251,7 @@ export default function ContractsPanel({ property, contracts }: Props) {
 
   return <div className="space-y-5 animate-in fade-in duration-150">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-100">Contratos y adendas</h3><p className="mt-1 text-xs text-slate-400">PDF privados en Firebase Storage, con versiones conservadas.</p></div><div className="flex flex-wrap gap-2">{versions.some((version) => !version.storagePath) && <button disabled={isMigrating} onClick={() => void migrateExistingPdfs()} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 disabled:opacity-50">{isMigrating ? 'Migrando…' : `Migrar ${versions.filter((version) => !version.storagePath).length} PDF(s) antiguos`}</button>}<button onClick={() => setNewContractOpen(true)} className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-600">+ Añadir contrato PDF</button></div></div>
-    <div className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs text-slate-300"><div className="flex flex-wrap gap-x-5 gap-y-1"><span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes)}</strong> / 5 GB-mes sin coste</span><span>PDF: {formatStorageBytes(storageUsage.pdfBytes)} ({storageUsage.pdfCount})</span><span>Fotos: {formatStorageBytes(storageUsage.imageBytes)} ({storageUsage.imageCount})</span><span>Margen estimado: {formatStorageBytes(Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes))}</span></div><p className="mt-1 text-[10px] text-slate-500">Tamaños de archivos asociados a la app; no incluye objetos ajenos o huérfanos. El margen es de almacenamiento, no de descargas u operaciones. Los PDF antiguos se migran conservando su copia Firestore.</p></div>
+    <div className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs text-slate-300"><div className="flex flex-wrap gap-x-5 gap-y-1"><span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes + storageUsage.documentBytes)}</strong> / 5 GB-mes sin coste</span><span>PDF: {formatStorageBytes(storageUsage.pdfBytes)} ({storageUsage.pdfCount})</span><span>Fotos: {formatStorageBytes(storageUsage.imageBytes)} ({storageUsage.imageCount})</span><span>Docs inquilinos: {formatStorageBytes(storageUsage.documentBytes)} ({storageUsage.documentCount})</span><span>Margen estimado: {formatStorageBytes(Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes - storageUsage.documentBytes))}</span></div><p className="mt-1 text-[10px] text-slate-500">Tamaños de archivos asociados a la app; no incluye objetos ajenos o huérfanos. El margen es de almacenamiento, no de descargas u operaciones. Los PDF antiguos se migran conservando su copia Firestore.</p></div>
     {migrationMessage && <div role="status" className="rounded-lg border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">{migrationMessage}<button className="ml-3 underline" onClick={() => setMigrationMessage('')}>Cerrar</button></div>}
     {uploadNotice && <div role="status" className="rounded-lg border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">{uploadNotice}<button className="ml-3 underline" onClick={() => setUploadNotice('')}>Cerrar</button></div>}
     {error && <div role="alert" className="rounded-lg border border-rose-900 bg-rose-950/60 px-3 py-2 text-xs text-rose-200">{error}<button className="ml-3 underline" onClick={() => setError('')}>Cerrar</button></div>}

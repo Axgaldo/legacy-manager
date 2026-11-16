@@ -10,7 +10,7 @@ service firebase.storage {
     match /contracts/{propertyId}/{fileName} {
       allow read: if isAllowedUser();
       allow create: if isAllowedUser()
-          && request.resource.size <= 50 * 1024 * 1024
+          && request.resource.size <= 100 * 1024 * 1024
           && request.resource.contentType == 'application/pdf';
       // Contract versions are archival records and cannot be replaced or deleted from the app.
       allow update, delete: if false;
@@ -21,6 +21,21 @@ service firebase.storage {
       allow create: if isAllowedUser()
           && request.resource.size <= 2 * 1024 * 1024
           && request.resource.contentType.matches('image/(webp|jpeg|png)');
+      allow update: if false;
+      allow delete: if isAllowedUser();
+    }
+
+    // Tenant documents: PDFs, images and office files, up to 25 MiB each.
+    match /tenants/{tenantId}/{fileName} {
+      allow read: if isAllowedUser();
+      allow create: if isAllowedUser()
+          && request.resource.size <= 25 * 1024 * 1024
+          && (
+            request.resource.contentType == 'application/pdf'
+            || request.resource.contentType.matches('image/(jpeg|png|webp|gif|heic)')
+            || request.resource.contentType.matches('application/(msword|vnd.openxmlformats-officedocument.wordprocessingml.document|vnd.ms-excel|vnd.openxmlformats-officedocument.spreadsheetml.sheet|vnd.oasis.opendocument.text|zip|vnd.rar)')
+            || request.resource.contentType == 'text/plain'
+          );
       allow update: if false;
       allow delete: if isAllowedUser();
     }

@@ -15,6 +15,7 @@
 - src/features/collections: Management of assets (photos, tags, categories).
 - src/features/properties: Property management, rent rates, expenses.
 - src/features/properties/contracts: Contract management, PDF handling, and addenda.
+- src/features/tenants: Independent tenant directory, documents and property links.
 - src/lib: Firebase initialization and storage utilities.
 - src/utils: Helper functions (compression, slug generation, etc.).
 
@@ -28,6 +29,12 @@
     - Max Size: 2MB.
     - Format: Auto-compressed to WebP or JPEG before upload.
 - **CORS & Permissions:** Configured for https://axgaldo.github.io, http://localhost:5173, and http://127.0.0.1:5173.
+- **Firebase Rules (important):**
+    - The GitHub Pages workflow deploys only the frontend. `firestore.rules` and `storage.rules` are **never** deployed automatically.
+    - Firestore: a single wildcard rule (`/{collection}/{document=**}`) covers all app collections, so new collections such as `tenants` and `tenantDocuments` need no rule change.
+    - Storage: each path needs its own explicit `match` block. Current paths: `contracts/{propertyId}` (PDF ≤ 100 MiB), `assets/{assetId}` (webp/jpeg/png ≤ 2 MiB), `tenants/{tenantId}` (PDF, images, Word/Excel/ODT, TXT, ZIP/RAR ≤ 25 MiB).
+    - `storage.rules` is the source of truth; after editing it, publish it in Firebase Console → Storage → Rules (or `firebase deploy --only storage`). Without the `tenants/` block, tenant uploads fail with `storage/unauthorized`.
+    - Full rules table, copy-paste block and publishing steps: README → "Firebase rules (Firestore and Storage)".
 
 ## Assets Module (Bienes)
 - **Entry Point:** Landing page with 3 cards (Numismática, Arte, Objetos).
@@ -51,6 +58,10 @@
     - Reusable values (material, conservation state, coin type, era, empire/reign, mint, denomination, reference book) use saved suggestions while allowing new values.
     - Added collection filters: material, conservation state, coin type, era, owner, category, tags, plus full-text search.
     - Fixed modal lifecycle: it only opens on demand, closes after saving, and returns to the corresponding collection.
+    - Added independent tenant entities (`tenants`), per-tenant documents (`tenantDocuments` + Storage `tenants/`), and bidirectional property links (`property.tenantIds`).
+    - Inquilinos is now a tab inside the Inmuebles section; each tab has its own URL: `/inmuebles`, `/inmuebles/alquileres`, `/inmuebles/gastos`, `/inmuebles/inquilinos`. Tenant detail lives at `/inmuebles/inquilinos/:id`; old `/inquilinos` URLs redirect.
+    - Legacy embedded property tenants are migrated automatically to tenant entities the first time a property or the Inquilinos page is opened.
+    - Storage rules must be published (`firebase deploy --only storage`) to allow tenant documents up to 25 MiB.
     - **VERIFIED:** `npm run build` passes after restoring strict TypeScript checks.
 
 ---

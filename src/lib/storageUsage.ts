@@ -5,8 +5,10 @@ import { isStoragePath } from './storageFiles'
 export type AppStorageUsage = {
   pdfBytes: number
   imageBytes: number
+  documentBytes: number
   pdfCount: number
   imageCount: number
+  documentCount: number
 }
 
 // The project's configured bucket ends in .firebasestorage.app; Firebase currently lists 5 GB-months at no cost for this bucket type.
@@ -16,10 +18,12 @@ export const STORAGE_NO_COST_STORAGE_BYTES = 5_000_000_000
 export function subscribeToAppStorageUsage(onUsage: (usage: AppStorageUsage) => void, onError?: (error: Error) => void): Unsubscribe {
   let pdfVersions: Record<string, any>[] = []
   let assets: Record<string, any>[] = []
+  let tenantDocuments: Record<string, any>[] = []
   let hasPdfSnapshot = false
   let hasAssetSnapshot = false
+  let hasTenantDocumentSnapshot = false
   const publish = () => {
-    if (!hasPdfSnapshot || !hasAssetSnapshot) return
+    if (!hasPdfSnapshot || !hasAssetSnapshot || !hasTenantDocumentSnapshot) return
     const pdfs = pdfVersions.filter((version) => typeof version.storagePath === 'string' && isStoragePath(version.storagePath))
     let imageBytes = 0
     let imageCount = 0
@@ -33,11 +37,14 @@ export function subscribeToAppStorageUsage(onUsage: (usage: AppStorageUsage) => 
         }
       })
     })
+    const documents = tenantDocuments.filter((document) => typeof document.storagePath === 'string' && isStoragePath(document.storagePath))
     onUsage({
       pdfBytes: pdfs.reduce((sum, version) => sum + (Number(version.storedSizeBytes ?? version.sizeBytes) || 0), 0),
       imageBytes,
+      documentBytes: documents.reduce((sum, document) => sum + (Number(document.storedSizeBytes ?? document.sizeBytes) || 0), 0),
       pdfCount: pdfs.length,
       imageCount,
+      documentCount: documents.length,
     })
   }
   const unsubs = [
@@ -49,6 +56,11 @@ export function subscribeToAppStorageUsage(onUsage: (usage: AppStorageUsage) => 
     onSnapshot(collection(db, 'assets'), (snapshot) => {
       assets = snapshot.docs.map((item) => item.data())
       hasAssetSnapshot = true
+      publish()
+    }, (error) => onError?.(error)),
+    onSnapshot(collection(db, 'tenantDocuments'), (snapshot) => {
+      tenantDocuments = snapshot.docs.map((item) => item.data())
+      hasTenantDocumentSnapshot = true
       publish()
     }, (error) => onError?.(error)),
   ]
