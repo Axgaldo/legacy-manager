@@ -1,0 +1,32 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAllowedUser() {
+      return request.auth != null
+          && firestore.get(/databases/(default)/documents/authorizedUsers/$(request.auth.uid)).data.enabled == true;
+    }
+
+    match /contracts/{propertyId}/{fileName} {
+      allow read: if isAllowedUser();
+      allow create: if isAllowedUser()
+          && request.resource.size <= 50 * 1024 * 1024
+          && request.resource.contentType == 'application/pdf';
+      // Contract versions are archival records and cannot be replaced or deleted from the app.
+      allow update, delete: if false;
+    }
+
+    match /assets/{assetId}/{fileName} {
+      allow read: if isAllowedUser();
+      allow create: if isAllowedUser()
+          && request.resource.size <= 2 * 1024 * 1024
+          && request.resource.contentType.matches('image/(webp|jpeg|png)');
+      allow update: if false;
+      allow delete: if isAllowedUser();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

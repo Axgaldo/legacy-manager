@@ -1,7 +1,6 @@
 /**
  * Compresses an image file (JPEG, PNG, etc.) to WebP format directly in the browser
- * using HTML5 Canvas. Keeps the final size well under 100-200 KB for optimal
- * Firestore document storage.
+ * using HTML5 Canvas, reducing dimensions and file size before cloud upload.
  */
 export interface CompressionResult {
   base64: string

@@ -2,6 +2,7 @@ import { Property, RentRate } from '@/types'
 
 export function rentAmountForMonth(property: Property, year: number, month: number): number {
   const period = `${year}-${String(month).padStart(2, '0')}`
+  if (property.rentStartMonth && period < property.rentStartMonth) return 0
   const rates = [...(property.rentHistory ?? [])]
     .filter((rate) => /^\d{4}-\d{2}$/.test(rate.effectiveFrom) && Number.isFinite(rate.amount))
     .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
@@ -13,6 +14,11 @@ export function rentAmountForMonth(property: Property, year: number, month: numb
   // fallback, which may now contain a later increase.
   if (property.monthlyRent === undefined) return 0
   return rates[0]?.amount ?? property.monthlyRent
+}
+
+export function isRentApplicableForMonth(property: Property, year: number, month: number): boolean {
+  if (!property.rentStartMonth) return true
+  return `${year}-${String(month).padStart(2, '0')}` >= property.rentStartMonth
 }
 
 export function normalizeRentHistory(rates: RentRate[]): RentRate[] {

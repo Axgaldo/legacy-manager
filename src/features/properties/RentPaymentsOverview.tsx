@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Property, RentPayment } from '@/types'
 import { subscribeToAllYearPayments } from './paymentsService'
-import { rentAmountForMonth } from './rentRates'
+import { isRentApplicableForMonth, rentAmountForMonth } from './rentRates'
 import { propertySlug } from '@/utils/slugs'
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -23,11 +23,12 @@ export default function RentPaymentsOverview({ properties }: { properties: Prope
         <thead><tr className="border-b border-slate-700 bg-slate-950/70 text-slate-400"><th className="sticky left-0 z-10 min-w-48 bg-slate-950 px-4 py-3 text-left">Inmueble</th>{MONTHS.map((month) => <th key={month} className="min-w-20 px-2 py-3 text-center">{month}</th>)}</tr></thead>
         <tbody className="divide-y divide-slate-800">{properties.map((property) => <tr key={property.id} className="hover:bg-slate-800/50"><th className="sticky left-0 bg-slate-900 px-4 py-3 text-left font-medium text-slate-200"><Link to={`/inmuebles/${propertySlug(property, properties)}`} className="hover:text-teal-300">{property.name}</Link></th>{MONTHS.map((_, index) => {
           const month = index + 1
+          const applicable = isRentApplicableForMonth(property, year, month)
           const payment = paymentByPropertyMonth.get(`${property.id}_${month}`)
-          const received = payment?.receivedAmount ?? (payment?.isPaid ? payment.amount : 0)
+          const received = applicable ? payment?.receivedAmount ?? (payment?.isPaid ? payment.amount : 0) : 0
           const due = rentAmountForMonth(property, year, month)
           const isFuture = year > now.getFullYear() || (year === now.getFullYear() && month > now.getMonth() + 1)
-          const color = due <= 0 && received <= 0 ? 'text-slate-600' : received <= 0 ? (isFuture ? 'text-slate-600' : 'text-red-300') : received < due ? 'text-red-300' : received > due ? 'text-amber-300' : 'text-emerald-300'
+          const color = !applicable || due <= 0 && received <= 0 ? 'text-slate-600' : received <= 0 ? (isFuture ? 'text-slate-600' : 'text-red-300') : received < due ? 'text-red-300' : received > due ? 'text-amber-300' : 'text-emerald-300'
           return <td key={month} className={`px-2 py-3 text-center font-semibold tabular-nums ${color}`}>{received > 0 ? euro(received) : '—'}</td>
         })}</tr>)}</tbody>
         {properties.length > 0 && <tfoot><tr className="border-t border-slate-700 bg-slate-950/50 font-semibold text-slate-300"><th className="sticky left-0 bg-slate-950 px-4 py-3 text-left">Total recibido</th>{MONTHS.map((_, index) => { const total = properties.reduce((sum, property) => { const payment = paymentByPropertyMonth.get(`${property.id}_${index + 1}`); return sum + (payment?.receivedAmount ?? (payment?.isPaid ? payment.amount : 0)) }, 0); return <td key={index} className="px-2 py-3 text-center tabular-nums">{total ? euro(total) : '—'}</td> })}</tr></tfoot>}

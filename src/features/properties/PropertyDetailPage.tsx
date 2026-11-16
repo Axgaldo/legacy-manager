@@ -5,7 +5,7 @@ import { subscribeToProperties } from './propertiesService'
 import { subscribeToYearPayments, toggleRentPayment, toggleInvoiceIssued, updateRentNotes, recordRentReceipt } from './paymentsService'
 import { subscribeToPropertyExpenses, addExpense, deleteExpense, updateExpenseStatus } from './expensesService'
 import { subscribeToPropertyContracts } from './contractsService'
-import { normalizeRentHistory, rentAmountForMonth } from './rentRates'
+import { isRentApplicableForMonth, normalizeRentHistory, rentAmountForMonth } from './rentRates'
 import { updateProperty } from './propertiesService'
 import { EXPENSE_CATEGORIES } from './expenseCategories'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -141,8 +141,9 @@ export default function PropertyDetailPage() {
     let annualCollected = 0
     const dueMonths = selectedYear < currentYear ? 12 : selectedYear === currentYear ? currentMonth : 0
 
-    paymentsByMonth.forEach((payment) => { annualCollected += payment.receivedAmount ?? (payment.isPaid ? payment.amount : 0) })
+    paymentsByMonth.forEach((payment) => { if (property && isRentApplicableForMonth(property, payment.year, payment.month)) annualCollected += payment.receivedAmount ?? (payment.isPaid ? payment.amount : 0) })
     for (let m = 1; m <= dueMonths; m++) {
+      if (property && !isRentApplicableForMonth(property, selectedYear, m)) continue
       const p = paymentsByMonth.get(m)
       const amount = property ? rentAmountForMonth(property, selectedYear, m) : 0
       const received = p?.receivedAmount ?? (p?.isPaid ? (p.amount || amount) : 0)
@@ -153,7 +154,7 @@ export default function PropertyDetailPage() {
         totalPending += Math.max(0, amount - received)
       }
     }
-    paymentsByMonth.forEach((payment) => { if (payment.invoiceIssued) invoicesCount++ })
+    paymentsByMonth.forEach((payment) => { if (payment.invoiceIssued && property && isRentApplicableForMonth(property, payment.year, payment.month)) invoicesCount++ })
 
     return { totalCollected, totalPending, paidMonthsCount, invoicesCount, dueMonths, annualCollected }
   }, [paymentsByMonth, property, selectedYear, currentYear, currentMonth])
@@ -506,37 +507,37 @@ export default function PropertyDetailPage() {
                 {MONTH_NAMES.map((monthName, idx) => {
                   const monthNum = idx + 1
                   const payment = paymentsByMonth.get(monthNum)
-                  const isPaid = payment ? payment.isPaid : false
-                  const invoiceIssued = payment ? payment.invoiceIssued : false
-                  const amount = rentAmountForMonth(property, selectedYear, monthNum)
-                  const received = payment?.receivedAmount ?? (payment?.isPaid ? (payment.amount || amount) : 0)
-                  const rentChanged = property.rentHistory?.some((rate) => rate.effectiveFrom === `${selectedYear}-${String(monthNum).padStart(2, '0')}`) ?? false
+                  const rentApplicable = isRentApplicableForMonth(property, selectedYear, monthNum)
+                  const isPaid = rentApplicable && Boolean(payment?.isPaid)
+                  const invoiceIssued = rentApplicable && Boolean(payment?.invoiceIssued)
+                  const amount = rentApplicable ? rentAmountForMonth(property, selectedYear, monthNum) : 0
+                  const received = rentApplicable ? payment?.receivedAmount ?? (payment?.isPaid ? (payment.amount || amount) : 0) : 0
+                  const rentChanged = rentApplicable && (property.rentHistory?.some((rate) => rate.effectiveFrom === `${selectedYear}-${String(monthNum).padStart(2, '0')}`) ?? false)
                   const isCurrentMonth = selectedYear === currentYear && monthNum === currentMonth
                   const isFutureMonth = selectedYear > currentYear || (selectedYear === currentYear && monthNum > currentMonth)
-                  const isOverdue = Boolean(payment) && !isPaid && !isCurrentMonth && !isFutureMonth
-                  const isUnrecordedPast = !payment && !isCurrentMonth && !isFutureMonth
+                  const isOverdue = rentApplicable && Boolean(payment) && !isPaid && !isCurrentMonth && !isFutureMonth
+                  const isUnrecordedPast = rentApplicable && !payment && !isCurrentMonth && !isFutureMonth
 
                   return (
                     <tr
                       key={monthNum}
                       className={`transition ${
-                        isPaid ? 'bg-emerald-50/10 hover:bg-emerald-50/20' : isOverdue ? 'bg-red-950/35 hover:bg-red-950/55' : isCurrentMonth ? 'bg-amber-950/25 hover:bg-amber-950/40' : 'hover:bg-slate-800/60'
+                        !rentApplicable ? 'bg-slate-950/50' : isPaid ? 'bg-emerald-50/10 hover:bg-emerald-50/20' : isOverdue ? 'bg-red-950/35 hover:bg-red-950/55' : isCurrentMonth ? 'bg-amber-950/25 hover:bg-amber-950/40' : 'hover:bg-slate-800/60'
                       }`}
                     >
                       {/* Mes */}
-                      <td className="py-3 px-4 font-bold text-slate-800">
+                      <td className={`py-3 px-4 font-bold ${rentApplicable ? 'text-slate-800' : 'text-slate-500'}`}>
                         {monthName} {selectedYear}
                       </td>
 
                       {/* Importe */}
                       <td className="py-3 px-4 font-semibold">
-                        <span className={rentChanged ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800' : 'text-slate-800'}>{formatEuro(amount)}</span>
-                        {payment && (payment.receivedAmount !== undefined || payment.isPaid) && <span className={`mt-1 block text-[10px] ${received < amount ? 'text-red-700' : received > amount ? 'text-amber-700' : 'text-emerald-700'}`}>Recibido: {formatEuro(received)}{received < amount ? ` · faltan ${formatEuro(amount - received)}` : received > amount ? ` · exceso ${formatEuro(received - amount)}` : ''}</span>}
+                        {rentApplicable ? <><span className={rentChanged ? 'rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-800' : 'text-slate-800'}>{formatEuro(amount)}</span>{payment && (payment.receivedAmount !== undefined || payment.isPaid) && <span className={`mt-1 block text-[10px] ${received < amount ? 'text-red-700' : received > amount ? 'text-amber-700' : 'text-emerald-700'}`}>Recibido: {formatEuro(received)}{received < amount ? ` · faltan ${formatEuro(amount - received)}` : received > amount ? ` · exceso ${formatEuro(received - amount)}` : ''}</span>}</> : <span>—</span>}
                       </td>
 
                       {/* Estado: 1-Click Interactive Button */}
                       <td className="py-3 px-4">
-                        <button
+                        {!rentApplicable ? <span className="text-[10px] font-semibold text-slate-500">NO APLICA · ANTES DEL INICIO</span> : <button
                           type="button"
                           onClick={() => handleTogglePaid(monthNum)}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition active:scale-95 ${
@@ -551,7 +552,7 @@ export default function PropertyDetailPage() {
                           title="Haz clic para cambiar de Pagado a Pendiente en tiempo real"
                         >
                           <span>{isPaid ? '✓ COBRADO' : received > 0 ? '◒ PAGO PARCIAL' : isOverdue ? '⚠ ATRASADO' : isCurrentMonth ? '◷ EN CURSO' : isUnrecordedPast ? '• SIN REGISTRO' : '◷ PRÓXIMO'}</span>
-                        </button>
+                        </button>}
                         {payment?.updatedBy && isPaid && (
                           <span className="block text-[10px] text-slate-400 mt-0.5 truncate max-w-[150px]">
                             Por: {payment.updatedBy}
@@ -561,7 +562,7 @@ export default function PropertyDetailPage() {
 
                       {/* Factura / Recibo emitido */}
                       {property.rentRequiresInvoice && <td className="py-3 px-4">
-                        <button
+                        {!rentApplicable ? <span className="text-slate-500">—</span> : <button
                           type="button"
                           onClick={() => handleToggleInvoice(monthNum)}
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition border ${
@@ -572,20 +573,20 @@ export default function PropertyDetailPage() {
                         >
                           <span>📄</span>
                           <span>{invoiceIssued ? 'Emitida [✓]' : 'No emitida'}</span>
-                        </button>
+                        </button>}
                       </td>}
 
                       {/* Notas puntuales */}
                       <td className="py-2 px-4">
-                        <input
+                        {rentApplicable ? <input
                           type="text"
                           defaultValue={payment?.notes || ''}
                           onBlur={(e) => handleNoteBlur(monthNum, e.target.value.trim())}
                           placeholder="Anotaciones..."
                           className="w-full px-2.5 py-1.5 bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-200 focus:border-teal-500 rounded-lg text-xs transition focus:outline-hidden"
-                        />
+                        /> : <span className="text-slate-500">—</span>}
                       </td>
-                      <td className="px-3 py-2"><div className="flex flex-col items-start gap-1.5"><button type="button" onClick={() => { setRentEditMonth(monthNum); setRentEditAmount(String(amount)) }} className="rounded-md border border-teal-800 bg-teal-950/50 px-2 py-1 text-[10px] font-bold text-teal-200 hover:bg-teal-900">CAMBIO DE RENTA</button><button type="button" onClick={() => { setReceiptEditMonth(monthNum); setReceiptEditAmount(String(received)) }} className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-amber-700 hover:text-amber-200">AJUSTAR IMPORTE COBRADO</button></div></td>
+                      <td className="px-3 py-2">{rentApplicable ? <div className="flex flex-col items-start gap-1.5"><button type="button" onClick={() => { setRentEditMonth(monthNum); setRentEditAmount(String(amount)) }} className="rounded-md border border-teal-800 bg-teal-950/50 px-2 py-1 text-[10px] font-bold text-teal-200 hover:bg-teal-900">CAMBIO DE RENTA</button><button type="button" onClick={() => { setReceiptEditMonth(monthNum); setReceiptEditAmount(String(received)) }} className="rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-amber-700 hover:text-amber-200">AJUSTAR IMPORTE COBRADO</button></div> : <span className="text-slate-500">—</span>}</td>
                     </tr>
                   )
                 })}

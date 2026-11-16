@@ -39,6 +39,7 @@ export function subscribeToProperties(
           postalCode: data.postalCode ?? '',
           cadastralReference: data.cadastralReference ?? '',
           monthlyRent: data.monthlyRent ? Number(data.monthlyRent) : undefined,
+          rentStartMonth: data.rentStartMonth || undefined,
           rentRequiresInvoice: Boolean(data.rentRequiresInvoice),
           rentHistory: Array.isArray(data.rentHistory) ? data.rentHistory.map((rate: any) => ({ effectiveFrom: String(rate.effectiveFrom ?? ''), amount: Number(rate.amount) || 0 })) : [],
           tenants: Array.isArray(data.tenants) ? data.tenants.map((tenant: any, index: number) => ({ id: String(tenant.id ?? `tenant-${index}`), name: String(tenant.name ?? ''), phone: tenant.phone ?? '', email: tenant.email ?? '', nif: tenant.nif ?? '' })) : [],

@@ -33,6 +33,7 @@ export interface Property extends TimestampedDoc {
   postalCode?: string
   cadastralReference?: string
   monthlyRent?: number          // Legacy/base rent fallback; dated changes belong in rentHistory
+  rentStartMonth?: string       // YYYY-MM; months before this date are outside the rent ledger
   rentRequiresInvoice?: boolean
   rentHistory?: RentRate[]      // Rate changes by effective month; independent of contract history.
   tenants?: PropertyTenant[]    // Current or historical occupants linked to the property
@@ -95,6 +96,8 @@ export interface ContractFileVersion extends TimestampedDoc {
   addendumId?: string
   fileName: string
   sizeBytes: number
+  storedSizeBytes?: number
+  storagePath?: string
 }
 
 export interface RentPayment extends TimestampedDoc {
@@ -221,5 +224,6 @@ export interface AssetItem extends TimestampedDoc {
   acquisitionPrice?: number     // EUR
   currentValue?: number         // EUR
   notes?: string
-  photos: string[]              // WebP base64 data URLs
+  photos: string[]              // Private Storage paths; legacy records may still contain data URLs
+  photoSizesBytes?: number[]     // Stored size for each photo, aligned with photos
 }

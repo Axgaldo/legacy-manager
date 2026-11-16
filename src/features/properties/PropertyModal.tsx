@@ -48,6 +48,7 @@ export default function PropertyModal({
   const [cadastralReference, setCadastralReference] = useState('')
   const [monthlyRent, setMonthlyRent] = useState('')
   const [rentRequiresInvoice, setRentRequiresInvoice] = useState(false)
+  const [rentStartMonth, setRentStartMonth] = useState('')
   const [tenants, setTenants] = useState<PropertyTenant[]>([])
   const [depositAmount, setDepositAmount] = useState('')
   const [avraReference, setAvraReference] = useState('')
@@ -71,6 +72,7 @@ export default function PropertyModal({
       setCadastralReference(propertyToEdit.cadastralReference || '')
       setMonthlyRent('')
       setRentRequiresInvoice(propertyToEdit.rentRequiresInvoice ?? false)
+      setRentStartMonth(propertyToEdit.rentStartMonth || '')
       setTenants(propertyToEdit.tenants?.length ? propertyToEdit.tenants : propertyToEdit.tenantName ? [{ id: 'legacy-tenant', name: propertyToEdit.tenantName, phone: propertyToEdit.tenantPhone, email: propertyToEdit.tenantEmail, nif: propertyToEdit.tenantNif }] : [])
       setDepositAmount(propertyToEdit.depositAmount ? String(propertyToEdit.depositAmount) : '')
       setAvraReference(propertyToEdit.avraReference || '')
@@ -91,6 +93,7 @@ export default function PropertyModal({
       setCadastralReference('')
       setMonthlyRent('')
       setRentRequiresInvoice(false)
+      setRentStartMonth(new Date().toLocaleDateString('sv-SE').slice(0, 7))
       setTenants([])
       setDepositAmount('')
       setAvraReference('')
@@ -131,6 +134,7 @@ export default function PropertyModal({
         cadastralReference: cadastralReference.trim() || undefined,
         ...(propertyToEdit ? {} : { monthlyRent: parsedRent, rentHistory }),
         rentRequiresInvoice,
+        rentStartMonth,
         ...(propertyToEdit?.rentHistory ? { rentHistory: propertyToEdit.rentHistory } : {}),
         tenants: normalizedTenants,
         tenantName: primaryTenant?.name ?? '',
@@ -333,6 +337,7 @@ export default function PropertyModal({
               {status === 'rented' && <section className="rounded-xl border border-slate-700 bg-slate-900 p-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-teal-300">Condiciones del alquiler</h4>
                 {propertyToEdit ? <p className="mt-2 text-xs text-slate-400">La renta se cambia desde el control mensual, con el botón «Cambio de renta» del mes a partir del que se aplique.</p> : <label className="mt-3 block text-xs text-slate-300">Renta mensual inicial (€)<input type="number" min="0" step="0.01" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} placeholder="750" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100"/></label>}
+                <label className="mt-3 block text-xs text-slate-300">Inicio del alquiler<input type="month" value={rentStartMonth} onChange={(e) => setRentStartMonth(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"/><span className="mt-1 block text-[11px] text-slate-500">Los meses anteriores no generarán alquiler pendiente ni aparecerán como atrasos. En inmuebles antiguos, deja el campo vacío si quieres conservar su cálculo histórico actual.</span></label>
                 <label className="mt-3 flex items-center gap-2 text-xs text-slate-300"><input type="checkbox" checked={rentRequiresInvoice} onChange={(e) => setRentRequiresInvoice(e.target.checked)} className="accent-teal-500"/>El alquiler requiere factura / recibo</label>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2"><label className="text-xs text-slate-300">Fianza (€)<input type="number" min="0" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="Importe depositado" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"/></label><label className="text-xs text-slate-300">Referencia del depósito de fianza<input value={avraReference} onChange={(e) => setAvraReference(e.target.value)} placeholder="Referencia autonómica (opcional)" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-mono text-slate-100"/></label></div>
               </section>}

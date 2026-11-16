@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Contract, ContractAddendum, ContractFileKind, ContractFileVersion, Property } from '@/types'
 import { addContract, setActiveContract, softDeleteContract, updateContract } from './contractsService'
-import { addContractAddendum, addContractPdfVersion, getContractPdfBlob, subscribeToPropertyAddenda, subscribeToPropertyContractFiles, validateContractPdf, MAX_CONTRACT_PDF_BYTES } from './contractFilesService'
+import { addContractAddendum, addContractPdfVersion, getContractPdfBlob, migrateContractPdfVersionToStorage, subscribeToPropertyAddenda, subscribeToPropertyContractFiles, validateContractPdf } from './contractFilesService'
+import { MAX_CONTRACT_PDF_BYTES } from '@/lib/storageFiles'
+import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
 import { updateProperty } from './propertiesService'
 import { normalizeRentHistory } from './rentRates'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -44,11 +46,17 @@ export default function ContractsPanel({ property, contracts }: Props) {
   const [addendumRent, setAddendumRent] = useState('')
   const [rentEffectiveFrom, setRentEffectiveFrom] = useState(new Date().toLocaleDateString('sv-SE').slice(0, 7))
   const [addendumPdf, setAddendumPdf] = useState<File | null>(null)
+  const [storageUsage, setStorageUsage] = useState<AppStorageUsage>({ pdfBytes: 0, imageBytes: 0, pdfCount: 0, imageCount: 0 })
+  const [uploadNotice, setUploadNotice] = useState('')
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [migrationMessage, setMigrationMessage] = useState('')
+  const [isMigrating, setIsMigrating] = useState(false)
 
   useEffect(() => {
     const unsubs = [
       subscribeToPropertyContractFiles(property.id, setVersions, (e) => setError(e.message)),
       subscribeToPropertyAddenda(property.id, setAddenda, (e) => setError(e.message)),
+      subscribeToAppStorageUsage(setStorageUsage, (e) => setError(e.message)),
     ]
     return () => unsubs.forEach((unsub) => unsub())
   }, [property.id])
@@ -81,6 +89,7 @@ export default function ContractsPanel({ property, contracts }: Props) {
       tenantEmail: data.tenantEmail || '',
       tenantNif: data.tenantNif || '',
       monthlyRent: data.monthlyRent,
+      rentStartMonth: month,
       rentHistory,
       depositAmount: data.depositAmount,
       avraReference: data.avraReference || '',
@@ -100,7 +109,8 @@ export default function ContractsPanel({ property, contracts }: Props) {
         contractId = ref.id
         setPendingContractId(contractId)
       }
-      await addContractPdfVersion({ propertyId: property.id, contractId, documentKind: 'contract', file: pdf })
+      const upload = await addContractPdfVersion({ propertyId: property.id, contractId, documentKind: 'contract', file: pdf, onProgress: setUploadProgress })
+      setUploadNotice(`PDF guardado en Storage: ${formatStorageBytes(upload.storedBytes)}.`)
       if (applyContractData) await applyRentAndTenant({ tenantName: tenantName.trim(), tenantPhone, tenantEmail, tenantNif, monthlyRent: Number(rent), startDate, depositAmount: deposit ? Number(deposit) : undefined, avraReference: avra })
       setNewContractOpen(false); setPendingContractId(null); setPdf(null)
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar el contrato. Si los datos ya se guardaron, puedes volver a adjuntar el PDF desde el contrato.') }
@@ -153,7 +163,8 @@ export default function ContractsPanel({ property, contracts }: Props) {
     if (validation) { setError(validation); return }
     setBusy(true); setError('')
     try {
-      await addContractPdfVersion({ propertyId: property.id, contractId: uploadTarget.contractId, documentKind: uploadTarget.kind, addendumId: uploadTarget.addendumId, file: versionFile })
+      const upload = await addContractPdfVersion({ propertyId: property.id, contractId: uploadTarget.contractId, documentKind: uploadTarget.kind, addendumId: uploadTarget.addendumId, file: versionFile, onProgress: setUploadProgress })
+      setUploadNotice(`PDF guardado en Storage: ${formatStorageBytes(upload.storedBytes)}.`)
       setUploadTarget(null); setVersionFile(null)
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar la versión.') }
     finally { setBusy(false) }
@@ -167,7 +178,8 @@ export default function ContractsPanel({ property, contracts }: Props) {
     setBusy(true); setError('')
     try {
       const ref = await addContractAddendum({ propertyId: property.id, contractId: newAddendumFor, title: addendumTitle.trim(), date: addendumDate, notes: addendumNotes.trim() || undefined, rentChange: addendumRent ? Number(addendumRent) : undefined, rentEffectiveFrom: addendumRent ? rentEffectiveFrom : undefined })
-      await addContractPdfVersion({ propertyId: property.id, contractId: newAddendumFor, documentKind: 'addendum', addendumId: ref.id, file: addendumPdf })
+      const upload = await addContractPdfVersion({ propertyId: property.id, contractId: newAddendumFor, documentKind: 'addendum', addendumId: ref.id, file: addendumPdf, onProgress: setUploadProgress })
+      setUploadNotice(`PDF guardado en Storage: ${formatStorageBytes(upload.storedBytes)}.`)
       if (applyAddendumRent && addendumRent) {
         const existing = property.rentHistory?.length ? property.rentHistory : property.monthlyRent !== undefined ? [{ effectiveFrom: rentEffectiveFrom, amount: property.monthlyRent }] : []
         await updateProperty(property.id, { monthlyRent: Number(addendumRent), rentHistory: normalizeRentHistory([...existing, { effectiveFrom: rentEffectiveFrom, amount: Number(addendumRent) }]) })
@@ -198,7 +210,29 @@ export default function ContractsPanel({ property, contracts }: Props) {
     finally { setBusy(false) }
   }
 
-  const filePicker = (value: File | null, setter: (file: File | null) => void) => <div><input type="file" accept="application/pdf,.pdf" onChange={(e) => setter(e.target.files?.[0] ?? null)} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-100"/><p className="mt-1 text-[11px] text-slate-500">PDF hasta {MAX_CONTRACT_PDF_BYTES / 1024} KiB. Los archivos anteriores se conservan como versiones.</p>{value && <p className="mt-1 text-xs text-teal-300">{value.name} · {(value.size / 1024).toFixed(0)} KiB</p>}</div>
+  const migrateExistingPdfs = async () => {
+    const pending = versions.filter((version) => !version.storagePath)
+    if (!pending.length || !window.confirm(`Se copiarán ${pending.length} PDF(s) antiguos a Storage. Las copias de Firestore se conservarán como respaldo. ¿Continuar?`)) return
+    setIsMigrating(true); setMigrationMessage('Preparando migración…')
+    let done = 0
+    try {
+      for (const version of pending) {
+        await migrateContractPdfVersionToStorage(version)
+        done++
+        setMigrationMessage(`PDF migrados a Storage: ${done}/${pending.length}`)
+      }
+      setMigrationMessage(`Migración terminada: ${done} PDF(s) copiados a Storage; los originales de Firestore se conservaron.`)
+    } catch (e) {
+      setMigrationMessage(`Migración detenida tras ${done}/${pending.length}: ${e instanceof Error ? e.message : 'error desconocido'}. Puedes volver a intentarlo.`)
+    } finally { setIsMigrating(false) }
+  }
+
+  const filePicker = (value: File | null, setter: (file: File | null) => void) => <div>
+    <input type="file" accept="application/pdf,.pdf" onChange={(e) => setter(e.target.files?.[0] ?? null)} className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-100"/>
+    <p className="mt-1 text-[11px] text-slate-500">PDF hasta {formatStorageBytes(MAX_CONTRACT_PDF_BYTES)}. Las versiones anteriores se conservan.</p>
+    {value && <p className="mt-1 text-xs text-teal-300">{value.name} · {formatStorageBytes(value.size)}</p>}
+    {busy && uploadProgress > 0 && <div className="mt-2"><div className="h-1.5 overflow-hidden rounded bg-slate-800"><div className="h-full bg-teal-500 transition-all" style={{ width: `${uploadProgress}%` }}/></div><p className="mt-1 text-[10px] text-slate-400">Subiendo a Storage… {uploadProgress}%</p></div>}
+  </div>
 
   const editingContractPdf = editingContract ? versionsByDocument.get('contract:' + editingContract.id)?.[0] : undefined
 
@@ -219,7 +253,10 @@ export default function ContractsPanel({ property, contracts }: Props) {
   const renderFiles = (key: string, title: string, contractId: string, kind: ContractFileKind, addendumId?: string) => <div className="mt-3 space-y-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">{renderFilePreview(key, title, kind === 'addendum')} {renderFileControls(key, contractId, kind, addendumId)}</div>
 
   return <div className="space-y-5 animate-in fade-in duration-150">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-100">Contratos y adendas</h3><p className="mt-1 text-xs text-slate-400">PDF privados en Firestore, con versiones conservadas y previsualización bajo demanda.</p></div><button onClick={() => setNewContractOpen(true)} className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-600">+ Añadir contrato PDF</button></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-100">Contratos y adendas</h3><p className="mt-1 text-xs text-slate-400">PDF privados en Firebase Storage, con versiones conservadas.</p></div><div className="flex flex-wrap gap-2">{versions.some((version) => !version.storagePath) && <button disabled={isMigrating} onClick={() => void migrateExistingPdfs()} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 disabled:opacity-50">{isMigrating ? 'Migrando…' : `Migrar ${versions.filter((version) => !version.storagePath).length} PDF(s) antiguos`}</button>}<button onClick={() => setNewContractOpen(true)} className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-600">+ Añadir contrato PDF</button></div></div>
+    <div className="rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs text-slate-300"><div className="flex flex-wrap gap-x-5 gap-y-1"><span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes)}</strong> / 5 GB-mes sin coste</span><span>PDF: {formatStorageBytes(storageUsage.pdfBytes)} ({storageUsage.pdfCount})</span><span>Fotos: {formatStorageBytes(storageUsage.imageBytes)} ({storageUsage.imageCount})</span><span>Margen estimado: {formatStorageBytes(Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes))}</span></div><p className="mt-1 text-[10px] text-slate-500">Tamaños de archivos asociados a la app; no incluye objetos ajenos o huérfanos. El margen es de almacenamiento, no de descargas u operaciones. Los PDF antiguos se migran conservando su copia Firestore.</p></div>
+    {migrationMessage && <div role="status" className="rounded-lg border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">{migrationMessage}<button className="ml-3 underline" onClick={() => setMigrationMessage('')}>Cerrar</button></div>}
+    {uploadNotice && <div role="status" className="rounded-lg border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">{uploadNotice}<button className="ml-3 underline" onClick={() => setUploadNotice('')}>Cerrar</button></div>}
     {error && <div role="alert" className="rounded-lg border border-rose-900 bg-rose-950/60 px-3 py-2 text-xs text-rose-200">{error}<button className="ml-3 underline" onClick={() => setError('')}>Cerrar</button></div>}
     {contracts.length === 0 ? (
       <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-10 text-center">

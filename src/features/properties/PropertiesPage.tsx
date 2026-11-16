@@ -7,7 +7,7 @@ import { subscribeToPaymentsThroughYear } from './paymentsService'
 import PropertyModal from './PropertyModal'
 import PropertyExpensesOverview from './PropertyExpensesOverview'
 import RentPaymentsOverview from './RentPaymentsOverview'
-import { rentAmountForMonth } from './rentRates'
+import { isRentApplicableForMonth, rentAmountForMonth } from './rentRates'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { propertySlug } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
@@ -89,16 +89,18 @@ export default function PropertiesPage() {
   const currentMonthLabel = today.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
 
   const paymentStatusByProperty = useMemo(() => {
-    const result = new Map<string, { collected: number; currentPaid: boolean; arrearsCount: number; arrearsAmount: number }>()
+    const result = new Map<string, { collected: number; currentPaid: boolean; currentApplicable: boolean; arrearsCount: number; arrearsAmount: number }>()
     properties.forEach((property) => {
       const propertyPayments = rentPayments.filter((payment) => payment.propertyId === property.id)
       const current = propertyPayments.find((payment) => payment.year === currentYear && payment.month === currentMonth)
       const arrears = propertyPayments.map((payment) => ({ payment, due: rentAmountForMonth(property, payment.year, payment.month), received: payment.receivedAmount ?? (payment.isPaid ? payment.amount : 0) })).filter(({ payment, due, received }) => (payment.year < currentYear || (payment.year === currentYear && payment.month < currentMonth)) && due > received)
       const currentDue = rentAmountForMonth(property, currentYear, currentMonth)
-      const currentReceived = current?.receivedAmount ?? (current?.isPaid ? current.amount : 0)
+      const currentApplicable = isRentApplicableForMonth(property, currentYear, currentMonth)
+      const currentReceived = currentApplicable ? current?.receivedAmount ?? (current?.isPaid ? current.amount : 0) : 0
       result.set(property.id, {
         collected: currentReceived,
         currentPaid: currentReceived >= currentDue && currentDue > 0,
+        currentApplicable,
         arrearsCount: arrears.length,
         arrearsAmount: arrears.reduce((sum, item) => sum + Math.max(0, item.due - item.received), 0),
       })
@@ -498,6 +500,7 @@ export default function PropertiesPage() {
                   const paymentStatus = paymentStatusByProperty.get(prop.id)
                   if (paymentStatus?.arrearsCount) return <div className="mt-2 rounded-lg border border-red-900 bg-red-950/50 px-3 py-2 text-xs text-red-200"><strong>⚠ ATRASOS · {paymentStatus.arrearsCount} mes(es)</strong><span className="ml-2">{formatEuro(paymentStatus.arrearsAmount)} pendiente</span></div>
                   if (prop.status !== 'rented') return null
+                  if (paymentStatus && !paymentStatus.currentApplicable) return <div className="mt-2 rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">Alquiler no iniciado hasta {prop.rentStartMonth}</div>
                   if (paymentStatus?.currentPaid) return <div className="mt-2 rounded-lg border border-emerald-900 bg-emerald-950/50 px-3 py-2 text-xs text-emerald-200">✓ Cobro de este mes registrado: {formatEuro(paymentStatus.collected)}</div>
                   if ((paymentStatus?.collected ?? 0) > 0) return <div className="mt-2 rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs text-red-200">◒ Cobro parcial este mes: {formatEuro(paymentStatus?.collected)} · faltan {formatEuro(Math.max(0, rentAmountForMonth(prop, currentYear, currentMonth) - (paymentStatus?.collected ?? 0)))}</div>
                   return <div className="mt-2 rounded-lg border border-amber-900 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">◷ Cobro de {currentMonthLabel} pendiente · mes en curso</div>

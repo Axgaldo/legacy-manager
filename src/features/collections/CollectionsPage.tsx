@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AssetItem, AssetCategory, Property } from '@/types'
-import { subscribeToAssets, deleteAsset } from './assetsService'
+import { subscribeToAssets, deleteAsset, migrateLegacyAssetPhotos } from './assetsService'
 import { subscribeToProperties } from '@/features/properties/propertiesService'
 import AssetModal, { ASSET_CATEGORIES } from './AssetModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { assetSlug } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
+import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
+import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
 
 const CATEGORY_MAP = new Map(ASSET_CATEGORIES.map((c) => [c.value, c]))
 
@@ -17,6 +19,9 @@ export default function CollectionsPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [firestoreError, setFirestoreError] = useState<string | null>(null)
+  const [storageUsage, setStorageUsage] = useState<AppStorageUsage>({ pdfBytes: 0, imageBytes: 0, pdfCount: 0, imageCount: 0 })
+  const [photoMigration, setPhotoMigration] = useState('')
+  const [isMigratingPhotos, setIsMigratingPhotos] = useState(false)
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -50,6 +55,7 @@ export default function CollectionsPage() {
   }, [])
 
   useEffect(() => subscribeToProperties(setProperties, (error) => console.error('No se pudieron cargar los propietarios de inmuebles:', error)), [])
+  useEffect(() => subscribeToAppStorageUsage(setStorageUsage, (error) => setFirestoreError(`No se pudo leer el uso de Storage: ${error.message}`)), [])
 
   const ownerOptions = useMemo(() => getOwnerOptions(properties, assets), [properties, assets])
   const defaultOwner = useMemo(() => getDefaultOwner(properties, assets), [properties, assets])
@@ -95,6 +101,7 @@ export default function CollectionsPage() {
   const existingTags = useMemo(() => Array.from(new Set(assets.flatMap((asset) => [
     ...(asset.tags ?? []), asset.brandOrAuthor, asset.material, asset.historicalEra, asset.country, asset.ruler, asset.mint, asset.denomination, asset.conservationState,
   ].filter((tag): tag is string => Boolean(tag?.trim())).map((tag) => tag.trim()))).values()).sort((a, b) => a.localeCompare(b, 'es')), [assets])
+  const legacyPhotoCount = useMemo(() => assets.reduce((sum, asset) => sum + (asset.photos ?? []).filter((photo) => photo.startsWith('data:image/')).length, 0), [assets])
   // Filtered assets
   const filteredAssets = useMemo(() => {
     const filtered = sourceAssets.filter((a) => {
@@ -154,6 +161,17 @@ export default function CollectionsPage() {
     }
   }
 
+  const handleMigratePhotos = async () => {
+    if (!window.confirm(`Se copiarán ${legacyPhotoCount} foto(s) comprimidas a Firebase Storage. Las copias originales de Firestore se conservarán como respaldo. ¿Continuar?`)) return
+    setIsMigratingPhotos(true); setPhotoMigration('Preparando migración…')
+    try {
+      const result = await migrateLegacyAssetPhotos((done, total) => setPhotoMigration(`Bienes migrados: ${done}/${total}`))
+      setPhotoMigration(`Migración terminada. ${result.migratedAssets} bien(es) con fotos copiados a Storage; los originales se conservaron.`)
+    } catch (error) {
+      setPhotoMigration(`La migración se detuvo: ${error instanceof Error ? error.message : 'error desconocido'}. Puedes volver a intentarlo; las fotos que ya estén en Storage se omitirán.`)
+    } finally { setIsMigratingPhotos(false) }
+  }
+
   const formatEuro = (val?: number) => {
     if (val === undefined || isNaN(val)) return '—'
     return new Intl.NumberFormat('es-ES', {
@@ -173,16 +191,20 @@ export default function CollectionsPage() {
             Un catálogo común para todo el patrimonio, organizado con categorías y etiquetas reutilizables.
           </p>
         </div>
-        <button
-          onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 active:scale-98 text-white text-sm font-semibold shadow-md shadow-teal-500/10 transition"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Añadir bien
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {legacyPhotoCount > 0 && <button onClick={() => void handleMigratePhotos()} disabled={isMigratingPhotos} className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 disabled:opacity-50">{isMigratingPhotos ? 'Migrando fotos…' : `Migrar ${legacyPhotoCount} foto(s) antiguas`}</button>}
+          <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-500/10 transition hover:bg-teal-600">
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Añadir bien
+          </button>
+        </div>
       </div>
+
+      <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
+        <div className="flex flex-wrap gap-x-5 gap-y-1"><span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes)}</strong> / 5 GB-mes sin coste</span><span>PDF: {formatStorageBytes(storageUsage.pdfBytes)} ({storageUsage.pdfCount})</span><span>Fotos: {formatStorageBytes(storageUsage.imageBytes)} ({storageUsage.imageCount})</span></div>
+        <p className="mt-1 text-[10px] text-slate-500">Tamaños registrados al subir archivos asociados a la app; no incluye objetos ajenos o huérfanos. El límite gratuito de almacenamiento no cubre posibles excesos de descargas u operaciones.</p>
+      </div>
+      {photoMigration && <div role="status" className="rounded-lg border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">{photoMigration}<button className="ml-3 underline" onClick={() => setPhotoMigration('')}>Cerrar</button></div>}
 
       {/* Firestore Error Alert */}
       {firestoreError && (
@@ -361,8 +383,8 @@ export default function CollectionsPage() {
                 {/* Photo Thumbnail */}
                 <div className="relative aspect-4/3 bg-slate-100 overflow-hidden border-b border-slate-100">
                   {mainPhoto ? (
-                    <img
-                      src={mainPhoto}
+                    <PrivateStorageImage
+                      source={mainPhoto}
                       alt={asset.name}
                       className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
                     />
@@ -470,7 +492,7 @@ export default function CollectionsPage() {
       )}
 
       {/* Asset Modal (Create / Edit) */}
-      <AssetModal isOpen={isModalOpen} assetToEdit={editingAsset} existingTags={existingTags} owners={ownerOptions.map((owner) => owner.name)} defaultOwner={defaultOwner} onClose={handleCloseAssetModal} onSaved={() => {}} />
+      <AssetModal isOpen={isModalOpen} assetToEdit={editingAsset} existingTags={existingTags} owners={ownerOptions.map((owner) => owner.name)} defaultOwner={defaultOwner} storageUsedBytes={storageUsage.imageBytes} storageFreeBytes={Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes)} onClose={handleCloseAssetModal} onSaved={() => {}} />
 
       {/* Safe Delete Modal */}
       <ConfirmModal

@@ -4,6 +4,7 @@ import { createAsset, updateAsset } from './assetsService'
 import { compressImageToWebP } from '@/utils/imageCompression'
 import { getHistoricalEraFromYear } from '@/utils/historicalEras'
 import { resolveOwnerName } from '@/utils/owners'
+import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 
 export const ASSET_CATEGORIES: { value: AssetCategory; label: string; icon: string }[] = [
   { value: 'coins', label: 'Monedas', icon: '🪙' }, { value: 'banknotes', label: 'Billetes', icon: '💶' },
@@ -26,11 +27,13 @@ interface AssetModalProps {
   existingTags?: string[]
   owners: string[]
   defaultOwner: string
+  storageUsedBytes: number
+  storageFreeBytes: number
   onClose: () => void
   onSaved: () => void
 }
 
-export default function AssetModal({ isOpen, assetToEdit, existingTags = [], owners, defaultOwner, onClose, onSaved }: AssetModalProps) {
+export default function AssetModal({ isOpen, assetToEdit, existingTags = [], owners, defaultOwner, storageUsedBytes, storageFreeBytes, onClose, onSaved }: AssetModalProps) {
   const [name, setName] = useState('')
   const [owner, setOwner] = useState('')
   const [category, setCategory] = useState<AssetCategory>('other')
@@ -84,9 +87,11 @@ export default function AssetModal({ isOpen, assetToEdit, existingTags = [], own
     if (!event.target.files?.length) return
     setIsCompressing(true); setCompressStatus('Comprimiendo imágenes a WebP…')
     try {
-      const uploaded: string[] = []
-      for (const file of Array.from(event.target.files)) uploaded.push((await compressImageToWebP(file, 1280, 0.8)).base64)
-      setPhotos((current) => [...current, ...uploaded]); setCompressStatus(`${uploaded.length} foto(s) listas.`)
+      const results = []
+      for (const file of Array.from(event.target.files)) results.push(await compressImageToWebP(file, 1280, 0.8))
+      const uploaded = results.map((result) => result.base64)
+      const compressedKB = results.reduce((total, result) => total + result.compressedSizeKB, 0)
+      setPhotos((current) => [...current, ...uploaded]); setCompressStatus(`${uploaded.length} foto(s) comprimidas: ${compressedKB} KiB en total. Se subirán a Storage al guardar.`)
     } catch (error) {
       setErrorMsg(`No se pudo procesar la imagen: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally { setIsCompressing(false); event.target.value = '' }
@@ -111,7 +116,7 @@ export default function AssetModal({ isOpen, assetToEdit, existingTags = [], own
       notes: notes.trim() || undefined, photos,
     }
     try {
-      if (assetToEdit) await updateAsset(assetToEdit.id, payload)
+      if (assetToEdit) await updateAsset(assetToEdit.id, payload, assetToEdit.photos ?? [], assetToEdit.photoSizesBytes ?? [])
       else await createAsset(payload)
       onSaved(); onClose()
     } catch (error) {
@@ -138,15 +143,20 @@ export default function AssetModal({ isOpen, assetToEdit, existingTags = [], own
         </div>
 
         <aside className="space-y-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
-          <div className="flex items-center justify-between gap-3"><div><label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Fotografías</label><p className="mt-1 text-[11px] text-slate-500">La primera imagen es la principal.</p></div><label className="cursor-pointer rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 hover:border-teal-600">{isCompressing ? 'Comprimiendo…' : 'Añadir fotos'}<input type="file" accept="image/*" multiple onChange={handlePhotoUpload} disabled={isCompressing} className="hidden" /></label></div>
-          <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-slate-700 bg-slate-950">{photos[0] ? <img src={photos[0]} alt={name || 'Vista principal del bien'} className="h-full w-full object-contain" /> : <div className="text-6xl text-slate-700">▧</div>}</div>
+          <div className="flex items-center justify-between gap-3"><div><label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Fotografías</label><p className="mt-1 text-[11px] text-slate-500">La primera imagen es la principal.</p><p className="mt-1 text-[10px] text-slate-500">Fotos guardadas: {formatStorageBytes(storageUsedBytes)} · margen estimado: {formatStorageBytes(storageFreeBytes)}</p></div><label className="cursor-pointer rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 hover:border-teal-600">{isCompressing ? 'Comprimiendo…' : 'Añadir fotos'}<input type="file" accept="image/*" multiple onChange={handlePhotoUpload} disabled={isCompressing} className="hidden" /></label></div>
+          <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-slate-700 bg-slate-950">{photos[0] ? <PrivateStorageImage source={photos[0]} alt={name || 'Vista principal del bien'} className="h-full w-full object-contain" /> : <div className="text-6xl text-slate-700">▧</div>}</div>
           {compressStatus && <p className="text-xs text-teal-300">{compressStatus}</p>}
-          {photos.length > 0 && <div className="grid grid-cols-4 gap-2">{photos.map((photo, index) => <div key={`${index}-${photo.slice(0, 24)}`} className={`relative aspect-square overflow-hidden rounded-lg border ${index === 0 ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-slate-700'}`}><img src={photo} alt={`Foto ${index + 1}`} className="h-full w-full object-cover" /><button type="button" onClick={() => setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Eliminar foto ${index + 1}`} className="absolute right-1 top-1 rounded-full bg-black/75 px-2 text-white">×</button>{index === 0 && <span className="absolute bottom-1 left-1 rounded bg-emerald-950/90 px-1.5 py-0.5 text-[9px] text-emerald-200">Principal</span>}</div>)}</div>}
+          {photos.length > 0 && <div className="grid grid-cols-4 gap-2">{photos.map((photo, index) => <div key={`${index}-${photo.slice(0, 24)}`} className={`relative aspect-square overflow-hidden rounded-lg border ${index === 0 ? 'border-emerald-500 ring-1 ring-emerald-500/40' : 'border-slate-700'}`}><PrivateStorageImage source={photo} alt={`Foto ${index + 1}`} className="h-full w-full object-cover" /><button type="button" onClick={() => setPhotos((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Eliminar foto ${index + 1}`} className="absolute right-1 top-1 rounded-full bg-black/75 px-2 text-white">×</button>{index === 0 && <span className="absolute bottom-1 left-1 rounded bg-emerald-950/90 px-1.5 py-0.5 text-[9px] text-emerald-200">Principal</span>}</div>)}</div>}
         </aside>
 
         <div className="lg:col-start-1 lg:row-start-2"><label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Notas</label><textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} className={inputClass} /></div>
         <div className="flex justify-end gap-3 border-t border-slate-700 pt-4 lg:col-span-2"><button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancelar</button><button disabled={isLoading || isCompressing} className="rounded-xl bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-600 disabled:opacity-50">{isLoading ? 'Guardando…' : 'Guardar bien'}</button></div>
-+      </form>
+      </form>
     </div>
   </div>
+}
+
+function formatStorageBytes(bytes: number) {
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`
+  return bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KiB` : `${(bytes / (1024 * 1024)).toFixed(1)} MiB`
 }
