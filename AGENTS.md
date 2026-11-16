@@ -29,8 +29,13 @@
     - Format: Auto-compressed to WebP or JPEG before upload.
 - **CORS & Permissions:** Configured for https://axgaldo.github.io, http://localhost:5173, and http://127.0.0.1:5173.
 
+## Assets Module (Bienes)
+- **Entry Point:** Landing page with 3 cards (Numismática, Arte, Objetos).
+- **Numismática:** Specific fields including: value, market_value, purchase_price, purchase_year, obverse_info, reverse_info, era, creation_year_range, reference_book, reference_book_value, coin_type, material, empire_reign, mint, manufacturing_place, case_location, case_number.
+- **Common fields:** name, owner, category, tags, location, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes.
+
 ## Migration Status
-- **Cleaned:** Legacy migration buttons and functions have been removed from the UI and services. 
+- **Cleaned:** Legacy migration buttons and functions have been removed from the UI and services.
 
 ## Development Context (Vibe Coding)
 - Be proactive: Make reasonable assumptions to keep the workflow moving.
@@ -39,3 +44,43 @@
 - **Updates Log:**
     - Updated PDF limit to 100MB.
     - Removed legacy migration UI and logic.
+    - Implemented 3-card landing for Assets (Numismática, Arte, Objetos).
+    - Added specific fields for Numismática.
+
+---
+
+# Autonomous Development Rules
+
+Act as a senior autonomous software engineer.
+
+Your job is to implement tasks, not to explain how they could be implemented.
+
+## Execution
+- Inspect the repository before making changes.
+- Understand the existing architecture and conventions.
+- Make reasonable decisions independently.
+- Implement the complete requested functionality.
+- Modify all necessary files without asking for approval for every change.
+- Run builds, tests and type checks where relevant.
+- Fix errors introduced by your changes.
+- Verify the final result.
+
+## Decision making
+- Do not ask unnecessary questions.
+- Do not stop to request confirmation for routine implementation decisions.
+- If there are multiple reasonable approaches, choose the best one.
+- Ask only when genuinely blocked or when a decision could have significant consequences.
+
+## Code quality
+- Preserve existing functionality.
+- Avoid unnecessary dependencies.
+- Follow existing project conventions.
+- Keep changes focused and maintainable.
+- Never fake successful tests or claim unverified functionality works.
+
+## Communication
+- Be concise and action-oriented.
+- Avoid lengthy explanations and repetitive progress updates.
+- Do not narrate every file you inspect.
+- Prioritize implementation over discussion.
+- At completion, provide a short summary of changes and verification results.

@@ -1,13 +1,11 @@
-// ─── Shared base ────────────────────────────────────────────────────────────
-
+// Shared base
 export interface TimestampedDoc {
   id: string
   createdAt?: any
   updatedAt?: any
 }
 
-// ─── Auth & Ownership ───────────────────────────────────────────────────────
-
+// Auth & Ownership
 export interface AppUser {
   uid: string
   email: string | null
@@ -17,34 +15,33 @@ export interface AppUser {
 
 export type AssetOwner = string
 
-// ─── Properties module (Inmuebles) ──────────────────────────────────────────
-
+// Properties module (Inmuebles)
 export type PropertyType = 'apartment' | 'commercial' | 'storage' | 'garage' | 'house' | 'rural'
 export type PropertyStatus = 'rented' | 'vacant' | 'owner-use'
 
 export interface Property extends TimestampedDoc {
-  name: string                  // e.g. "Piso Triana 2ºB"
-  owner: AssetOwner             // Free-text family owner name
+  name: string
+  owner: AssetOwner
   type: PropertyType
   status: PropertyStatus
   address: string
   city: string
-  province: string              // Spanish province or autonomous city
+  province: string
   postalCode?: string
   cadastralReference?: string
-  monthlyRent?: number          // Legacy/base rent fallback; dated changes belong in rentHistory
-  rentStartMonth?: string       // YYYY-MM; months before this date are outside the rent ledger
+  monthlyRent?: number
+  rentStartMonth?: string
   rentRequiresInvoice?: boolean
-  rentHistory?: RentRate[]      // Rate changes by effective month; independent of contract history.
-  tenants?: PropertyTenant[]    // Current or historical occupants linked to the property
-  tenantName?: string           // Inquilino actual
-  tenantPhone?: string          // Teléfono de contacto
+  rentHistory?: RentRate[]
+  tenants?: PropertyTenant[]
+  tenantName?: string
+  tenantPhone?: string
   tenantEmail?: string
   tenantNif?: string
-  depositAmount?: number        // Fianza depositada (EUR)
-  avraReference?: string        // Ref. resguardo fianza AVRA (Junta de Andalucía)
-  fixedExpensesMonthly?: number // Gastos fijos mensuales (comunidad, IBI/12)
-  currentValue?: number         // Valor de mercado estimado (EUR)
+  depositAmount?: number
+  avraReference?: string
+  fixedExpensesMonthly?: number
+  currentValue?: number
   notes?: string
 }
 
@@ -57,8 +54,8 @@ export interface PropertyTenant {
 }
 
 export interface RentRate {
-  effectiveFrom: string         // YYYY-MM, inclusive
-  amount: number                // EUR per month
+  effectiveFrom: string
+  amount: number
 }
 
 export interface Contract extends TimestampedDoc {
@@ -66,12 +63,12 @@ export interface Contract extends TimestampedDoc {
   tenantName: string
   tenantPhone?: string
   tenantEmail?: string
-  tenantNif?: string            // DNI/NIE
-  startDate: string             // YYYY-MM-DD
-  endDate?: string              // YYYY-MM-DD (vacío si indefinido)
-  monthlyRent: number           // EUR
-  depositAmount?: number        // EUR
-  avraReference?: string        // Ref. fianza AVRA
+  tenantNif?: string
+  startDate: string
+  endDate?: string
+  monthlyRent: number
+  depositAmount?: number
+  avraReference?: string
   isActive: boolean
   isDeleted?: boolean
   notes?: string
@@ -81,10 +78,10 @@ export interface ContractAddendum extends TimestampedDoc {
   propertyId: string
   contractId: string
   title: string
-  date: string                 // YYYY-MM-DD
+  date: string
   notes?: string
   rentChange?: number
-  rentEffectiveFrom?: string   // YYYY-MM
+  rentEffectiveFrom?: string
 }
 
 export type ContractFileKind = 'contract' | 'addendum'
@@ -103,49 +100,50 @@ export interface ContractFileVersion extends TimestampedDoc {
 export interface RentPayment extends TimestampedDoc {
   propertyId: string
   year: number
-  month: number                 // 1-12
-  amount: number                // EUR
-  receivedAmount?: number       // Actual amount received; omitted means use isPaid/amount legacy behavior
+  month: number
+  amount: number
+  receivedAmount?: number
   isPaid: boolean
-  paidAt?: string               // YYYY-MM-DD
-  invoiceIssued: boolean        // Si se emitió recibo / factura
-  notes?: string                // Anotación puntual del mes
-  updatedBy?: string            // Nombre del usuario que modificó
+  paidAt?: string
+  invoiceIssued: boolean
+  invoiceReceivedDate?: string
+  notes?: string
+  updatedBy?: string
 }
 
 export type ExpenseCategory =
-  | 'comunidad'         // Cuotas ordinarias o extraordinarias de comunidad
-  | 'ibi'               // IBI y tasas municipales
-  | 'basura'            // Tasa de residuos / basura
-  | 'seguro'            // Seguro de hogar / impago de alquiler
-  | 'reparacion'        // Reparaciones, mantenimiento y conservación
+  | 'comunidad'
+  | 'ibi'
+  | 'basura'
+  | 'seguro'
+  | 'reparacion'
   | 'agua'
   | 'luz'
   | 'gas'
-  | 'suministros'       // Legacy category for existing records
+  | 'suministros'
   | 'tasa_municipal'
-  | 'administracion'    // Honorarios agencia / administración
-  | 'otro'              // Otros gastos
+  | 'administracion'
+  | 'otro'
 
 export type ExpenseKind = 'one-off' | 'recurring'
 export type ExpenseFrequency = 'monthly' | 'bimonthly' | 'quarterly' | 'annual'
 
 export interface Expense extends TimestampedDoc {
   propertyId: string
-  date: string                  // YYYY-MM-DD
+  date: string
   year: number
   month: number
   category: ExpenseCategory
   kind?: ExpenseKind
   frequency?: ExpenseFrequency
-  amount: number                // EUR
+  amount: number
   description: string
-  invoiceNumber?: string        // Nº de factura o recibo
+  invoiceNumber?: string
   invoiceReceived?: boolean
-  invoiceReceivedDate?: string  // YYYY-MM-DD
+  invoiceReceivedDate?: string
   isPaid?: boolean
-  paidAt?: string               // YYYY-MM-DD
-  isDeductible?: boolean        // Deducible en IRPF (default true)
+  paidAt?: string
+  isDeductible?: boolean
   notes?: string
 }
 
@@ -154,8 +152,8 @@ export interface RecurringExpenseSchedule extends TimestampedDoc {
   category: ExpenseCategory
   description: string
   amount: number
-  startDate: string             // YYYY-MM-DD; first month in which this expense is due
-  endDate?: string | null       // YYYY-MM-DD; last month due when the schedule is ended
+  startDate: string
+  endDate?: string | null
   intervalMonths: number
   requiresInvoice: boolean
   autoPayOnInvoiceReceived?: boolean
@@ -170,7 +168,7 @@ export interface RecurringExpenseOccurrence extends TimestampedDoc {
   propertyId: string
   year: number
   month: number
-  amount: number                // Snapshot of the schedule amount for this occurrence
+  amount: number
   invoiceReceived: boolean
   invoiceReceivedDate?: string
   isPaid: boolean
@@ -181,49 +179,63 @@ export interface RecurringExpenseOccurrence extends TimestampedDoc {
   tenantPaidAt?: string
 }
 
-// ─── General Assets module (Bienes y Activos) ──────────────────────────────
-
+// General Assets module (Bienes y Activos)
 export type AssetCategory =
-  | 'coins'         // Monedas y billetes de colección
-  | 'banknotes'
-  | 'watches'       // Relojes
-  | 'art'           // Cuadros, esculturas, láminas
-  | 'antiques'      // Antigüedades, muebles
-  | 'furniture'
-  | 'jewelry'       // Joyas
-  | 'electronics'   // Televisión, sonido, informática
-  | 'computers'
-  | 'vehicles'      // Vehículos
-  | 'books'
-  | 'stamps'
-  | 'musical-instruments'
-  | 'sports'
-  | 'tools'
-  | 'documents'
-  | 'collectibles'
-  | 'other'         // Otros activos
+  | 'numismatica'
+  | 'arte'
+  | 'objetos'
+  | 'relojes'
+  | 'joyas'
+  | 'electronica'
+  | 'vehiculos'
+  | 'libros'
+  | 'sellos'
+  | 'instrumentos-musicales'
+  | 'deportes'
+  | 'herramientas'
+  | 'documentos'
+  | 'coleccionables'
+  | 'otros'
 
 export interface AssetItem extends TimestampedDoc {
   name: string
-  owner: AssetOwner             // Free-text family owner name
+  owner: AssetOwner
   category: AssetCategory
   tags?: string[]
-  location?: string             // Ubicación (ej. "Salón", "Caja fuerte")
+  location?: string
   description?: string
-  brandOrAuthor?: string        // Marca o Autor (ej. "Rolex", "LG", "Sorolla")
-  year?: number                 // Año de fabricación
+  brandOrAuthor?: string
+  year?: number
   historicalEra?: string
   country?: string
   placeOfOrigin?: string
   ruler?: string
   mint?: string
   denomination?: string
-  conservationState?: string    // Como nuevo, Excelente, Buen estado...
-  material?: string             // Madera, Acero, Oro, Cuero...
+  conservationState?: string
+  material?: string
   acquisitionYear?: number
-  acquisitionPrice?: number     // EUR
-  currentValue?: number         // EUR
+  acquisitionPrice?: number
+  currentValue?: number
   notes?: string
-  photos: string[]              // Private Storage paths; legacy records may still contain data URLs
-  photoSizesBytes?: number[]     // Stored size for each photo, aligned with photos
+  photos: string[]
+  photoSizesBytes?: number[]
+
+  // Numism�tica fields
+  value?: number
+  market_value?: number
+  purchase_price?: number
+  purchase_year?: number
+  obverse_info?: string
+  reverse_info?: string
+  era?: string
+  creation_year_range?: string
+  reference_book?: string
+  reference_book_value?: number
+  coin_type?: string
+  empire_reign?: string
+  manufacturing_place?: string
+  case_location: string        // Requerido
+  case_number: string           // Requerido
+  added_date?: string          // Fecha de registro
 }
