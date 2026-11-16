@@ -1,20 +1,59 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { AssetItem, AssetCategory, Property } from '@/types'
+import { AssetCategory, AssetItem, Property } from '@/types'
 import { subscribeToAssets, deleteAsset, migrateLegacyAssetPhotos } from './assetsService'
 import { subscribeToProperties } from '@/features/properties/propertiesService'
-import AssetModal, { ASSET_CATEGORIES } from './AssetModal'
+import AssetModal from './AssetModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { assetSlug } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
+import {
+  ASSET_CATEGORIES,
+  type CollectionKey,
+  PRIMARY_COLLECTIONS,
+  categoryCollection,
+  getCategoryInfo,
+  isCollectionKey,
+  matchesCollection,
+} from './assetCategories'
 
-const CATEGORY_MAP = new Map(ASSET_CATEGORIES.map((c) => [c.value, c]))
+const SEARCHABLE_FIELDS = [
+  'name', 'owner', 'brandOrAuthor', 'description', 'location', 'historicalEra', 'country', 'placeOfOrigin',
+  'ruler', 'mint', 'denomination', 'conservationState', 'material', 'notes', 'era', 'coin_type', 'empire_reign',
+  'manufacturing_place', 'reference_book', 'case_location', 'case_number', 'obverse_info', 'reverse_info',
+] as const
+
+const euroFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+
+function formatEuro(value?: number) {
+  return value === undefined || Number.isNaN(value) ? '—' : euroFormatter.format(value)
+}
+
+function normalizeText(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es')
+}
+
+function uniqueValues(values: Array<string | undefined | null>): string[] {
+  const seen = new Map<string, string>()
+  values.forEach((value) => {
+    const text = value?.trim()
+    if (!text) return
+    const key = text.toLocaleLowerCase('es')
+    if (!seen.has(key)) seen.set(key, text)
+  })
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, 'es'))
+}
+
+function matchesSelected(value: string | undefined, selected: string) {
+  return selected === 'all' || normalizeText(value ?? '') === normalizeText(selected)
+}
 
 export default function CollectionsPage() {
   const navigate = useNavigate()
-  const { assetSlug: routeAssetSlug } = useParams<{ assetSlug?: string }>()
+  const { assetSlug: routeAssetSlug, collectionKey } = useParams<{ assetSlug?: string; collectionKey?: string }>()
+
   const [assets, setAssets] = useState<AssetItem[]>([])
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
@@ -23,21 +62,29 @@ export default function CollectionsPage() {
   const [photoMigration, setPhotoMigration] = useState('')
   const [isMigratingPhotos, setIsMigratingPhotos] = useState(false)
 
-  // Modal states
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Safe delete
   const [assetToDelete, setAssetToDelete] = useState<AssetItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Filters & Search
   const [selectedOwner, setSelectedOwner] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState<'all' | AssetCategory>('all')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagFilterOpen, setTagFilterOpen] = useState(false)
   const [sortBy, setSortBy] = useState('name')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedMaterial, setSelectedMaterial] = useState('all')
+  const [selectedConservationState, setSelectedConservationState] = useState('all')
+  const [selectedCoinType, setSelectedCoinType] = useState('all')
+  const [selectedEra, setSelectedEra] = useState('all')
+
+  const activeCollection: CollectionKey | undefined = isCollectionKey(collectionKey) ? collectionKey : undefined
+  const isLanding = !activeCollection
+
+  useEffect(() => {
+    if (collectionKey && !isCollectionKey(collectionKey)) navigate('/bienes', { replace: true })
+  }, [collectionKey, navigate])
 
   useEffect(() => {
     const unsubscribe = subscribeToAssets(
@@ -46,8 +93,8 @@ export default function CollectionsPage() {
         setLoading(false)
         setFirestoreError(null)
       },
-      (err) => {
-        setFirestoreError(err.message)
+      (error) => {
+        setFirestoreError(error.message)
         setLoading(false)
       },
     )
@@ -57,81 +104,138 @@ export default function CollectionsPage() {
   useEffect(() => subscribeToProperties(setProperties, (error) => console.error('No se pudieron cargar los propietarios de inmuebles:', error)), [])
   useEffect(() => subscribeToAppStorageUsage(setStorageUsage, (error) => setFirestoreError(`No se pudo leer el uso de Storage: ${error.message}`)), [])
 
+  useEffect(() => {
+    setSelectedOwner('all')
+    setSelectedCategory('all')
+    setSelectedTags([])
+    setSelectedMaterial('all')
+    setSelectedConservationState('all')
+    setSelectedCoinType('all')
+    setSelectedEra('all')
+    setSearchQuery('')
+  }, [collectionKey])
+
   const ownerOptions = useMemo(() => getOwnerOptions(properties, assets), [properties, assets])
   const defaultOwner = useMemo(() => getDefaultOwner(properties, assets), [properties, assets])
   const routedAsset = useMemo(
-    () => routeAssetSlug ? assets.find((asset) => assetSlug(asset, assets) === routeAssetSlug) : undefined,
+    () => (routeAssetSlug ? assets.find((asset) => assetSlug(asset, assets) === routeAssetSlug) : undefined),
     [assets, routeAssetSlug],
   )
 
   useEffect(() => {
-    if (!routeAssetSlug) {
-      if (editingAsset) { setEditingAsset(null); setIsModalOpen(false) }
-      return
-    }
-    const selectedAsset = routedAsset
-    if (selectedAsset && (!isModalOpen || editingAsset?.id !== selectedAsset.id)) {
-      setEditingAsset(selectedAsset)
-      setIsModalOpen(true)
-    }
-  }, [editingAsset?.id, isModalOpen, routeAssetSlug, routedAsset])
+    if (!routeAssetSlug || !routedAsset) return
+    setEditingAsset(routedAsset)
+    setIsModalOpen(true)
+  }, [routeAssetSlug, routedAsset])
 
-  const sourceAssets = assets
+  const scopedAssets = useMemo(
+    () => (activeCollection ? assets.filter((asset) => matchesCollection(asset.category, activeCollection)) : assets),
+    [activeCollection, assets],
+  )
 
-  // Metrics
-  const metrics = useMemo(() => {
-    let totalValue = 0
-    let coinsCount = 0
-    let watchesCount = 0
-
-    sourceAssets.forEach((a) => {
-      totalValue += a.currentValue || 0
-      if (a.category === 'coins') coinsCount++
-      if (a.category === 'watches') watchesCount++
-    })
-
+  const collectionStats = useMemo(() => PRIMARY_COLLECTIONS.map((collection) => {
+    const items = assets.filter((asset) => matchesCollection(asset.category, collection.key))
     return {
-      totalCount: sourceAssets.length,
-      totalValue,
-      coinsCount,
-      watchesCount,
+      ...collection,
+      count: items.length,
+      value: items.reduce((total, asset) => total + (asset.currentValue ?? 0), 0),
     }
-  }, [sourceAssets])
+  }), [assets])
 
-  const existingTags = useMemo(() => Array.from(new Set(assets.flatMap((asset) => [
-    ...(asset.tags ?? []), asset.brandOrAuthor, asset.material, asset.historicalEra, asset.country, asset.ruler, asset.mint, asset.denomination, asset.conservationState,
-  ].filter((tag): tag is string => Boolean(tag?.trim())).map((tag) => tag.trim()))).values()).sort((a, b) => a.localeCompare(b, 'es')), [assets])
-  const legacyPhotoCount = useMemo(() => assets.reduce((sum, asset) => sum + (asset.photos ?? []).filter((photo) => photo.startsWith('data:image/')).length, 0), [assets])
-  // Filtered assets
-  const filteredAssets = useMemo(() => {
-    const filtered = sourceAssets.filter((a) => {
-      const matchesOwner = selectedOwner === 'all' || (a.owner || 'Gabriel') === selectedOwner
-      const matchesCat = selectedCategory === 'all' || a.category === selectedCategory
-      const matchesTags = selectedTags.every((tag) => (a.tags ?? []).includes(tag))
-      const q = searchQuery.toLowerCase().trim()
-      const matchesSearch =
-        !q ||
-        a.name.toLowerCase().includes(q) ||
-        (a.tags ?? []).some((tag) => tag.toLowerCase().includes(q)) ||
-        (a.brandOrAuthor && a.brandOrAuthor.toLowerCase().includes(q)) ||
-        (a.year !== undefined && String(a.year).includes(q)) ||
-        (a.country && a.country.toLowerCase().includes(q)) ||
-        (a.ruler && a.ruler.toLowerCase().includes(q)) ||
-        (a.mint && a.mint.toLowerCase().includes(q)) ||
-        (a.denomination && a.denomination.toLowerCase().includes(q)) ||
-        (a.material && a.material.toLowerCase().includes(q)) ||
-        (a.location && a.location.toLowerCase().includes(q)) ||
-        (a.notes && a.notes.toLowerCase().includes(q)) ||
-        (a.conservationState && a.conservationState.toLowerCase().includes(q)) ||
-        (a.owner && a.owner.toLowerCase().includes(q))
+  const metrics = useMemo(() => {
+    const source = activeCollection ? scopedAssets : assets
+    return {
+      totalCount: source.length,
+      totalValue: source.reduce((total, asset) => total + (asset.currentValue ?? 0), 0),
+      coinsCount: assets.filter((asset) => matchesCollection(asset.category, 'numismatica')).length,
+    }
+  }, [activeCollection, assets, scopedAssets])
 
-      return matchesOwner && matchesCat && matchesTags && matchesSearch
+  const existingTags = useMemo(() => uniqueValues(assets.flatMap((asset) => [
+    ...(asset.tags ?? []),
+    asset.brandOrAuthor,
+    asset.material,
+    asset.historicalEra,
+    asset.country,
+    asset.ruler,
+    asset.mint,
+    asset.denomination,
+    asset.conservationState,
+  ])), [assets])
+
+  const numismaticaSuggestions = useMemo(() => {
+    const fields = ['material', 'conservationState', 'coin_type', 'era', 'empire_reign', 'reference_book', 'mint', 'denomination', 'ruler', 'case_location']
+    const suggestions: Record<string, string[]> = {}
+    fields.forEach((field) => {
+      suggestions[field] = uniqueValues(assets.map((asset) => {
+        switch (field) {
+          case 'material': return asset.material
+          case 'conservationState': return asset.conservationState
+          case 'coin_type': return asset.coin_type
+          case 'era': return asset.era
+          case 'empire_reign': return asset.empire_reign
+          case 'reference_book': return asset.reference_book
+          case 'mint': return asset.mint
+          case 'denomination': return asset.denomination
+          case 'ruler': return asset.ruler
+          case 'case_location': return asset.case_location
+          default: return undefined
+        }
+      }))
     })
-    return filtered.sort((a, b) => sortBy === 'value-desc' ? (b.currentValue ?? 0) - (a.currentValue ?? 0) : sortBy === 'year-asc' ? (a.year ?? Infinity) - (b.year ?? Infinity) : a.name.localeCompare(b.name, 'es'))
-  }, [sourceAssets, selectedOwner, selectedCategory, selectedTags, searchQuery, sortBy])
+    return suggestions
+  }, [assets])
+
+  const materialOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.material)), [scopedAssets])
+  const conservationOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.conservationState)), [scopedAssets])
+  const coinTypeOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.coin_type)), [scopedAssets])
+  const eraOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.era || asset.historicalEra)), [scopedAssets])
+  const categoryOptions = useMemo(
+    () => ASSET_CATEGORIES.filter((category) => scopedAssets.some((asset) => asset.category === category.value)),
+    [scopedAssets],
+  )
+
+  const legacyPhotoCount = useMemo(
+    () => assets.reduce((sum, asset) => sum + (asset.photos ?? []).filter((photo) => photo.startsWith('data:image/')).length, 0),
+    [assets],
+  )
+
+  const filteredAssets = useMemo(() => {
+    const query = normalizeText(searchQuery.trim())
+    const filtered = scopedAssets.filter((asset) => {
+      const matchesOwner = selectedOwner === 'all' || normalizeText(asset.owner || 'Gabriel') === normalizeText(selectedOwner)
+      const matchesCategory = selectedCategory === 'all' || asset.category === selectedCategory
+      const matchesTags = selectedTags.every((tag) => (asset.tags ?? []).some((item) => normalizeText(item) === normalizeText(tag)))
+      const matchesMaterialFilter = matchesSelected(asset.material, selectedMaterial)
+      const matchesConservationFilter = matchesSelected(asset.conservationState, selectedConservationState)
+      const matchesCoinTypeFilter = matchesSelected(asset.coin_type, selectedCoinType)
+      const matchesEraFilter = matchesSelected(asset.era || asset.historicalEra, selectedEra)
+
+      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesCoinTypeFilter && matchesEraFilter
+
+      const haystack = [
+        ...SEARCHABLE_FIELDS.map((field) => asset[field]),
+        ...(asset.tags ?? []),
+        asset.year === undefined ? '' : String(asset.year),
+      ].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' ')
+
+      const matchesSearch = normalizeText(haystack).includes(query)
+      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesCoinTypeFilter && matchesEraFilter && matchesSearch
+    })
+
+    return filtered.sort((a, b) => {
+      if (sortBy === 'value-desc') return (b.currentValue ?? 0) - (a.currentValue ?? 0)
+      if (sortBy === 'year-asc') return (a.year ?? Infinity) - (b.year ?? Infinity)
+      return a.name.localeCompare(b.name, 'es')
+    })
+  }, [
+    scopedAssets, selectedOwner, selectedCategory, selectedTags, selectedMaterial, selectedConservationState,
+    selectedCoinType, selectedEra, searchQuery, sortBy,
+  ])
+
+  const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
 
   const handleOpenAddModal = () => {
-    navigate('/bienes', { replace: true })
     setEditingAsset(null)
     setIsModalOpen(true)
   }
@@ -139,13 +243,21 @@ export default function CollectionsPage() {
   const handleOpenEditModal = (asset: AssetItem) => {
     setEditingAsset(asset)
     setIsModalOpen(true)
-    navigate(`/bienes/${assetSlug(asset, assets)}`)
   }
 
   const handleCloseAssetModal = () => {
-    setEditingAsset(null)
     setIsModalOpen(false)
-    if (routeAssetSlug) navigate('/bienes', { replace: true })
+    setEditingAsset(null)
+    if (routeAssetSlug) {
+      const target = categoryCollection(routedAsset?.category ?? editingAsset?.category)
+      navigate(`/bienes/categoria/${target}`, { replace: true })
+    }
+  }
+
+  const handleAssetSaved = (category: AssetCategory) => {
+    setIsModalOpen(false)
+    setEditingAsset(null)
+    navigate(`/bienes/categoria/${categoryCollection(category)}`, { replace: Boolean(routeAssetSlug) })
   }
 
   const handleConfirmDelete = async () => {
@@ -154,8 +266,8 @@ export default function CollectionsPage() {
     try {
       await deleteAsset(assetToDelete.id)
       setAssetToDelete(null)
-    } catch (err: any) {
-      alert('Error al eliminar: ' + err.message)
+    } catch (error) {
+      alert(`Error al eliminar: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     } finally {
       setIsDeleting(false)
     }
@@ -163,36 +275,49 @@ export default function CollectionsPage() {
 
   const handleMigratePhotos = async () => {
     if (!window.confirm(`Se copiarán ${legacyPhotoCount} foto(s) comprimidas a Firebase Storage. Las copias originales de Firestore se conservarán como respaldo. ¿Continuar?`)) return
-    setIsMigratingPhotos(true); setPhotoMigration('Preparando migración…')
+    setIsMigratingPhotos(true)
+    setPhotoMigration('Preparando migración…')
     try {
       const result = await migrateLegacyAssetPhotos((done, total) => setPhotoMigration(`Bienes migrados: ${done}/${total}`))
       setPhotoMigration(`Migración terminada. ${result.migratedAssets} bien(es) con fotos copiados a Storage; los originales se conservaron.`)
     } catch (error) {
       setPhotoMigration(`La migración se detuvo: ${error instanceof Error ? error.message : 'error desconocido'}. Puedes volver a intentarlo; las fotos que ya estén en Storage se omitirán.`)
-    } finally { setIsMigratingPhotos(false) }
+    } finally {
+      setIsMigratingPhotos(false)
+    }
   }
 
-  const formatEuro = (val?: number) => {
-    if (val === undefined || isNaN(val)) return '—'
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    }).format(val)
-  }
+  const defaultCategory: AssetCategory = activeCollection === 'numismatica' ? 'numismatica' : activeCollection === 'arte' ? 'arte' : 'objetos'
+  const collectionInfo = activeCollection ? PRIMARY_COLLECTIONS.find((collection) => collection.key === activeCollection) : undefined
 
   return (
     <div className="space-y-7">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
+      <div className="flex flex-col gap-4 pb-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-100 tracking-tight">Bienes y Activos</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Un catálogo común para todo el patrimonio, organizado con categorías y etiquetas reutilizables.
-          </p>
+          {isLanding ? (
+            <>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-100">Bienes y Activos</h2>
+              <p className="mt-0.5 text-sm text-slate-500">Un catálogo común para todo el patrimonio, organizado por colecciones.</p>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => navigate('/bienes')} className="mb-2 text-xs font-semibold text-teal-300 hover:text-teal-200">← Volver a Bienes</button>
+              <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-slate-100">
+                <span>{collectionInfo?.icon}</span>
+                <span>{collectionInfo?.label}</span>
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                {collectionInfo?.description} · {metrics.totalCount} pieza(s) · {formatEuro(metrics.totalValue)}
+              </p>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {legacyPhotoCount > 0 && <button onClick={() => void handleMigratePhotos()} disabled={isMigratingPhotos} className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 disabled:opacity-50">{isMigratingPhotos ? 'Migrando fotos…' : `Migrar ${legacyPhotoCount} foto(s) antiguas`}</button>}
+          {legacyPhotoCount > 0 && (
+            <button onClick={() => void handleMigratePhotos()} disabled={isMigratingPhotos} className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 disabled:opacity-50">
+              {isMigratingPhotos ? 'Migrando fotos…' : `Migrar ${legacyPhotoCount} foto(s) antiguas`}
+            </button>
+          )}
           <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-500/10 transition hover:bg-teal-600">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Añadir bien
@@ -201,21 +326,27 @@ export default function CollectionsPage() {
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
-        <div className="flex flex-wrap gap-x-5 gap-y-1"><span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes)}</strong> / 5 GB-mes sin coste</span><span>PDF: {formatStorageBytes(storageUsage.pdfBytes)} ({storageUsage.pdfCount})</span><span>Fotos: {formatStorageBytes(storageUsage.imageBytes)} ({storageUsage.imageCount})</span></div>
-        <p className="mt-1 text-[10px] text-slate-500">Tamaños registrados al subir archivos asociados a la app; no incluye objetos ajenos o huérfanos. El límite gratuito de almacenamiento no cubre posibles excesos de descargas u operaciones.</p>
+        <div className="flex flex-wrap gap-x-5 gap-y-1">
+          <span>Storage de la app: <strong>{formatStorageBytes(storageUsage.pdfBytes + storageUsage.imageBytes)}</strong> / 5 GB-mes sin coste</span>
+          <span>PDF: {formatStorageBytes(storageUsage.pdfBytes)} ({storageUsage.pdfCount})</span>
+          <span>Fotos: {formatStorageBytes(storageUsage.imageBytes)} ({storageUsage.imageCount})</span>
+        </div>
       </div>
-      {photoMigration && <div role="status" className="rounded-lg border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">{photoMigration}<button className="ml-3 underline" onClick={() => setPhotoMigration('')}>Cerrar</button></div>}
 
-      {/* Firestore Error Alert */}
+      {photoMigration && (
+        <div role="status" className="rounded-lg border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">
+          {photoMigration}
+          <button className="ml-3 underline" onClick={() => setPhotoMigration('')}>Cerrar</button>
+        </div>
+      )}
+
       {firestoreError && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-3">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
           <span className="text-lg">⚠️</span>
           <div>
             <p className="font-semibold">Aviso de permisos de Firestore:</p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              Verifica haber publicado las reglas con tu UID en Firebase Console.
-            </p>
-            <p className="text-[11px] font-mono text-amber-600 mt-1">{firestoreError}</p>
+            <p className="mt-0.5 text-xs text-amber-700">Verifica haber publicado las reglas con tu UID en Firebase Console.</p>
+            <p className="mt-1 font-mono text-[11px] text-amber-600">{firestoreError}</p>
           </div>
         </div>
       )}
@@ -227,274 +358,205 @@ export default function CollectionsPage() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Total Piezas / Bienes
-          </p>
-          <p className="text-2xl font-bold text-slate-900 mt-2">{metrics.totalCount}</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">
-            Valoración Total Catálogo
-          </p>
-          <p className="text-2xl font-bold text-emerald-600 mt-2">
-            {formatEuro(metrics.totalValue)}
-          </p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wider">
-            Monedas & Numismática
-          </p>
-          <p className="text-2xl font-bold text-amber-700 mt-2">{metrics.coinsCount} piezas</p>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <p className="text-xs font-semibold text-teal-300 uppercase tracking-wider">
-            Relojes & Otros Bienes
-          </p>
-          <p className="text-2xl font-bold text-teal-200 mt-2">
-            {assets.length - metrics.coinsCount} piezas
-          </p>
-        </div>
-      </div>
-
-      {/* ─── FILTROS MULTI-NIVEL ────────────────────────────────────── */}
-      <div className="space-y-3.5 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-        {/* 1. Filtro por Propietario (Gabriel / Isabel / Antonio) */}
-        <div className="flex items-center gap-2 overflow-x-auto text-xs pb-1">
-          <span className="font-bold text-slate-500 uppercase text-[11px] shrink-0">Propietario:</span>
-          <button
-            onClick={() => setSelectedOwner('all')}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition shrink-0 ${
-              selectedOwner === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            Todos ({sourceAssets.length})
-          </button>
-          {ownerOptions.map(({ name: o }) => {
-            const count = sourceAssets.filter((a) => (a.owner || 'Gabriel') === o).length
-            return (
-              <button
-                key={o}
-                onClick={() => setSelectedOwner(o)}
-                className={`px-3 py-1.5 rounded-xl font-semibold transition shrink-0 flex items-center gap-1.5 ${
-                  selectedOwner === o
-                    ? 'bg-teal-700 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <span>👤 {o}</span>
-                <span className="opacity-75">({count})</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {/* 2. Filtro por Categorías */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition shrink-0 ${
-              selectedCategory === 'all'
-                ? 'bg-slate-800 text-white shadow-xs'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            Todas las categorías
-          </button>
-          {ASSET_CATEGORIES.map((cat) => {
-            const count = assets.filter((a) => a.category === cat.value).length
-            return (
-              <button
-                key={cat.value}
-                onClick={() => setSelectedCategory(cat.value)}
-                className={`px-3 py-1.5 rounded-xl font-semibold transition shrink-0 flex items-center gap-1.5 ${
-                  selectedCategory === cat.value
-                    ? 'bg-teal-700 text-white shadow-xs'
-                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.label}</span>
-                <span className="opacity-75">({count})</span>
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="grid grid-cols-1 gap-2.5 border-t border-slate-100 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
-          <div className="relative sm:col-span-2"><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar nombre, marca o etiqueta…" className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pl-8 text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none" /><span className="absolute left-2.5 top-2 text-slate-500">⌕</span></div>
-          <div className="relative"><button type="button" aria-expanded={tagFilterOpen} onClick={() => setTagFilterOpen((open) => !open)} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-left text-sm text-slate-200">Etiquetas{selectedTags.length ? ` · ${selectedTags.length} seleccionada(s)` : ''} ▾</button>{tagFilterOpen && <div className="absolute right-0 z-20 mt-2 max-h-64 w-full min-w-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-xl">{existingTags.length ? existingTags.map((tag) => <label key={tag} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-800"><input type="checkbox" checked={selectedTags.includes(tag)} onChange={(event) => setSelectedTags((current) => event.target.checked ? [...current, tag] : current.filter((item) => item !== tag))} className="accent-teal-500" />{tag}</label>) : <p className="p-2 text-xs text-slate-500">Aún no hay etiquetas en el catálogo.</p>}{selectedTags.length > 0 && <button type="button" onClick={() => setSelectedTags([])} className="mt-2 w-full border-t border-slate-700 px-2 pt-2 text-left text-xs text-teal-300">Limpiar etiquetas</button>}</div>}</div>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"><option value="name">Ordenar: nombre</option><option value="year-asc">Año: más antiguo</option><option value="value-desc">Valor: mayor a menor</option></select>
-        </div>
-      </div>
-
-      {/* Grid of Items */}
-      {loading ? (
-        <div className="text-center py-16">
-          <div className="w-8 h-8 border-3 border-teal-700 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Cargando inventario de Firestore…</p>
-        </div>
-      ) : filteredAssets.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center max-w-lg mx-auto">
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 text-2xl flex items-center justify-center mx-auto mb-4">
-            🪙
+      {isLanding ? (
+        <>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard title="Total bienes" value={String(metrics.totalCount)} />
+            <StatCard title="Valoración total" value={formatEuro(metrics.totalValue)} valueClass="text-emerald-600" />
+            <StatCard title="Numismática" value={`${metrics.coinsCount} piezas`} valueClass="text-amber-700" />
+            <StatCard title="Otros bienes" value={`${assets.length - metrics.coinsCount} piezas`} valueClass="text-teal-700" />
           </div>
-          <h3 className="text-base font-bold text-slate-900">
-            {assets.length === 0 ? 'No hay bienes registrados aún' : 'No hay resultados para estos filtros'}
-          </h3>
-          <p className="text-xs text-slate-500 mt-1.5 max-w-xs mx-auto">
-            {assets.length === 0
-              ? 'Empieza a registrar tus monedas, relojes o activos asignando su propietario correspondiente.'
-              : 'Prueba a cambiar el filtro de propietario, país o época.'}
-          </p>
-          {assets.length === 0 && (
-            <button
-              onClick={handleOpenAddModal}
-              className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-teal-700 hover:bg-teal-600 text-white rounded-xl text-xs font-semibold shadow-sm transition"
-            >
-              + Añadir Primer Bien
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {filteredAssets.map((asset) => {
-            const catInfo = CATEGORY_MAP.get(asset.category)
-            const mainPhoto = asset.photos && asset.photos.length > 0 ? asset.photos[0] : null
-            const tags = Array.from(new Set([...(asset.tags ?? []), asset.brandOrAuthor].filter((tag): tag is string => Boolean(tag?.trim()))))
 
-            return (
-              <div
-                key={asset.id}
-                role="button"
-                tabIndex={0}
-                aria-label={`Ver o editar ${asset.name}`}
-                onClick={() => handleOpenEditModal(asset)}
-                onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleOpenEditModal(asset) } }}
-                className="group flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-xs transition-all hover:border-slate-500 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500"
-              >
-                {/* Photo Thumbnail */}
-                <div className="relative aspect-4/3 bg-slate-100 overflow-hidden border-b border-slate-100">
-                  {mainPhoto ? (
-                    <PrivateStorageImage
-                      source={mainPhoto}
-                      alt={asset.name}
-                      className="w-full h-full object-cover group-hover:scale-102 transition duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-4xl text-slate-300 select-none">
-                      {catInfo?.icon || '📦'}
-                    </div>
-                  )}
-
-                  {/* Category Pill Tag on image */}
-                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full text-[11px] font-semibold text-slate-700 shadow-xs">
-                    <span>{catInfo?.icon}</span>
-                    <span>{catInfo?.label.split(' ')[0]}</span>
-                  </div>
-
-                  {/* Owner Badge on top right */}
-                  <div className="absolute top-2.5 right-2.5 bg-teal-700/95 text-white backdrop-blur-xs px-2 py-0.5 rounded-full text-[10px] font-bold shadow-xs">
-                    👤 {asset.owner || 'Gabriel'}
-                  </div>
-
-                  {asset.photos && asset.photos.length > 1 && (
-                    <span className="absolute bottom-2.5 right-2.5 bg-slate-900/75 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                      +{asset.photos.length - 1} foto(s)
-                    </span>
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    <h4 className="text-base font-bold text-slate-900 line-clamp-1" title={asset.name}>
-                      {asset.name}
-                    </h4>
-
-                    <p className="mt-1 text-xs text-slate-400">
-                      {asset.year !== undefined ? `Año ${asset.year > 0 ? asset.year : `${Math.abs(asset.year)} a.C.`}` : ''}
-                      {(asset.placeOfOrigin || asset.country) ? ` · ${asset.placeOfOrigin || asset.country}` : ''}
-                      {asset.historicalEra ? ` · ${asset.historicalEra}` : ''}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      {asset.year !== undefined && (
-                        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-teal-200 text-[11px] font-mono font-bold border border-slate-700">
-                          📅 {asset.year > 0 ? asset.year : `${Math.abs(asset.year)} a.C.`}
-                        </span>
-                      )}
-                      {tags.map((tag) => <button key={tag} onClick={(event) => { event.stopPropagation(); setSelectedTags([tag]) }} className="rounded-full border border-teal-900 bg-teal-950/60 px-2.5 py-1 text-[11px] text-teal-200 hover:border-teal-600">{tag}</button>)}
-                    </div>
-
-                    {asset.location && (
-                      <p className="text-xs text-slate-500 mt-2 flex items-center gap-1 truncate">
-                        <span>📍</span>
-                        <span className="truncate">{asset.location}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Financials */}
-                  <div className="pt-2 border-t border-slate-100 flex items-baseline justify-between">
+          <section className="space-y-3">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Colecciones</h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {collectionStats.map((collection) => (
+                <button
+                  key={collection.key}
+                  type="button"
+                  onClick={() => navigate(`/bienes/categoria/${collection.key}`)}
+                  className="group rounded-2xl border border-slate-700 bg-slate-900 p-5 text-left transition hover:border-teal-500 hover:bg-slate-900/80"
+                >
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[10px] text-slate-400 uppercase font-semibold">Valor Estimado</p>
-                      <p className="text-base font-bold text-emerald-600">
-                        {formatEuro(asset.currentValue)}
-                      </p>
+                      <span className="text-3xl">{collection.icon}</span>
+                      <h4 className="mt-3 text-lg font-bold text-slate-100">{collection.label}</h4>
+                      <p className="mt-1 text-xs text-slate-400">{collection.description}</p>
                     </div>
+                    <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-teal-200">{collection.count}</span>
+                  </div>
+                  <p className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-400">Valoración: <span className="font-semibold text-emerald-400">{formatEuro(collection.value)}</span></p>
+                  <p className="mt-1 text-xs font-semibold text-teal-300 group-hover:text-teal-200">Ver colección →</p>
+                </button>
+              ))}
+            </div>
+          </section>
 
-                    {asset.acquisitionPrice !== undefined && asset.acquisitionPrice > 0 && (
-                      <div className="text-right">
-                        <p className="text-[10px] text-slate-400 uppercase font-semibold">Compra</p>
-                        <p className="text-xs font-medium text-slate-500">
-                          {formatEuro(asset.acquisitionPrice)}
-                        </p>
-                      </div>
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Últimos bienes</h3>
+              {assets.length > 0 && <span className="text-xs text-slate-500">{assets.length} en total</span>}
+            </div>
+            {loading ? (
+              <LoadingState />
+            ) : recentAssets.length === 0 ? (
+              <EmptyState title="No hay bienes registrados aún" description="Empieza registrando una moneda, una obra de arte o cualquier objeto de la familia." onAdd={handleOpenAddModal} />
+            ) : (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {recentAssets.map((asset) => (
+                  <AssetCard key={asset.id} asset={asset} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} />
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      ) : (
+        <>
+          <div className="space-y-3.5 rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+              <span className="shrink-0 text-[11px] font-bold uppercase text-slate-500">Propietario:</span>
+              <button
+                onClick={() => setSelectedOwner('all')}
+                className={`shrink-0 rounded-xl px-3 py-1.5 font-semibold transition ${selectedOwner === 'all' ? 'bg-slate-100 text-slate-900' : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+              >
+                Todos ({scopedAssets.length})
+              </button>
+              {ownerOptions.map((owner) => {
+                const count = scopedAssets.filter((asset) => normalizeText(asset.owner || 'Gabriel') === normalizeText(owner.name)).length
+                return (
+                  <button
+                    key={owner.name}
+                    onClick={() => setSelectedOwner(owner.name)}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold transition ${selectedOwner === owner.name ? 'bg-teal-700 text-white' : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+                  >
+                    👤 {owner.name} <span className="opacity-75">({count})</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {categoryOptions.length > 1 && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3 text-xs">
+                <span className="text-[11px] font-bold uppercase text-slate-500">Categoría:</span>
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className={`rounded-xl px-3 py-1.5 font-semibold transition ${selectedCategory === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+                >
+                  Todas
+                </button>
+                {categoryOptions.map((category) => {
+                  const count = scopedAssets.filter((asset) => asset.category === category.value).length
+                  return (
+                    <button
+                      key={category.value}
+                      onClick={() => setSelectedCategory(category.value)}
+                      className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-semibold transition ${selectedCategory === category.value ? 'bg-teal-700 text-white' : 'bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+                    >
+                      <span>{category.icon}</span><span>{category.label}</span><span className="opacity-75">({count})</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              <select value={selectedMaterial} onChange={(event) => setSelectedMaterial(event.target.value)} className={filterInputClass}>
+                <option value="all">Material: todos</option>
+                {materialOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+              <select value={selectedConservationState} onChange={(event) => setSelectedConservationState(event.target.value)} className={filterInputClass}>
+                <option value="all">Estado: todos</option>
+                {conservationOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+              <select value={selectedCoinType} onChange={(event) => setSelectedCoinType(event.target.value)} className={filterInputClass}>
+                <option value="all">Tipo: todos</option>
+                {coinTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+              <select value={selectedEra} onChange={(event) => setSelectedEra(event.target.value)} className={filterInputClass}>
+                <option value="all">Época: todas</option>
+                {eraOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              <div className="relative sm:col-span-2">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Buscar nombre, ceca, material, etiqueta…"
+                  className={`${filterInputClass} pl-8`}
+                />
+                <span className="absolute left-2.5 top-2 text-slate-500">⌕</span>
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-expanded={tagFilterOpen}
+                  onClick={() => setTagFilterOpen((open) => !open)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-left text-sm text-slate-200"
+                >
+                  Etiquetas{selectedTags.length ? ` · ${selectedTags.length} seleccionada(s)` : ''} ▾
+                </button>
+                {tagFilterOpen && (
+                  <div className="absolute right-0 z-20 mt-2 max-h-64 w-full min-w-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-xl">
+                    {existingTags.length ? existingTags.map((tag) => (
+                      <label key={tag} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+                        <input
+                          type="checkbox"
+                          checked={selectedTags.includes(tag)}
+                          onChange={(event) => setSelectedTags((current) => event.target.checked ? [...current, tag] : current.filter((item) => item !== tag))}
+                          className="accent-teal-500"
+                        />
+                        {tag}
+                      </label>
+                    )) : <p className="p-2 text-xs text-slate-500">Aún no hay etiquetas en el catálogo.</p>}
+                    {selectedTags.length > 0 && (
+                      <button type="button" onClick={() => setSelectedTags([])} className="mt-2 w-full border-t border-slate-700 px-2 pt-2 text-left text-xs text-teal-300">Limpiar etiquetas</button>
                     )}
                   </div>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="p-3 px-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between">
-                  <button
-                    onClick={(event) => { event.stopPropagation(); handleOpenEditModal(asset) }}
-                    className="text-xs font-semibold text-teal-300 hover:text-teal-200 transition"
-                  >
-                    Ver detalles / Editar
-                  </button>
-
-                  <button
-                    onClick={(event) => { event.stopPropagation(); setAssetToDelete(asset) }}
-                    className="p-1 rounded-md text-slate-300 hover:text-red-600 hover:bg-red-50 transition"
-                    title="Eliminar"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.75}
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                      />
-                    </svg>
-                  </button>
-                </div>
+                )}
               </div>
-            )
-          })}
-        </div>
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className={filterInputClass}>
+                <option value="name">Ordenar: nombre</option>
+                <option value="year-asc">Año: más antiguo</option>
+                <option value="value-desc">Valor: mayor a menor</option>
+              </select>
+            </div>
+          </div>
+
+          {loading ? (
+            <LoadingState />
+          ) : filteredAssets.length === 0 ? (
+            <EmptyState
+              title={scopedAssets.length === 0 ? 'Todavía no hay bienes en esta colección' : 'No hay resultados para estos filtros'}
+              description={scopedAssets.length === 0 ? 'Añade el primer bien de esta colección para empezar.' : 'Prueba a cambiar los filtros o a limpiar la búsqueda.'}
+              onAdd={scopedAssets.length === 0 ? handleOpenAddModal : undefined}
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {filteredAssets.map((asset) => (
+                <AssetCard key={asset.id} asset={asset} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Asset Modal (Create / Edit) */}
-      <AssetModal isOpen={isModalOpen} assetToEdit={editingAsset} existingTags={existingTags} owners={ownerOptions.map((owner) => owner.name)} defaultOwner={defaultOwner} storageUsedBytes={storageUsage.imageBytes} storageFreeBytes={Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes)} onClose={handleCloseAssetModal} onSaved={() => {}} />
+      <AssetModal
+        isOpen={isModalOpen}
+        assetToEdit={editingAsset}
+        existingTags={existingTags}
+        owners={ownerOptions.map((owner) => owner.name)}
+        defaultOwner={defaultOwner}
+        defaultCategory={defaultCategory}
+        storageUsedBytes={storageUsage.imageBytes}
+        storageFreeBytes={Math.max(0, STORAGE_NO_COST_STORAGE_BYTES - storageUsage.pdfBytes - storageUsage.imageBytes)}
+        numismaticaSuggestions={numismaticaSuggestions}
+        onClose={handleCloseAssetModal}
+        onSaved={handleAssetSaved}
+      />
 
-      {/* Safe Delete Modal */}
       <ConfirmModal
         isOpen={assetToDelete !== null}
         title="¿Eliminar este bien del inventario?"
@@ -510,3 +572,122 @@ export default function CollectionsPage() {
   )
 }
 
+const filterInputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-teal-500 focus:outline-none'
+
+function StatCard({ title, value, valueClass = 'text-slate-900' }: { title: string; value: string; valueClass?: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-800 bg-white p-5 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
+      <p className={`mt-2 text-2xl font-bold ${valueClass}`}>{value}</p>
+    </div>
+  )
+}
+
+function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
+  const category = getCategoryInfo(asset.category)
+  const mainPhoto = asset.photos?.[0]
+  const tags = Array.from(new Set([...(asset.tags ?? []), asset.material, asset.conservationState].filter((tag): tag is string => Boolean(tag?.trim())))).slice(0, 5)
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={`Ver o editar ${asset.name}`}
+      onClick={() => onOpen(asset)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onOpen(asset)
+        }
+      }}
+      className="group flex cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-sm transition-all hover:border-slate-500 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-teal-500"
+    >
+      <div className="relative aspect-[4/3] overflow-hidden border-b border-slate-800 bg-slate-950">
+        {mainPhoto ? (
+          <PrivateStorageImage source={mainPhoto} alt={asset.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+        ) : (
+          <div className="flex h-full w-full select-none items-center justify-center text-5xl text-slate-700">{category.icon}</div>
+        )}
+        <div className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-slate-950/90 px-2.5 py-1 text-[11px] font-semibold text-slate-200 shadow-sm">
+          <span>{category.icon}</span>
+          <span>{category.label}</span>
+        </div>
+        <div className="absolute right-2.5 top-2.5 rounded-full bg-teal-700/95 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">👤 {asset.owner || 'Gabriel'}</div>
+        {asset.photos && asset.photos.length > 1 && (
+          <span className="absolute bottom-2.5 right-2.5 rounded-full bg-slate-900/80 px-2 py-0.5 text-[10px] font-semibold text-white">+{asset.photos.length - 1} foto(s)</span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col justify-between space-y-3 p-4">
+        <div>
+          <h4 className="line-clamp-1 text-base font-bold text-slate-100" title={asset.name}>{asset.name}</h4>
+          <p className="mt-1 text-xs text-slate-400">
+            {asset.year !== undefined ? `Año ${asset.year > 0 ? asset.year : `${Math.abs(asset.year)} a.C.`}` : ''}
+            {(asset.placeOfOrigin || asset.country) ? ` · ${asset.placeOfOrigin || asset.country}` : ''}
+            {(asset.era || asset.historicalEra) ? ` · ${asset.era || asset.historicalEra}` : ''}
+          </p>
+          {(asset.denomination || asset.mint) && (
+            <p className="mt-1 text-xs text-slate-500">{[asset.denomination, asset.mint].filter(Boolean).join(' · ')}</p>
+          )}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {tags.map((tag) => (
+              <span key={tag} className="rounded-full border border-teal-900 bg-teal-950/60 px-2.5 py-1 text-[11px] text-teal-200">{tag}</span>
+            ))}
+          </div>
+          {asset.location && <p className="mt-2 flex items-center gap-1 truncate text-xs text-slate-500"><span>📍</span><span className="truncate">{asset.location}</span></p>}
+        </div>
+
+        <div className="flex items-baseline justify-between border-t border-slate-800 pt-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase text-slate-500">Valor estimado</p>
+            <p className="text-base font-bold text-emerald-400">{formatEuro(asset.currentValue)}</p>
+          </div>
+          {asset.acquisitionPrice !== undefined && asset.acquisitionPrice > 0 && (
+            <div className="text-right">
+              <p className="text-[10px] font-semibold uppercase text-slate-500">Compra</p>
+              <p className="text-xs font-medium text-slate-400">{formatEuro(asset.acquisitionPrice)}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/60 p-3 px-4">
+        <button onClick={(event) => { event.stopPropagation(); onOpen(asset) }} className="text-xs font-semibold text-teal-300 transition hover:text-teal-200">Ver detalles / Editar</button>
+        <button
+          onClick={(event) => { event.stopPropagation(); onDelete(asset) }}
+          className="rounded-md p-1 text-slate-400 transition hover:bg-red-950/50 hover:text-red-400"
+          title="Eliminar"
+          aria-label={`Eliminar ${asset.name}`}
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function LoadingState() {
+  return (
+    <div className="py-16 text-center">
+      <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-teal-700 border-t-transparent" />
+      <p className="text-sm text-slate-500">Cargando inventario de Firestore…</p>
+    </div>
+  )
+}
+
+function EmptyState({ title, description, onAdd }: { title: string; description: string; onAdd?: () => void }) {
+  return (
+    <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-12 text-center">
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-950/40 text-2xl text-amber-300">🪙</div>
+      <h3 className="text-base font-bold text-slate-100">{title}</h3>
+      <p className="mx-auto mt-1.5 max-w-xs text-xs text-slate-500">{description}</p>
+      {onAdd && (
+        <button onClick={onAdd} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-600">
+          + Añadir bien
+        </button>
+      )}
+    </div>
+  )
+}

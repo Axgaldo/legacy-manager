@@ -25,6 +25,7 @@ export default function App() {
             <Route path="/inmuebles" element={<PropertiesPage />} />
             <Route path="/inmuebles/:id" element={<PropertyDetailPage />} />
             <Route path="/bienes" element={<CollectionsPage />} />
+            <Route path="/bienes/categoria/:collectionKey" element={<CollectionsPage />} />
             <Route path="/bienes/:assetSlug" element={<CollectionsPage />} />
           </Route>
         </Routes>

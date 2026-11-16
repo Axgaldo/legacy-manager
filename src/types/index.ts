@@ -221,7 +221,7 @@ export interface AssetItem extends TimestampedDoc {
   photos: string[]
   photoSizesBytes?: number[]
 
-  // Numism·tica fields
+  // Numism√°tica fields (optional so other categories keep working)
   value?: number
   market_value?: number
   purchase_price?: number
@@ -235,7 +235,7 @@ export interface AssetItem extends TimestampedDoc {
   coin_type?: string
   empire_reign?: string
   manufacturing_place?: string
-  case_location: string        // Requerido
-  case_number: string           // Requerido
-  added_date?: string          // Fecha de registro
+  case_location?: string
+  case_number?: string
+  added_date?: string
 }

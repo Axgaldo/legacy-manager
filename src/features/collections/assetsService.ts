@@ -17,8 +17,19 @@ import { db } from '@/lib/firebase'
 import { AssetItem } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
 import { deletePrivateStorageFile, isStoragePath, MAX_ASSET_IMAGE_BYTES, uploadPrivateStorageBlob } from '@/lib/storageFiles'
+import { normalizeAssetCategory } from './assetCategories'
 
 const COLLECTION_NAME = 'assets'
+
+function optionalNumber(value: unknown): number | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function optionalString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
 
 export function subscribeToAssets(
   onSuccess: (assets: AssetItem[]) => void,
@@ -35,28 +46,46 @@ export function subscribeToAssets(
           id: docSnap.id,
           name: data.name ?? '',
           owner: data.owner ?? 'Gabriel',
-          category: data.category ?? 'other',
+          category: normalizeAssetCategory(data.category),
           tags: Array.isArray(data.tags) ? data.tags : [data.brandOrAuthor, data.material, data.historicalEra, data.country, data.ruler, data.mint, data.denomination, data.conservationState].filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0),
-          location: data.location ?? '',
-          description: data.description ?? '',
-          year: data.year !== undefined && data.year !== null ? Number(data.year) : undefined,
-          historicalEra: data.historicalEra ?? '',
-          country: data.country ?? '',
-          placeOfOrigin: data.placeOfOrigin ?? data.country ?? '',
-          brandOrAuthor: data.brandOrAuthor ?? '',
-          ruler: data.ruler ?? '',
-          mint: data.mint ?? '',
-          denomination: data.denomination ?? '',
-          conservationState: data.conservationState ?? '',
-          material: data.material ?? '',
-          acquisitionYear: data.acquisitionYear ? Number(data.acquisitionYear) : undefined,
-          acquisitionPrice: data.acquisitionPrice ? Number(data.acquisitionPrice) : undefined,
-          currentValue: data.currentValue ? Number(data.currentValue) : undefined,
-          notes: data.notes ?? '',
+          location: optionalString(data.location),
+          description: optionalString(data.description),
+          year: optionalNumber(data.year),
+          historicalEra: optionalString(data.historicalEra),
+          country: optionalString(data.country),
+          placeOfOrigin: optionalString(data.placeOfOrigin) || optionalString(data.country),
+          brandOrAuthor: optionalString(data.brandOrAuthor),
+          ruler: optionalString(data.ruler),
+          mint: optionalString(data.mint),
+          denomination: optionalString(data.denomination),
+          conservationState: optionalString(data.conservationState),
+          material: optionalString(data.material),
+          acquisitionYear: optionalNumber(data.acquisitionYear),
+          acquisitionPrice: optionalNumber(data.acquisitionPrice),
+          currentValue: optionalNumber(data.currentValue),
+          notes: optionalString(data.notes),
           photos: Array.isArray(data.photos) ? data.photos : [],
           photoSizesBytes: Array.isArray(data.photoSizesBytes) ? data.photoSizesBytes.map((size: unknown) => Number(size) || 0) : [],
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
+
+          // Numismática fields (previously stored documents keep working)
+          value: optionalNumber(data.value),
+          market_value: optionalNumber(data.market_value),
+          purchase_price: optionalNumber(data.purchase_price),
+          purchase_year: optionalNumber(data.purchase_year),
+          obverse_info: optionalString(data.obverse_info),
+          reverse_info: optionalString(data.reverse_info),
+          era: optionalString(data.era),
+          creation_year_range: optionalString(data.creation_year_range),
+          reference_book: optionalString(data.reference_book),
+          reference_book_value: optionalNumber(data.reference_book_value),
+          coin_type: optionalString(data.coin_type),
+          empire_reign: optionalString(data.empire_reign),
+          manufacturing_place: optionalString(data.manufacturing_place),
+          case_location: optionalString(data.case_location),
+          case_number: optionalString(data.case_number),
+          added_date: optionalString(data.added_date),
         }
       })
       onSuccess(items)
