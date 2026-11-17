@@ -69,6 +69,15 @@ export function subscribeToAssets(
           updatedAt: data.updatedAt,
 
           // Numismática fields (previously stored documents keep working)
+          numismatica_type: data.numismatica_type === 'medalla'
+            ? 'medalla'
+            : data.numismatica_type === 'moneda'
+              ? 'moneda'
+              : (data.category === 'medals' || data.category === 'medallas' ? 'medalla' : undefined),
+          medal_motive: optionalString(data.medal_motive),
+          medal_size_mm: optionalNumber(data.medal_size_mm),
+          acquisition_operation: optionalString(data.acquisition_operation),
+          medal_location: optionalString(data.medal_location),
           value: optionalNumber(data.value),
           market_value: optionalNumber(data.market_value),
           purchase_price: optionalNumber(data.purchase_price),

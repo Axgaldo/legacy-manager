@@ -38,7 +38,11 @@
 
 ## Assets Module (Bienes)
 - **Entry Point:** Landing page with 3 cards (Numismática, Arte, Objetos).
-- **Numismática:** Rows view (not cards) with a tiny thumbnail on the right; the coin form is a dedicated numismática form. Specific fields: denomination, material, conservationState, era, creation_year_range, empire_reign, ruler, mint, manufacturing_place (legacy), obverse_info, reverse_info, value, market_value, purchase_price, purchase_year, reference_book, reference_book_value, case_location, case_number, added_date. Coins are always `Moneda`; there is no `coin_type` field. Years are stored as signed numbers (negative = a.C.) plus `creation_year_range` for intervals; the form toggles between concrete year and range with d.C./a.C. selects and auto-fills era and ruler (Roman Empire / Spain) from the year.
+- **Numismática:** Monedas **y medallas** de todas las épocas. Rows view (not cards) with a tiny thumbnail on the right. The form uses a **Moneda / Medalla** selector at the top:
+    - **Moneda:** dedicated numismática form. Fields: denomination, material, conservationState, era, creation_year_range, empire_reign, ruler, mint, manufacturing_place (legacy), obverse_info, reverse_info, value, market_value, purchase_price, purchase_year, reference_book, reference_book_value, case_location, case_number, added_date. Years are stored as signed numbers (negative = a.C.) plus `creation_year_range` for intervals; the form toggles between concrete year and range with d.C./a.C. selects and auto-fills era and ruler (Roman Empire / Spain) from the year.
+    - **Medalla:** simplified form with only motive, year, material, size (mm), obverse, reverse, purchase price, acquisition operation and location. Stored in the same `assets` collection with `numismatica_type: 'medalla'`; fields: `medal_motive`, `medal_size_mm`, `acquisition_operation`, `medal_location`, reusing `obverse_info`, `reverse_info`, `material`, `purchase_price`, `year`. The name is auto-generated as `Medalla de <motivo>` (editable via `medal_name_override`).
+    - Documents without `numismatica_type` are treated as `moneda`; legacy `medals`/`medallas` categories normalize to `numismatica` and infer `medalla`. The list shows 🪙/🏅, and the filter row has a **Tipo** selector (todo / monedas / medallas).
+- **Relojes:** no dedicated form; the generic asset form plus photos is enough.
 - **Common fields:** name, owner, category, tags, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes. `location` was removed; coin location is `case_location`/`case_number` in advanced details.
 
 ## Migration Status
@@ -69,6 +73,8 @@
     - Versioning: `package.json` version + short git commit + build date are injected by `vite.config.ts` (`__APP_VERSION__`, `__APP_COMMIT__`, `__APP_BUILD_DATE__`, declared in `src/vite-env.d.ts`) and shown in the sidebar footer above the account block. Do not hardcode versions in components; follow the mandatory rules in "Versioning (obligatorio)".
     - License: MIT in `LICENSE`, copyright Antonio Galdó Seiquer (2026); referenced in the sidebar footer and README.
     - **VERIFIED:** `npm run build` passes after restoring strict TypeScript checks.
+    - Medallas dentro de Numismática: selector Moneda/Medalla, formulario simplificado de medalla, lista unificada con 🪙/🏅 y filtro por tipo.
+    - Importación local de datos: los archivos originales se dejan en `_import/` (ignorada por git) y nunca se suben al repositorio.
 
 ---
 

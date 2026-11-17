@@ -1,6 +1,8 @@
 import {
+  ACQUISITION_OPERATIONS,
   EMPIRE_NAMES,
   ERA_OPTIONS,
+  MEDAL_MATERIALS,
   RULER_NAMES,
   orderConservationStates,
 } from './numismaticaMeta'
@@ -17,7 +19,8 @@ export const NUMISMATICA_DEFAULTS: Record<string, string[]> = {
   denomination: ['Denario', 'Sestercio', 'Áureo', 'As', 'Dupondio', 'Antoniniano', 'Follis', '8 reales', '4 reales', '2 reales', '1 real', 'Doblón', 'Peseta', 'Duro', 'Euro'],
   era: [...ERA_OPTIONS],
   empire_reign: [...EMPIRE_NAMES],
-  material: ['Oro', 'Plata', 'Bronce', 'Cobre', 'Latón', 'Bimetálico', 'Aleación', 'Estaño', 'Hierro', 'Níquel', 'Platino'],
+  material: ['Oro', 'Plata', 'Bronce', 'Cobre', 'Latón', 'Bimetálico', 'Aleación', 'Estaño', 'Hierro', 'Níquel', 'Platino', ...MEDAL_MATERIALS],
+  acquisition_operation: [...ACQUISITION_OPERATIONS],
   reference_book: ['Standard Catalog of World Coins', 'Krause', 'Moneda Española (Cayón)', 'Alcó Bueno', 'Spink'],
 }
 
@@ -86,6 +89,37 @@ function SuggestionField({
       )}
       {hint && <p className="mt-1 text-[11px] text-slate-500">{hint}</p>}
     </div>
+  )
+}
+
+function NameField({ field, values, onChange, namePreview }: Pick<NumismaticaFieldsProps, 'values' | 'onChange' | 'namePreview'> & { field: string }) {
+  const inputId = `numismatica-name-${field}`
+  return (
+    <section className="space-y-3 border-t border-slate-800 pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Nombre de la ficha</h4>
+        {values[field]?.trim() && (
+          <button
+            type="button"
+            onClick={() => onChange(field, '')}
+            className="text-[11px] font-semibold text-teal-300 hover:text-teal-200"
+          >
+            Usar nombre automático
+          </button>
+        )}
+      </div>
+      <div>
+        <label htmlFor={inputId} className={labelClass}>Nombre visible (opcional)</label>
+        <input
+          id={inputId}
+          value={values[field] ?? ''}
+          onChange={(event) => onChange(field, event.target.value)}
+          placeholder={namePreview?.trim() || 'Se genera automáticamente'}
+          className={inputClass}
+        />
+        <p className="mt-1 text-[11px] text-slate-500">Se rellena solo a partir de los datos de la ficha. Escríbelo aquí solo si quieres un nombre distinto.</p>
+      </div>
+    </section>
   )
 }
 
@@ -212,6 +246,7 @@ function YearFields({ values, onChange, onAutoFill }: Pick<NumismaticaFieldsProp
 }
 
 export function NumismaticaFields({ values, onChange, suggestions, namePreview, onAutoFill }: NumismaticaFieldsProps) {
+  const isMedal = values.numismatica_type === 'medalla'
   const conservationOptions = orderConservationStates([
     ...(suggestions?.conservationState ?? []),
     ...(values.conservationState ? [values.conservationState] : []),
@@ -219,120 +254,161 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
 
   return (
     <div className="space-y-5 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:p-5">
-      <div className="flex items-center gap-2 text-teal-300">
-        <span className="text-xl">🪙</span>
-        <div>
-          <h3 className="text-base font-bold">Ficha de moneda</h3>
-          <p className="text-xs text-slate-500">Solo los datos propios de numismática. El nombre y los campos genéricos se rellenan automáticamente.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-center gap-2 text-teal-300">
+          <span className="text-xl">{isMedal ? '🏅' : '🪙'}</span>
+          <div>
+            <h3 className="text-base font-bold">{isMedal ? 'Ficha de medalla' : 'Ficha de moneda'}</h3>
+            <p className="text-xs text-slate-500">
+              {isMedal
+                ? 'Ficha simplificada de medalla. El nombre se rellena solo con el motivo.'
+                : 'Solo los datos propios de numismática. El nombre y los campos genéricos se rellenan automáticamente.'}
+            </p>
+          </div>
+        </div>
+        <div className="inline-flex overflow-hidden rounded-xl border border-slate-700">
+          <button
+            type="button"
+            onClick={() => onChange('numismatica_type', 'moneda')}
+            className={`px-3 py-1.5 text-xs font-semibold transition ${!isMedal ? 'bg-teal-700 text-white' : 'bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+            aria-pressed={!isMedal}
+          >
+            Moneda
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange('numismatica_type', 'medalla')}
+            className={`px-3 py-1.5 text-xs font-semibold transition ${isMedal ? 'bg-teal-700 text-white' : 'bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+            aria-pressed={isMedal}
+          >
+            Medalla
+          </button>
         </div>
       </div>
 
       <div className="rounded-xl border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">
         <span className="text-slate-400">Se guardará como:</span>{' '}
-        <strong className="text-teal-100">{namePreview?.trim() || 'Denominación de la moneda'}</strong>
+        <strong className="text-teal-100">{namePreview?.trim() || (isMedal ? 'Motivo de la medalla' : 'Denominación de la moneda')}</strong>
         <span className="ml-1 text-slate-500">(editable más abajo)</span>
       </div>
 
-      <YearFields values={values} onChange={onChange} onAutoFill={onAutoFill} />
+      {isMedal ? (
+        <>
+          <section className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Datos de la medalla</h4>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <SuggestionField field="medal_motive" label="Motivo *" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Coronación de Alfonso XIII…" />
+              <SuggestionField field="medal_year" label="Año" type="number" values={values} onChange={onChange} placeholder="Ej: 1898" />
+              <SuggestionField field="material" label="Material" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: bronce, plata…" />
+              <SuggestionField field="medal_size_mm" label="Tamaño (mm)" type="number" step="0.1" values={values} onChange={onChange} placeholder="Ej: 60" />
+            </div>
+          </section>
 
-      <section className="space-y-3">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Identificación</h4>
-        <p className="text-[11px] text-slate-500">El gobernante, el imperio y la época se rellenan con la fecha; puedes corregirlos cuando quieras.</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SuggestionField field="denomination" label="Denominación *" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: denario, 8 reales, peseta…" />
-          <SuggestionField field="ruler" label="Gobernante" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Adriano, Carlos IV…" extraOptions={RULER_NAMES} />
-          <SuggestionField field="empire_reign" label="Imperio o reinado" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Imperio Romano" extraOptions={EMPIRE_NAMES} />
-          <SuggestionField field="era" label="Época" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Romana" />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Material, conservación y ceca</h4>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <SuggestionField field="material" label="Material" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: oro, plata, bronce…" />
-          <div>
-            <label htmlFor="numismatica-conservation" className={labelClass}>Estado de conservación</label>
-            <select
-              id="numismatica-conservation"
-              value={values.conservationState ?? ''}
-              onChange={(event) => onChange('conservationState', event.target.value)}
-              className={selectClass}
-            >
-              <option value="">Sin especificar</option>
-              {conservationOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-            <p className="mt-1 text-[11px] text-slate-500">Ordenado de mejor a peor.</p>
-          </div>
-          <SuggestionField field="mint" label="Ceca" values={values} onChange={onChange} placeholder="Ej: Roma, Sevilla, Madrid…" noSuggestions hint="Sin valores predefinidos: escribe la ceca que corresponda." />
-        </div>
-      </section>
-
-      <section className="space-y-3 border-t border-slate-800 pt-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Nombre de la ficha</h4>
-          {values.name_override?.trim() && (
-            <button
-              type="button"
-              onClick={() => onChange('name_override', '')}
-              className="text-[11px] font-semibold text-teal-300 hover:text-teal-200"
-            >
-              Usar nombre automático
-            </button>
-          )}
-        </div>
-        <div>
-          <label htmlFor="numismatica-name" className={labelClass}>Nombre visible (opcional)</label>
-          <input
-            id="numismatica-name"
-            value={values.name_override ?? ''}
-            onChange={(event) => onChange('name_override', event.target.value)}
-            placeholder={namePreview?.trim() || 'Se genera automáticamente'}
-            className={inputClass}
-          />
-          <p className="mt-1 text-[11px] text-slate-500">Se rellena solo con la denominación y el gobernante. Escríbelo aquí solo si quieres un nombre distinto.</p>
-        </div>
-      </section>
-
-      <details className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-200">Detalles avanzados (opcional)</summary>
-
-        <div className="mt-4 space-y-5">
           <section className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Anverso y reverso</h4>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className={labelClass}>Información del anverso</label>
+                <label className={labelClass}>Anverso</label>
                 <textarea rows={3} value={values.obverse_info ?? ''} onChange={(event) => onChange('obverse_info', event.target.value)} className={inputClass} placeholder="Descripción del anverso…" />
               </div>
               <div>
-                <label className={labelClass}>Información del reverso</label>
+                <label className={labelClass}>Reverso</label>
                 <textarea rows={3} value={values.reverse_info ?? ''} onChange={(event) => onChange('reverse_info', event.target.value)} className={inputClass} placeholder="Descripción del reverso…" />
               </div>
             </div>
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Valoración y referencias</h4>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <SuggestionField field="value" label="Valor nominal (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
-              <SuggestionField field="market_value" label="Valor de mercado (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Adquisición y ubicación</h4>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <SuggestionField field="purchase_price" label="Precio de compra (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
-              <SuggestionField field="purchase_year" label="Año de compra" type="number" values={values} onChange={onChange} placeholder="Ej: 2024" />
-              <SuggestionField field="reference_book" label="Libro de referencia" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Cayón, Krause…" />
-              <SuggestionField field="reference_book_value" label="Valoración en el libro (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+              <SuggestionField field="acquisition_operation" label="Operación de compra o adquisición" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: compra, herencia, regalo…" extraOptions={[...ACQUISITION_OPERATIONS]} />
+              <SuggestionField field="medal_location" label="Ubicación" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: mueble del despacho, cajón 2…" />
+            </div>
+          </section>
+
+          <NameField field="medal_name_override" values={values} onChange={onChange} namePreview={namePreview} />
+        </>
+      ) : (
+        <>
+          <YearFields values={values} onChange={onChange} onAutoFill={onAutoFill} />
+
+          <section className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Identificación</h4>
+            <p className="text-[11px] text-slate-500">El gobernante, el imperio y la época se rellenan con la fecha; puedes corregirlos cuando quieras.</p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <SuggestionField field="denomination" label="Denominación *" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: denario, 8 reales, peseta…" />
+              <SuggestionField field="ruler" label="Gobernante" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Adriano, Carlos IV…" extraOptions={RULER_NAMES} />
+              <SuggestionField field="empire_reign" label="Imperio o reinado" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Imperio Romano" extraOptions={EMPIRE_NAMES} />
+              <SuggestionField field="era" label="Época" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Romana" />
             </div>
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ubicación y registro</h4>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <SuggestionField field="case_location" label="Archivador / estuche" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Estuche A, Carpeta 3…" />
-              <SuggestionField field="case_number" label="Número de posición" values={values} onChange={onChange} placeholder="Ej: #12" />
-              <SuggestionField field="added_date" label="Fecha de registro" type="date" values={values} onChange={onChange} />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Material, conservación y ceca</h4>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <SuggestionField field="material" label="Material" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: oro, plata, bronce…" />
+              <div>
+                <label htmlFor="numismatica-conservation" className={labelClass}>Estado de conservación</label>
+                <select
+                  id="numismatica-conservation"
+                  value={values.conservationState ?? ''}
+                  onChange={(event) => onChange('conservationState', event.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">Sin especificar</option>
+                  {conservationOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+                <p className="mt-1 text-[11px] text-slate-500">Ordenado de mejor a peor.</p>
+              </div>
+              <SuggestionField field="mint" label="Ceca" values={values} onChange={onChange} placeholder="Ej: Roma, Sevilla, Madrid…" noSuggestions hint="Sin valores predefinidos: escribe la ceca que corresponda." />
             </div>
           </section>
-        </div>
-      </details>
+
+          <NameField field="name_override" values={values} onChange={onChange} namePreview={namePreview} />
+
+          <details className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-200">Detalles avanzados (opcional)</summary>
+
+            <div className="mt-4 space-y-5">
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Anverso y reverso</h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Información del anverso</label>
+                    <textarea rows={3} value={values.obverse_info ?? ''} onChange={(event) => onChange('obverse_info', event.target.value)} className={inputClass} placeholder="Descripción del anverso…" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Información del reverso</label>
+                    <textarea rows={3} value={values.reverse_info ?? ''} onChange={(event) => onChange('reverse_info', event.target.value)} className={inputClass} placeholder="Descripción del reverso…" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Valoración y referencias</h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <SuggestionField field="value" label="Valor nominal (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+                  <SuggestionField field="market_value" label="Valor de mercado (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+                  <SuggestionField field="purchase_price" label="Precio de compra (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+                  <SuggestionField field="purchase_year" label="Año de compra" type="number" values={values} onChange={onChange} placeholder="Ej: 2024" />
+                  <SuggestionField field="reference_book" label="Libro de referencia" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Cayón, Krause…" />
+                  <SuggestionField field="reference_book_value" label="Valoración en el libro (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ubicación y registro</h4>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <SuggestionField field="case_location" label="Archivador / estuche" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Estuche A, Carpeta 3…" />
+                  <SuggestionField field="case_number" label="Número de posición" values={values} onChange={onChange} placeholder="Ej: #12" />
+                  <SuggestionField field="added_date" label="Fecha de registro" type="date" values={values} onChange={onChange} />
+                </div>
+              </section>
+            </div>
+          </details>
+        </>
+      )}
     </div>
   )
 }

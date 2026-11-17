@@ -25,6 +25,7 @@ const SEARCHABLE_FIELDS = [
   'name', 'owner', 'brandOrAuthor', 'description', 'historicalEra', 'country', 'placeOfOrigin',
   'ruler', 'mint', 'denomination', 'conservationState', 'material', 'notes', 'era', 'empire_reign',
   'manufacturing_place', 'reference_book', 'case_location', 'case_number', 'obverse_info', 'reverse_info',
+  'medal_motive', 'acquisition_operation', 'medal_location', 'numismatica_type',
 ] as const
 
 const euroFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
@@ -53,7 +54,7 @@ function matchesSelected(value: string | undefined, selected: string) {
 }
 
 function assetValue(asset: AssetItem): number {
-  return asset.currentValue ?? asset.market_value ?? asset.value ?? 0
+  return asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price ?? 0
 }
 
 export default function CollectionsPage() {
@@ -83,6 +84,7 @@ export default function CollectionsPage() {
   const [selectedMaterial, setSelectedMaterial] = useState('all')
   const [selectedConservationState, setSelectedConservationState] = useState('all')
   const [selectedEra, setSelectedEra] = useState('all')
+  const [selectedNumismaticaType, setSelectedNumismaticaType] = useState('all')
 
   const activeCollection: CollectionKey | undefined = isCollectionKey(collectionKey) ? collectionKey : undefined
   const isLanding = !activeCollection
@@ -117,6 +119,7 @@ export default function CollectionsPage() {
     setSelectedMaterial('all')
     setSelectedConservationState('all')
     setSelectedEra('all')
+    setSelectedNumismaticaType('all')
     setSearchQuery('')
   }, [collectionKey])
 
@@ -169,7 +172,7 @@ export default function CollectionsPage() {
   ])), [assets])
 
   const numismaticaSuggestions = useMemo(() => {
-    const fields = ['material', 'conservationState', 'era', 'empire_reign', 'reference_book', 'denomination', 'ruler', 'case_location']
+    const fields = ['material', 'conservationState', 'era', 'empire_reign', 'reference_book', 'denomination', 'ruler', 'case_location', 'medal_motive', 'medal_location', 'acquisition_operation']
     const suggestions: Record<string, string[]> = {}
     fields.forEach((field) => {
       suggestions[field] = uniqueValues(assets.map((asset) => {
@@ -182,6 +185,9 @@ export default function CollectionsPage() {
           case 'denomination': return asset.denomination
           case 'ruler': return asset.ruler
           case 'case_location': return asset.case_location
+          case 'medal_motive': return asset.medal_motive
+          case 'medal_location': return asset.medal_location
+          case 'acquisition_operation': return asset.acquisition_operation
           default: return undefined
         }
       }))
@@ -219,8 +225,10 @@ export default function CollectionsPage() {
       const matchesMaterialFilter = matchesSelected(asset.material, selectedMaterial)
       const matchesConservationFilter = matchesSelected(asset.conservationState, selectedConservationState)
       const matchesEraFilter = matchesSelected(asset.era || asset.historicalEra, selectedEra)
+      const matchesNumismaticaType = selectedNumismaticaType === 'all'
+        || (asset.numismatica_type === 'medalla' ? 'medalla' : 'moneda') === selectedNumismaticaType
 
-      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter
+      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType
 
       const haystack = [
         ...SEARCHABLE_FIELDS.map((field) => asset[field]),
@@ -229,7 +237,7 @@ export default function CollectionsPage() {
       ].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' ')
 
       const matchesSearch = normalizeText(haystack).includes(query)
-      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesSearch
+      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType && matchesSearch
     })
 
     return filtered.sort((a, b) => {
@@ -239,7 +247,7 @@ export default function CollectionsPage() {
     })
   }, [
     scopedAssets, selectedOwner, selectedCategory, selectedTags, selectedMaterial, selectedConservationState,
-    selectedEra, searchQuery, sortBy,
+    selectedEra, selectedNumismaticaType, searchQuery, sortBy,
   ])
 
   const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
@@ -329,7 +337,7 @@ export default function CollectionsPage() {
           )}
           <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-500/10 transition hover:bg-teal-600">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            {isNumismaticaCollection ? 'Añadir moneda' : 'Añadir bien'}
+            {isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
           </button>
         </div>
       </div>
@@ -469,7 +477,14 @@ export default function CollectionsPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-3">
+            <div className={`grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-2 ${isNumismaticaCollection ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+              {isNumismaticaCollection && (
+                <select value={selectedNumismaticaType} onChange={(event) => setSelectedNumismaticaType(event.target.value)} className={filterInputClass}>
+                  <option value="all">Tipo: todo</option>
+                  <option value="moneda">Monedas</option>
+                  <option value="medalla">Medallas</option>
+                </select>
+              )}
               <select value={selectedMaterial} onChange={(event) => setSelectedMaterial(event.target.value)} className={filterInputClass}>
                 <option value="all">Material: todos</option>
                 {materialOptions.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -490,7 +505,7 @@ export default function CollectionsPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={isNumismaticaCollection ? 'Buscar nombre, ceca, gobernante, material…' : 'Buscar nombre, autor, material, etiqueta…'}
+                  placeholder={isNumismaticaCollection ? 'Buscar nombre, motivo, ceca, gobernante, material…' : 'Buscar nombre, autor, material, etiqueta…'}
                   className={`${filterInputClass} pl-8`}
                 />
                 <span className="absolute left-2.5 top-2 text-slate-500">⌕</span>
@@ -540,7 +555,7 @@ export default function CollectionsPage() {
               title={scopedAssets.length === 0 ? 'Todavía no hay bienes en esta colección' : 'No hay resultados para estos filtros'}
               description={scopedAssets.length === 0 ? 'Añade el primer bien de esta colección para empezar.' : 'Prueba a cambiar los filtros o a limpiar la búsqueda.'}
               onAdd={scopedAssets.length === 0 ? handleOpenAddModal : undefined}
-              addLabel={isNumismaticaCollection ? 'Añadir moneda' : 'Añadir bien'}
+              addLabel={isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
             />
           ) : isNumismaticaCollection ? (
             <NumismaticaList assets={filteredAssets} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} />

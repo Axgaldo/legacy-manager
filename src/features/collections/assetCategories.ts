@@ -27,7 +27,7 @@ export const ASSET_CATEGORIES: AssetCategoryInfo[] = [
 ]
 
 export const PRIMARY_COLLECTIONS: CollectionInfo[] = [
-  { key: 'numismatica', label: 'Numismática', icon: '🪙', description: 'Monedas de todas las épocas' },
+  { key: 'numismatica', label: 'Numismática', icon: '🪙', description: 'Monedas y medallas de todas las épocas' },
   { key: 'arte', label: 'Arte y cuadros', icon: '🎨', description: 'Cuadros, esculturas y obra gráfica' },
   { key: 'objetos', label: 'Objetos diversos', icon: '📦', description: 'Relojes, joyas, libros y otros bienes' },
 ]
@@ -44,6 +44,8 @@ const CANONICAL_CATEGORIES = new Set<string>(ASSET_CATEGORIES.map((category) => 
 const LEGACY_CATEGORY_ALIASES: Record<string, AssetCategory> = {
   coins: 'numismatica',
   banknotes: 'numismatica',
+  medals: 'numismatica',
+  medallas: 'numismatica',
   art: 'arte',
   antiques: 'objetos',
   furniture: 'objetos',

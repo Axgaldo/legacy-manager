@@ -9,6 +9,7 @@ import { NumismaticaFields } from './NumismaticaFields'
 import { ASSET_CATEGORIES } from './assetCategories'
 import {
   buildCoinName,
+  buildMedalName,
   getEraFromYear,
   getMidpointYearFromValues,
   getPrimaryYearFromValues,
@@ -41,6 +42,13 @@ function emptyNumismaticaData(): Record<string, string> {
     market_value: '',
     purchase_price: '',
     purchase_year: '',
+    numismatica_type: 'moneda',
+    medal_motive: '',
+    medal_year: '',
+    medal_size_mm: '',
+    medal_name_override: '',
+    acquisition_operation: '',
+    medal_location: '',
     obverse_info: '',
     reverse_info: '',
     era: '',
@@ -109,6 +117,12 @@ function buildNumismaticaData(asset: AssetItem): Record<string, string> {
     market_value: toInputValue(asset.market_value ?? asset.currentValue),
     purchase_price: toInputValue(asset.purchase_price ?? asset.acquisitionPrice),
     purchase_year: toInputValue(asset.purchase_year ?? asset.acquisitionYear),
+    numismatica_type: asset.numismatica_type === 'medalla' ? 'medalla' : 'moneda',
+    medal_motive: asset.medal_motive || '',
+    medal_year: asset.numismatica_type === 'medalla' && signedYear !== undefined ? String(signedYear) : '',
+    medal_size_mm: toInputValue(asset.medal_size_mm),
+    acquisition_operation: asset.acquisition_operation || '',
+    medal_location: asset.medal_location || '',
     obverse_info: asset.obverse_info || '',
     reverse_info: asset.reverse_info || '',
     era: asset.era || '',
@@ -135,13 +149,19 @@ function buildNumismaticaData(asset: AssetItem): Record<string, string> {
     range_legacy_text: useRange && !hasParsedRange ? rangeText : '',
   }
 
-  const generated = buildCoinName({
-    denomination: values.denomination,
-    ruler: values.ruler,
-    material: values.material,
-    yearLabel: getYearLabelFromValues(values),
-  })
-  values.name_override = asset.name && asset.name !== generated ? asset.name : ''
+  const generated = values.numismatica_type === 'medalla'
+    ? buildMedalName(values.medal_motive)
+    : buildCoinName({
+      denomination: values.denomination,
+      ruler: values.ruler,
+      material: values.material,
+      yearLabel: getYearLabelFromValues(values),
+    })
+  if (values.numismatica_type === 'medalla') {
+    values.medal_name_override = asset.name && asset.name !== generated ? asset.name : ''
+  } else {
+    values.name_override = asset.name && asset.name !== generated ? asset.name : ''
+  }
   return values
 }
 
@@ -182,6 +202,7 @@ export default function AssetModal({
   const [compressStatus, setCompressStatus] = useState('')
 
   const isNumismatica = category === 'numismatica'
+  const isMedal = isNumismatica && numismaticaData.numismatica_type === 'medalla'
   const tagSuggestions = useMemo(() => Array.from(new Set([...QUICK_TAGS, ...existingTags])).filter((tag) => tag.trim()), [existingTags])
   const detectedEra = useMemo(() => (year ? getHistoricalEraFromYear(Number(year)) : undefined), [year])
 
@@ -192,8 +213,10 @@ export default function AssetModal({
     material: numismaticaData.material,
     yearLabel: coinYearLabel,
   }), [numismaticaData.denomination, numismaticaData.ruler, numismaticaData.material, coinYearLabel])
+  const generatedMedalName = useMemo(() => buildMedalName(numismaticaData.medal_motive), [numismaticaData.medal_motive])
+  const activeNameOverride = isMedal ? numismaticaData.medal_name_override : numismaticaData.name_override
   const effectiveName = isNumismatica
-    ? (numismaticaData.name_override?.trim() || generatedCoinName)
+    ? (activeNameOverride?.trim() || (isMedal ? generatedMedalName : generatedCoinName))
     : name
 
   useEffect(() => {
@@ -249,6 +272,10 @@ export default function AssetModal({
   const handleNumismaticaChange = (field: string, value: string) => {
     const next = { ...numismaticaData, [field]: value }
 
+    if (field === 'numismatica_type') {
+      setNumismaticaData(next)
+      return
+    }
     if (field === 'era') {
       setEraTouched(true)
       setNumismaticaData(next)
@@ -259,7 +286,7 @@ export default function AssetModal({
       setNumismaticaData(next)
       return
     }
-    if (YEAR_FIELDS.has(field)) {
+    if (YEAR_FIELDS.has(field) && next.numismatica_type !== 'medalla') {
       const midpoint = getMidpointYearFromValues(next)
       if (!eraTouched) {
         const era = getEraFromYear(midpoint)
@@ -314,8 +341,12 @@ export default function AssetModal({
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
 
-    if (isNumismatica && !numismaticaData.denomination.trim() && !numismaticaData.name_override.trim()) {
-      setErrorMsg('Indica la denominación de la moneda (denario, 8 reales, peseta…) o escribe un nombre personalizado en detalles avanzados.')
+    if (isNumismatica && isMedal && !numismaticaData.medal_motive.trim() && !numismaticaData.medal_name_override.trim()) {
+      setErrorMsg('Indica el motivo de la medalla o escribe un nombre personalizado.')
+      return
+    }
+    if (isNumismatica && !isMedal && !numismaticaData.denomination.trim() && !numismaticaData.name_override.trim()) {
+      setErrorMsg('Indica la denominación de la moneda (denario, 8 reales, peseta…) o escribe un nombre personalizado.')
       return
     }
     if (!isNumismatica && !name.trim()) {
@@ -326,11 +357,14 @@ export default function AssetModal({
     setIsLoading(true)
     setErrorMsg('')
     const num = numismaticaData
+    const isMedalAsset = isNumismatica && num.numismatica_type === 'medalla'
     const yearNumber = parseNumber(year)
     const tagsList = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)))
     const marketValue = parseNumber(num.market_value)
     const nominalValue = parseNumber(num.value)
     const purchasePrice = parseNumber(num.purchase_price)
+    const medalYear = parseNumber(num.medal_year)
+    const medalSize = parseNumber(num.medal_size_mm)
     const rangeMode = num.year_mode === 'range'
     const coinPrimaryYear = getPrimaryYearFromValues(num) ?? assetToEdit?.year
     const coinMidpointYear = getMidpointYearFromValues(num) ?? assetToEdit?.year
@@ -341,56 +375,72 @@ export default function AssetModal({
       material: num.material,
       yearLabel: coinRangeLabel,
     })).trim()
-    const origin = isNumismatica
-      ? (num.mint.trim() || assetToEdit?.placeOfOrigin || assetToEdit?.country || '')
-      : placeOfOrigin.trim()
-    const creationYearRange = isNumismatica
-      ? rangeMode
-        ? (coinRangeLabel || num.range_legacy_text || assetToEdit?.creation_year_range || '')
-        : ''
-      : (assetToEdit?.creation_year_range ?? '')
-    const historicalEra = isNumismatica
-      ? (num.era.trim() || getEraFromYear(coinMidpointYear) || getHistoricalEraFromYear(coinPrimaryYear) || assetToEdit?.historicalEra || '')
-      : (getHistoricalEraFromYear(yearNumber) || assetToEdit?.historicalEra || '')
+    const medalName = (num.medal_name_override?.trim() || buildMedalName(num.medal_motive)).trim()
+    const origin = isMedalAsset
+      ? ''
+      : isNumismatica
+        ? (num.mint.trim() || assetToEdit?.placeOfOrigin || assetToEdit?.country || '')
+        : placeOfOrigin.trim()
+    const creationYearRange = isMedalAsset
+      ? undefined
+      : isNumismatica
+        ? rangeMode
+          ? (coinRangeLabel || num.range_legacy_text || assetToEdit?.creation_year_range || '')
+          : ''
+        : (assetToEdit?.creation_year_range ?? '')
+    const historicalEra = isMedalAsset
+      ? ''
+      : isNumismatica
+        ? (num.era.trim() || getEraFromYear(coinMidpointYear) || getHistoricalEraFromYear(coinPrimaryYear) || assetToEdit?.historicalEra || '')
+        : (getHistoricalEraFromYear(yearNumber) || assetToEdit?.historicalEra || '')
 
     const payload: Omit<AssetItem, 'id' | 'createdAt' | 'updatedAt'> = {
-      name: (isNumismatica ? coinName : name.trim()),
+      name: isNumismatica ? (isMedalAsset ? medalName : coinName) : name.trim(),
       owner: resolveOwnerName(owner, owners, defaultOwner),
       category: isNumismatica ? 'numismatica' : category,
       tags: isNumismatica ? [] : tagsList,
       description: assetToEdit?.description ?? '',
       brandOrAuthor: assetToEdit?.brandOrAuthor ?? '',
-      year: isNumismatica ? coinPrimaryYear : yearNumber,
+      year: isNumismatica ? (isMedalAsset ? medalYear : coinPrimaryYear) : yearNumber,
       historicalEra,
-      country: origin || assetToEdit?.country || '',
-      placeOfOrigin: origin || assetToEdit?.placeOfOrigin || '',
-      ruler: isNumismatica ? num.ruler.trim() : (assetToEdit?.ruler ?? ''),
-      mint: isNumismatica ? num.mint.trim() : (assetToEdit?.mint ?? ''),
-      denomination: isNumismatica ? num.denomination.trim() : (assetToEdit?.denomination ?? ''),
-      conservationState: isNumismatica ? num.conservationState.trim() : (assetToEdit?.conservationState ?? ''),
+      country: isMedalAsset ? '' : (origin || assetToEdit?.country || ''),
+      placeOfOrigin: isMedalAsset ? '' : (origin || assetToEdit?.placeOfOrigin || ''),
+      ruler: isMedalAsset ? undefined : isNumismatica ? num.ruler.trim() : (assetToEdit?.ruler ?? ''),
+      mint: isMedalAsset ? undefined : isNumismatica ? num.mint.trim() : (assetToEdit?.mint ?? ''),
+      denomination: isMedalAsset ? undefined : isNumismatica ? num.denomination.trim() : (assetToEdit?.denomination ?? ''),
+      conservationState: isMedalAsset ? undefined : isNumismatica ? num.conservationState.trim() : (assetToEdit?.conservationState ?? ''),
       material: isNumismatica ? num.material.trim() : (assetToEdit?.material ?? deriveMaterial(tagsList)),
-      acquisitionYear: isNumismatica ? parseNumber(num.purchase_year) : assetToEdit?.acquisitionYear,
+      acquisitionYear: isMedalAsset ? undefined : isNumismatica ? parseNumber(num.purchase_year) : assetToEdit?.acquisitionYear,
       acquisitionPrice: isNumismatica ? (purchasePrice ?? assetToEdit?.acquisitionPrice) : parseNumber(acquisitionPrice),
-      currentValue: isNumismatica ? (marketValue ?? nominalValue ?? assetToEdit?.currentValue) : parseNumber(currentValue),
+      currentValue: isMedalAsset
+        ? undefined
+        : isNumismatica
+          ? (marketValue ?? nominalValue ?? assetToEdit?.currentValue)
+          : parseNumber(currentValue),
       notes: notes.trim(),
       photos,
       photoSizesBytes: assetToEdit?.photoSizesBytes ?? [],
 
       // Numismática fields (kept in the same Firestore document as generic assets)
-      value: isNumismatica ? nominalValue : assetToEdit?.value,
-      market_value: isNumismatica ? marketValue : assetToEdit?.market_value,
+      numismatica_type: isNumismatica ? (isMedalAsset ? 'medalla' : 'moneda') : undefined,
+      medal_motive: isMedalAsset ? num.medal_motive.trim() : undefined,
+      medal_size_mm: isMedalAsset ? medalSize : undefined,
+      acquisition_operation: isMedalAsset ? num.acquisition_operation.trim() : undefined,
+      medal_location: isMedalAsset ? num.medal_location.trim() : undefined,
+      value: isMedalAsset ? undefined : isNumismatica ? nominalValue : assetToEdit?.value,
+      market_value: isMedalAsset ? undefined : isNumismatica ? marketValue : assetToEdit?.market_value,
       purchase_price: isNumismatica ? purchasePrice : assetToEdit?.purchase_price,
-      purchase_year: isNumismatica ? parseNumber(num.purchase_year) : assetToEdit?.purchase_year,
+      purchase_year: isMedalAsset ? undefined : isNumismatica ? parseNumber(num.purchase_year) : assetToEdit?.purchase_year,
       obverse_info: isNumismatica ? num.obverse_info.trim() : (assetToEdit?.obverse_info ?? ''),
       reverse_info: isNumismatica ? num.reverse_info.trim() : (assetToEdit?.reverse_info ?? ''),
-      era: isNumismatica ? num.era.trim() : (assetToEdit?.era ?? ''),
+      era: isMedalAsset ? undefined : isNumismatica ? num.era.trim() : (assetToEdit?.era ?? ''),
       creation_year_range: creationYearRange,
-      reference_book: isNumismatica ? num.reference_book.trim() : (assetToEdit?.reference_book ?? ''),
-      reference_book_value: isNumismatica ? parseNumber(num.reference_book_value) : assetToEdit?.reference_book_value,
-      empire_reign: isNumismatica ? num.empire_reign.trim() : (assetToEdit?.empire_reign ?? ''),
-      manufacturing_place: isNumismatica ? num.manufacturing_place.trim() : (assetToEdit?.manufacturing_place ?? ''),
-      case_location: isNumismatica ? num.case_location.trim() : (assetToEdit?.case_location ?? ''),
-      case_number: isNumismatica ? num.case_number.trim() : (assetToEdit?.case_number ?? ''),
+      reference_book: isMedalAsset ? undefined : isNumismatica ? num.reference_book.trim() : (assetToEdit?.reference_book ?? ''),
+      reference_book_value: isMedalAsset ? undefined : isNumismatica ? parseNumber(num.reference_book_value) : assetToEdit?.reference_book_value,
+      empire_reign: isMedalAsset ? undefined : isNumismatica ? num.empire_reign.trim() : (assetToEdit?.empire_reign ?? ''),
+      manufacturing_place: isMedalAsset ? undefined : isNumismatica ? num.manufacturing_place.trim() : (assetToEdit?.manufacturing_place ?? ''),
+      case_location: isMedalAsset ? undefined : isNumismatica ? num.case_location.trim() : (assetToEdit?.case_location ?? ''),
+      case_number: isMedalAsset ? undefined : isNumismatica ? num.case_number.trim() : (assetToEdit?.case_number ?? ''),
       added_date: isNumismatica
         ? (num.added_date || assetToEdit?.added_date || toDateInput(assetToEdit?.createdAt) || new Date().toISOString().slice(0, 10))
         : assetToEdit?.added_date,
@@ -417,11 +467,17 @@ export default function AssetModal({
         <div className="mb-5 flex items-start justify-between gap-3 border-b border-slate-700 pb-4">
           <div>
             <h2 id="asset-modal-title" className="text-xl font-semibold text-slate-100">
-              {assetToEdit ? `Editar ${assetToEdit.name}` : isNumismatica ? 'Añadir moneda' : 'Añadir bien'}
+              {assetToEdit
+                ? `Editar ${assetToEdit.name}`
+                : isNumismatica
+                  ? (isMedal ? 'Añadir medalla' : 'Añadir moneda')
+                  : 'Añadir bien'}
             </h2>
             <p className="mt-1 text-sm text-slate-400">
               {isNumismatica
-                ? 'Ficha especial de numismática: los datos genéricos del bien se rellenan solos.'
+                ? (isMedal
+                  ? 'Ficha simplificada de medalla: motivo, año, material, tamaño, anverso/reverso y adquisición.'
+                  : 'Ficha especial de numismática: los datos genéricos del bien se rellenan solos.')
                 : 'Una ficha común para arte y objetos diversos; usa etiquetas y campos reutilizables para sus características.'}
             </p>
           </div>
@@ -576,7 +632,7 @@ export default function AssetModal({
           <div className="flex justify-end gap-3 border-t border-slate-700 pt-4 lg:col-span-2">
             <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancelar</button>
             <button type="submit" disabled={isLoading || isCompressing} className="rounded-xl bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-600 disabled:opacity-50">
-              {isLoading ? 'Guardando…' : isNumismatica ? 'Guardar moneda' : 'Guardar bien'}
+              {isLoading ? 'Guardando…' : isNumismatica ? (isMedal ? 'Guardar medalla' : 'Guardar moneda') : 'Guardar bien'}
             </button>
           </div>
         </form>

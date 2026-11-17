@@ -8,14 +8,31 @@ function formatEuro(value?: number) {
   return value === undefined || Number.isNaN(value) ? '—' : euroFormatter.format(value)
 }
 
-function coinYearLabel(asset: AssetItem) {
+function isMedal(asset: AssetItem) {
+  return asset.numismatica_type === 'medalla'
+}
+
+function yearLabel(asset: AssetItem) {
   if (asset.creation_year_range?.trim()) return asset.creation_year_range.trim()
   if (asset.year !== undefined) return formatSignedYear(asset.year)
   return '—'
 }
 
+function detailLabel(asset: AssetItem) {
+  if (isMedal(asset)) return asset.medal_size_mm !== undefined ? `${asset.medal_size_mm} mm` : '—'
+  const parts = [asset.mint]
+  if (asset.conservationState) parts.push(asset.conservationState)
+  return parts.filter(Boolean).join(' · ') || '—'
+}
+
+function locationLabel(asset: AssetItem) {
+  if (isMedal(asset)) return asset.medal_location || '—'
+  const storage = [asset.case_location, asset.case_number].filter((part): part is string => Boolean(part?.trim())).join(' · ')
+  return storage || '—'
+}
+
 function coinValue(asset: AssetItem) {
-  return asset.currentValue ?? asset.market_value ?? asset.value
+  return asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price
 }
 
 export default function NumismaticaList({
@@ -29,13 +46,13 @@ export default function NumismaticaList({
 }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
-      <div className="hidden grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_110px_minmax(0,0.9fr)_90px_120px_90px_28px_36px] items-center gap-2 border-b border-slate-700 bg-slate-950/70 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 lg:grid">
-        <span>Moneda</span>
-        <span>Época</span>
+      <div className="hidden grid-cols-[minmax(0,2.4fr)_100px_minmax(0,0.9fr)_minmax(0,1.1fr)_120px_minmax(0,1.2fr)_90px_28px_36px] items-center gap-2 border-b border-slate-700 bg-slate-950/70 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 lg:grid">
+        <span>Pieza</span>
         <span>Año</span>
-        <span>Ceca</span>
         <span>Material</span>
+        <span>Ceca / Tamaño</span>
         <span>Conservación</span>
+        <span>Ubicación</span>
         <span className="text-right">Valor</span>
         <span aria-hidden="true" />
         <span className="text-right">Foto</span>
@@ -44,10 +61,13 @@ export default function NumismaticaList({
       <div className="divide-y divide-slate-800">
         {assets.map((asset) => {
           const photo = asset.photos?.[0]
+          const medal = isMedal(asset)
           const value = coinValue(asset)
-          const yearLabel = coinYearLabel(asset)
-          const mobileSummary = [yearLabel !== '—' ? yearLabel : '', asset.mint, asset.material, asset.conservationState]
-            .filter(Boolean)
+          const year = yearLabel(asset)
+          const detail = detailLabel(asset)
+          const location = locationLabel(asset)
+          const mobileSummary = [year !== '—' ? year : '', detail, asset.material, location]
+            .filter((part) => part && part !== '—')
             .join(' · ')
 
           return (
@@ -63,24 +83,27 @@ export default function NumismaticaList({
                   onOpen(asset)
                 }
               }}
-              className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_28px_36px] items-center gap-2 px-4 py-1.5 transition hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_110px_minmax(0,0.9fr)_90px_120px_90px_28px_36px]"
+              className="group grid cursor-pointer grid-cols-[minmax(0,1fr)_28px_36px] items-center gap-2 px-4 py-1.5 transition hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none lg:grid-cols-[minmax(0,2.4fr)_100px_minmax(0,0.9fr)_minmax(0,1.1fr)_120px_minmax(0,1.2fr)_90px_28px_36px]"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-100" title={asset.name}>{asset.name}</p>
+                <p className="truncate text-sm font-semibold text-slate-100" title={asset.name}>
+                  <span className="mr-1.5 text-xs" title={medal ? 'Medalla' : 'Moneda'}>{medal ? '🏅' : '🪙'}</span>
+                  {asset.name}
+                </p>
                 <p className="mt-0.5 truncate text-[11px] text-slate-500 lg:hidden">
                   {mobileSummary || 'Sin datos'}
                 </p>
               </div>
 
-              <span className="hidden truncate text-xs text-slate-400 lg:block">{asset.era || asset.historicalEra || '—'}</span>
-              <span className="hidden text-xs text-slate-300 lg:block">{yearLabel}</span>
-              <span className="hidden truncate text-xs text-slate-400 lg:block">{asset.mint || '—'}</span>
+              <span className="hidden text-xs text-slate-300 lg:block">{year}</span>
               <span className="hidden truncate text-xs text-slate-400 lg:block">{asset.material || '—'}</span>
+              <span className="hidden truncate text-xs text-slate-400 lg:block">{detail}</span>
               <span className="hidden lg:block">
-                {asset.conservationState
+                {!medal && asset.conservationState
                   ? <span className="inline-flex max-w-full truncate rounded-full border border-slate-700 bg-slate-950 px-2 py-0.5 text-[10px] text-slate-300">{asset.conservationState}</span>
                   : <span className="text-xs text-slate-600">—</span>}
               </span>
+              <span className="hidden truncate text-xs text-slate-400 lg:block">{location}</span>
               <span className="hidden text-right text-xs font-semibold text-emerald-400 lg:block">{formatEuro(value)}</span>
 
               <button
@@ -98,7 +121,7 @@ export default function NumismaticaList({
               <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
                 {photo
                   ? <PrivateStorageImage source={photo} alt={asset.name} className="h-full w-full object-cover" />
-                  : <div className="flex h-full w-full items-center justify-center text-sm text-slate-700">🪙</div>}
+                  : <div className="flex h-full w-full items-center justify-center text-sm text-slate-700">{medal ? '🏅' : '🪙'}</div>}
               </div>
             </div>
           )

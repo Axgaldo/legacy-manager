@@ -18,6 +18,10 @@ export const CONSERVATION_STATES = [
 
 export const ERA_OPTIONS = ['Romana', 'Visigoda', 'Medieval', 'Moderna', 'Contemporánea', 'Antigua'] as const
 
+export const ACQUISITION_OPERATIONS = ['Compra', 'Herencia', 'Regalo', 'Donación', 'Subasta', 'Intercambio', 'Hallazgo'] as const
+
+export const MEDAL_MATERIALS = ['Bronce', 'Plata', 'Oro', 'Latón', 'Cobre', 'Zinc', 'Estaño', 'Aleación', 'Porcelana', 'Vidrio'] as const
+
 export interface RulerPeriod {
   ruler: string
   empire: string
@@ -227,6 +231,17 @@ export function buildCoinName({
   else if (material?.trim()) name += ` de ${material.trim().toLocaleLowerCase('es')}`
   if (!ruler?.trim() && yearLabel?.trim()) name += ` (${yearLabel.trim()})`
   return name
+}
+
+/**
+ * Builds the medal name from its motive. If the motive already starts with
+ * "Medalla" it is respected, otherwise "Medalla de …" is prepended.
+ */
+export function buildMedalName(motive?: string): string {
+  const base = motive?.trim()
+  if (!base) return 'Medalla'
+  const capitalized = base.charAt(0).toLocaleUpperCase('es') + base.slice(1)
+  return /^medalla\b/i.test(capitalized) ? capitalized : `Medalla de ${capitalized}`
 }
 
 function romanToNumber(value: string): number | undefined {

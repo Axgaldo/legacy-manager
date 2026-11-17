@@ -254,6 +254,11 @@ export interface AssetItem extends TimestampedDoc {
   photoSizesBytes?: number[]
 
   // Numismática fields (optional so other categories keep working)
+  numismatica_type?: 'moneda' | 'medalla'
+  medal_motive?: string
+  medal_size_mm?: number
+  acquisition_operation?: string
+  medal_location?: string
   value?: number
   market_value?: number
   purchase_price?: number

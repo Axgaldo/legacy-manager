@@ -22,6 +22,9 @@ Thumbs.db
 # TypeScript build cache
 *.tsbuildinfo
 
+# Importación local de datos personales (NUNCA se sube al repositorio)
+_import/
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
