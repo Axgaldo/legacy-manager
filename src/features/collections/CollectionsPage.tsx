@@ -59,6 +59,17 @@ function assetValue(asset: AssetItem): number {
   return asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price ?? 0
 }
 
+function containerLabel(asset: AssetItem): string {
+  if (asset.numismatica_type === 'medalla') return asset.medal_location?.trim() || 'Sin ubicación'
+  return asset.case_location?.trim() || 'Sin contenedor'
+}
+
+function locationSortKey(asset: AssetItem): string {
+  const container = normalizeText(containerLabel(asset))
+  const position = (asset.case_number ?? '').replace(/[^\d]/g, '').padStart(6, '0')
+  return `${container}\u0000${position}\u0000${normalizeText(asset.name)}`
+}
+
 export default function CollectionsPage() {
   const navigate = useNavigate()
   const { assetSlug: routeAssetSlug, collectionKey } = useParams<{ assetSlug?: string; collectionKey?: string }>()
@@ -250,6 +261,7 @@ export default function CollectionsPage() {
     return filtered.sort((a, b) => {
       if (sortBy === 'value-desc') return assetValue(b) - assetValue(a)
       if (sortBy === 'year-asc') return (a.year ?? Infinity) - (b.year ?? Infinity)
+      if (sortBy === 'location-asc') return locationSortKey(a).localeCompare(locationSortKey(b), 'es')
       return a.name.localeCompare(b.name, 'es')
     })
   }, [
@@ -554,6 +566,7 @@ export default function CollectionsPage() {
                 <option value="name">Ordenar: nombre</option>
                 <option value="year-asc">Año: más antiguo</option>
                 <option value="value-desc">Valor: mayor a menor</option>
+                <option value="location-asc">Ubicación: contenedor</option>
               </select>
             </div>
           </div>
@@ -568,7 +581,7 @@ export default function CollectionsPage() {
               addLabel={isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
             />
           ) : isNumismaticaCollection ? (
-            <NumismaticaList assets={filteredAssets} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} />
+            <NumismaticaList assets={filteredAssets} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} groupByLocation={sortBy === 'location-asc'} />
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredAssets.map((asset) => (
