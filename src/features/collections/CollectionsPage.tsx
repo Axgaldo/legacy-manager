@@ -23,9 +23,11 @@ import {
 
 const SEARCHABLE_FIELDS = [
   'name', 'owner', 'brandOrAuthor', 'description', 'historicalEra', 'country', 'placeOfOrigin',
-  'ruler', 'mint', 'denomination', 'conservationState', 'material', 'notes', 'era', 'empire_reign',
+  'ruler', 'mint', 'mint_mark', 'denomination', 'conservationState', 'material', 'notes', 'era', 'empire_reign',
   'manufacturing_place', 'reference_book', 'case_location', 'case_number', 'obverse_info', 'reverse_info',
   'medal_motive', 'acquisition_operation', 'medal_location', 'numismatica_type',
+  'inventory_number', 'catalog_reference', 'acquisition_source', 'value_source', 'purchase_currency',
+  'weight_grams', 'diameter_mm',
 ] as const
 
 const euroFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
@@ -172,7 +174,7 @@ export default function CollectionsPage() {
   ])), [assets])
 
   const numismaticaSuggestions = useMemo(() => {
-    const fields = ['material', 'conservationState', 'era', 'empire_reign', 'reference_book', 'denomination', 'ruler', 'case_location', 'medal_motive', 'medal_location', 'acquisition_operation']
+    const fields = ['material', 'conservationState', 'era', 'empire_reign', 'reference_book', 'denomination', 'ruler', 'mint', 'mint_mark', 'case_location', 'medal_motive', 'medal_location', 'acquisition_operation', 'acquisition_source', 'value_source']
     const suggestions: Record<string, string[]> = {}
     fields.forEach((field) => {
       suggestions[field] = uniqueValues(assets.map((asset) => {
@@ -184,10 +186,14 @@ export default function CollectionsPage() {
           case 'reference_book': return asset.reference_book
           case 'denomination': return asset.denomination
           case 'ruler': return asset.ruler
+          case 'mint': return asset.mint
+          case 'mint_mark': return asset.mint_mark
           case 'case_location': return asset.case_location
           case 'medal_motive': return asset.medal_motive
           case 'medal_location': return asset.medal_location
           case 'acquisition_operation': return asset.acquisition_operation
+          case 'acquisition_source': return asset.acquisition_source
+          case 'value_source': return asset.value_source
           default: return undefined
         }
       }))

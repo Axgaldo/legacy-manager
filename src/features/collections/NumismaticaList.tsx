@@ -18,9 +18,15 @@ function yearLabel(asset: AssetItem) {
   return '—'
 }
 
+function sizeLabel(value?: string) {
+  const text = value?.trim()
+  if (!text) return ''
+  return /[a-zA-Z]/.test(text) ? text : `${text} mm`
+}
+
 function detailLabel(asset: AssetItem) {
-  if (isMedal(asset)) return asset.medal_size_mm !== undefined ? `${asset.medal_size_mm} mm` : '—'
-  const parts = [asset.mint]
+  if (isMedal(asset)) return sizeLabel(asset.medal_size_mm) || '—'
+  const parts = [asset.mint, asset.mint_mark ? `(${asset.mint_mark})` : '']
   if (asset.conservationState) parts.push(asset.conservationState)
   return parts.filter(Boolean).join(' · ') || '—'
 }
@@ -66,7 +72,7 @@ export default function NumismaticaList({
           const year = yearLabel(asset)
           const detail = detailLabel(asset)
           const location = locationLabel(asset)
-          const mobileSummary = [year !== '—' ? year : '', detail, asset.material, location]
+          const mobileSummary = [year !== '—' ? year : '', detail, asset.material, location, asset.catalog_reference]
             .filter((part) => part && part !== '—')
             .join(' · ')
 
@@ -89,6 +95,11 @@ export default function NumismaticaList({
                 <p className="truncate text-sm font-semibold text-slate-100" title={asset.name}>
                   <span className="mr-1.5 text-xs" title={medal ? 'Medalla' : 'Moneda'}>{medal ? '🏅' : '🪙'}</span>
                   {asset.name}
+                  {asset.catalog_reference && (
+                    <span className="ml-2 rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[9px] font-normal text-slate-400">
+                      {asset.catalog_reference}
+                    </span>
+                  )}
                 </p>
                 <p className="mt-0.5 truncate text-[11px] text-slate-500 lg:hidden">
                   {mobileSummary || 'Sin datos'}

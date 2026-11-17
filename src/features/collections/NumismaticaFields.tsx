@@ -1,10 +1,16 @@
 import {
   ACQUISITION_OPERATIONS,
+  CURRENCIES,
   EMPIRE_NAMES,
   ERA_OPTIONS,
   MEDAL_MATERIALS,
   RULER_NAMES,
+  convertToEuro,
+  formatCurrencyRate,
+  formatEuroAmount,
+  getCurrency,
   orderConservationStates,
+  parseAmountText,
 } from './numismaticaMeta'
 
 const fieldBase = 'rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20'
@@ -13,6 +19,7 @@ const selectClass = `w-full ${fieldBase}`
 /** Year inputs share the row with the era select, so they must not claim 100% width. */
 const yearInputClass = `min-w-0 flex-1 ${fieldBase}`
 const yearSelectClass = `w-20 shrink-0 ${fieldBase} px-2.5`
+const currencySelectClass = `w-24 shrink-0 ${fieldBase} px-2.5`
 const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400'
 
 export const NUMISMATICA_DEFAULTS: Record<string, string[]> = {
@@ -21,7 +28,23 @@ export const NUMISMATICA_DEFAULTS: Record<string, string[]> = {
   empire_reign: [...EMPIRE_NAMES],
   material: ['Oro', 'Plata', 'Bronce', 'Cobre', 'Latón', 'Bimetálico', 'Aleación', 'Estaño', 'Hierro', 'Níquel', 'Platino', ...MEDAL_MATERIALS],
   acquisition_operation: [...ACQUISITION_OPERATIONS],
-  reference_book: ['Standard Catalog of World Coins', 'Krause', 'Moneda Española (Cayón)', 'Alcó Bueno', 'Spink'],
+  acquisition_source: ['Madrid Cayón', 'Málaga Díaz', 'Gonzalo Málaga', 'Campillo Granada', 'Jesús Vico', 'Gabinete numismático', 'Subasta', 'Particular'],
+  value_source: ['Calicó 2019', 'Calicó 2008', 'Cayón 2019', 'Cayón 2008', 'Cayón 2001', 'Cayón 1984', 'Cayón 1985', 'Álvarez Burgos 1987', 'eBay', 'Ucoin', 'Jesús Vico', 'Numista', 'Subasta'],
+  reference_book: [
+    'Cayón 1984 (sextercios)',
+    'Cayón 1985 (compendio)',
+    'Cayón 2001',
+    'Cayón 2008',
+    'Cayón 2019',
+    'Calicó 2008',
+    'Calicó 2019',
+    'Álvarez Burgos 1987',
+    'Seaby',
+    'Krause',
+    'Standard Catalog of World Coins',
+    'Spink',
+    'Numista',
+  ],
 }
 
 interface NumismaticaFieldsProps {
@@ -88,6 +111,90 @@ function SuggestionField({
         </datalist>
       )}
       {hint && <p className="mt-1 text-[11px] text-slate-500">{hint}</p>}
+    </div>
+  )
+}
+
+function parseAmount(value?: string): number | undefined {
+  return parseAmountText(value)
+}
+
+interface MoneyFieldProps {
+  amountField: string
+  currencyField: string
+  label: string
+  values: Record<string, string>
+  onChange: (field: string, value: string) => void
+  placeholder?: string
+  hint?: string
+}
+
+/**
+ * Amount + currency pair. The parent form converts the amount to euros and
+ * writes it into the matching euro field, which stays editable.
+ */
+function MoneyField({ amountField, currencyField, label, values, onChange, placeholder, hint }: MoneyFieldProps) {
+  const inputId = `numismatica-${amountField}`
+  const amount = parseAmount(values[amountField])
+  const currency = getCurrency(values[currencyField])
+  const euro = amount === undefined ? undefined : convertToEuro(amount, currency.code)
+
+  return (
+    <div>
+      <label htmlFor={inputId} className={labelClass}>{label}</label>
+      <div className="flex gap-2">
+        <input
+          id={inputId}
+          type="text"
+          inputMode="decimal"
+          value={values[amountField] ?? ''}
+          onChange={(event) => onChange(amountField, event.target.value)}
+          className={yearInputClass}
+          placeholder={placeholder}
+        />
+        <select
+          value={currency.code}
+          onChange={(event) => onChange(currencyField, event.target.value)}
+          className={currencySelectClass}
+          aria-label="Moneda del importe"
+        >
+          {CURRENCIES.map((item) => (
+            <option key={item.code} value={item.code} title={item.label}>{item.code}</option>
+          ))}
+        </select>
+      </div>
+      <p className="mt-1 text-[11px] text-slate-500">
+        {currency.code === 'EUR'
+          ? 'Importe en euros.'
+          : euro === undefined
+            ? `${currency.label}: ${formatCurrencyRate(currency.code)}. El importe en euros se calcula solo.`
+            : `≈ ${formatEuroAmount(euro)} · ${formatCurrencyRate(currency.code)}${currency.fixed ? '' : ' (orientativo)'}`}
+        {hint ? ` ${hint}` : ''}
+      </p>
+    </div>
+  )
+}
+
+interface ConservationFieldProps {
+  values: Record<string, string>
+  onChange: (field: string, value: string) => void
+  options: string[]
+}
+
+function ConservationField({ values, onChange, options }: ConservationFieldProps) {
+  return (
+    <div>
+      <label htmlFor="numismatica-conservation" className={labelClass}>Estado de conservación</label>
+      <select
+        id="numismatica-conservation"
+        value={values.conservationState ?? ''}
+        onChange={(event) => onChange('conservationState', event.target.value)}
+        className={selectClass}
+      >
+        <option value="">Sin especificar</option>
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+      <p className="mt-1 text-[11px] text-slate-500">Ordenado de mejor a peor. Los defectos concretos van en etiquetas o notas.</p>
     </div>
   )
 }
@@ -300,7 +407,13 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
               <SuggestionField field="medal_motive" label="Motivo *" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Coronación de Alfonso XIII…" />
               <SuggestionField field="medal_year" label="Año" type="number" values={values} onChange={onChange} placeholder="Ej: 1898" />
               <SuggestionField field="material" label="Material" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: bronce, plata…" />
-              <SuggestionField field="medal_size_mm" label="Tamaño (mm)" type="number" step="0.1" values={values} onChange={onChange} placeholder="Ej: 60" />
+              <SuggestionField field="medal_size_mm" label="Tamaño (texto libre)" values={values} onChange={onChange} placeholder="Ej: 60, 50x30, varios…" hint="Admite milímetros, formas rectangulares o «varios tamaños»." />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <ConservationField values={values} onChange={onChange} options={conservationOptions} />
+              <SuggestionField field="inventory_number" label="Nº de inventario" values={values} onChange={onChange} noSuggestions placeholder="Ej: 78" hint="Número local del álbum, estuche o cajón." />
+              <SuggestionField field="catalog_reference" label="Código de catálogo" values={values} onChange={onChange} noSuggestions placeholder="Ej: CS-5, AB-442…" />
+              <SuggestionField field="weight_grams" label="Peso" values={values} onChange={onChange} noSuggestions placeholder="Ej: 53 g" />
             </div>
           </section>
 
@@ -321,8 +434,13 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
           <section className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Adquisición y ubicación</h4>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <SuggestionField field="purchase_price" label="Precio de compra (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
-              <SuggestionField field="acquisition_operation" label="Operación de compra o adquisición" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: compra, herencia, regalo…" extraOptions={[...ACQUISITION_OPERATIONS]} />
+              <MoneyField amountField="purchase_price_original" currencyField="purchase_currency" label="Precio de compra (importe original)" values={values} onChange={onChange} placeholder="Ej: 3.500" />
+              <SuggestionField field="purchase_price" label="Precio de compra en € (editable)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" hint="Se calcula con el importe y la moneda de la izquierda." />
+              <SuggestionField field="acquisition_operation" label="Operación de adquisición" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: compra, herencia, regalo…" extraOptions={[...ACQUISITION_OPERATIONS]} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <SuggestionField field="acquisition_source" label="Proveedor o procedencia" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Madrid Cayón 3/82" />
+              <SuggestionField field="purchase_year" label="Año de compra" type="number" values={values} onChange={onChange} placeholder="Ej: 1982" />
               <SuggestionField field="medal_location" label="Ubicación" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: mueble del despacho, cajón 2…" />
             </div>
           </section>
@@ -342,26 +460,39 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
               <SuggestionField field="empire_reign" label="Imperio o reinado" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Imperio Romano" extraOptions={EMPIRE_NAMES} />
               <SuggestionField field="era" label="Época" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Romana" />
             </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <SuggestionField field="inventory_number" label="Nº de inventario" values={values} onChange={onChange} noSuggestions placeholder="Ej: 78" hint="Número local del álbum, estuche o bandeja." />
+              <SuggestionField field="catalog_reference" label="Código de catálogo" values={values} onChange={onChange} noSuggestions placeholder="Ej: CS-5, CC-154, AB-442…" />
+              <SuggestionField field="weight_grams" label="Peso" values={values} onChange={onChange} noSuggestions placeholder="Ej: 3,5 g" />
+              <SuggestionField field="diameter_mm" label="Diámetro" values={values} onChange={onChange} noSuggestions placeholder="Ej: 27 mm" />
+            </div>
           </section>
 
           <section className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Material, conservación y ceca</h4>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <SuggestionField field="material" label="Material" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: oro, plata, bronce…" />
-              <div>
-                <label htmlFor="numismatica-conservation" className={labelClass}>Estado de conservación</label>
-                <select
-                  id="numismatica-conservation"
-                  value={values.conservationState ?? ''}
-                  onChange={(event) => onChange('conservationState', event.target.value)}
-                  className={selectClass}
-                >
-                  <option value="">Sin especificar</option>
-                  {conservationOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-                <p className="mt-1 text-[11px] text-slate-500">Ordenado de mejor a peor.</p>
-              </div>
-              <SuggestionField field="mint" label="Ceca" values={values} onChange={onChange} placeholder="Ej: Roma, Sevilla, Madrid…" noSuggestions hint="Sin valores predefinidos: escribe la ceca que corresponda." />
+              <ConservationField values={values} onChange={onChange} options={conservationOptions} />
+              <SuggestionField
+                field="mint"
+                label="Ceca (ciudad o taller)"
+                values={values}
+                onChange={onChange}
+                suggestions={suggestions}
+                placeholder="Ej: Roma, Sevilla, México, Potosí…"
+                hint="Lugar donde se acuñó la moneda. Si no lo sabes, déjalo vacío."
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <SuggestionField
+                field="mint_mark"
+                label="Marca de ceca / ensayador"
+                values={values}
+                onChange={onChange}
+                suggestions={suggestions}
+                placeholder="Ej: M-FM, IJ, PP, S…"
+                hint="Siglas o símbolos que aparecen dentro de la moneda; no es la ciudad."
+              />
             </div>
           </section>
 
@@ -389,11 +520,20 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Valoración y referencias</h4>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <SuggestionField field="value" label="Valor nominal (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
-                  <SuggestionField field="market_value" label="Valor de mercado (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
-                  <SuggestionField field="purchase_price" label="Precio de compra (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
-                  <SuggestionField field="purchase_year" label="Año de compra" type="number" values={values} onChange={onChange} placeholder="Ej: 2024" />
-                  <SuggestionField field="reference_book" label="Libro de referencia" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Cayón, Krause…" />
-                  <SuggestionField field="reference_book_value" label="Valoración en el libro (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+                  <SuggestionField field="market_value" label="Valor de mercado (€)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" hint="Rangos: usa el punto medio y deja el rango literal en notas." />
+                  <SuggestionField field="value_source" label="Fuente de la valoración" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Calicó 2019, eBay…" />
+                  <SuggestionField field="purchase_price" label="Precio de compra en € (editable)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <MoneyField amountField="purchase_price_original" currencyField="purchase_currency" label="Precio de compra (importe original)" values={values} onChange={onChange} placeholder="Ej: 3.500" />
+                  <SuggestionField field="purchase_year" label="Año de compra" type="number" values={values} onChange={onChange} placeholder="Ej: 1982" />
+                  <SuggestionField field="acquisition_source" label="Proveedor o procedencia" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Madrid Cayón 3/82" />
+                  <SuggestionField field="acquisition_operation" label="Operación de adquisición" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: compra, herencia…" extraOptions={[...ACQUISITION_OPERATIONS]} />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <SuggestionField field="reference_book" label="Libro de referencia" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Cayón 2001, Calicó 2019…" />
+                  <SuggestionField field="reference_book_value" label="Valoración del libro en € (editable)" type="number" step="0.01" values={values} onChange={onChange} placeholder="0,00" />
+                  <MoneyField amountField="reference_book_value_original" currencyField="reference_book_currency" label="Valoración del libro (importe original)" values={values} onChange={onChange} placeholder="Ej: 10.000" hint="Si el catálogo está en pesetas, elige ESP." />
                 </div>
               </section>
 

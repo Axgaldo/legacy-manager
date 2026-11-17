@@ -22,6 +22,91 @@ export const ACQUISITION_OPERATIONS = ['Compra', 'Herencia', 'Regalo', 'Donació
 
 export const MEDAL_MATERIALS = ['Bronce', 'Plata', 'Oro', 'Latón', 'Cobre', 'Zinc', 'Estaño', 'Aleación', 'Porcelana', 'Vidrio'] as const
 
+/**
+ * Currencies found in the family archive. `eurPerUnit` is the value of one
+ * unit in euros. Pesetas and French francs use their legal fixed rates; the
+ * rest are approximate defaults that the user can override by editing the
+ * euro amount in the form.
+ */
+export interface CurrencyInfo {
+  code: string
+  label: string
+  symbol: string
+  eurPerUnit: number
+  fixed?: boolean
+  note?: string
+}
+
+export const CURRENCIES: CurrencyInfo[] = [
+  { code: 'EUR', label: 'Euro', symbol: '€', eurPerUnit: 1, fixed: true },
+  { code: 'ESP', label: 'Peseta española', symbol: 'ptas', eurPerUnit: 1 / 166.386, fixed: true, note: '166,386 ptas = 1 €' },
+  { code: 'FRF', label: 'Franco francés', symbol: 'FRF', eurPerUnit: 1 / 6.55957, fixed: true, note: '6,55957 FRF = 1 €' },
+  { code: 'CHF', label: 'Franco suizo', symbol: 'CHF', eurPerUnit: 1.05, note: 'Tipo orientativo; puedes ajustar el importe en euros' },
+  { code: 'USD', label: 'Dólar estadounidense', symbol: '$', eurPerUnit: 0.92, note: 'Tipo orientativo; puedes ajustar el importe en euros' },
+  { code: 'GBP', label: 'Libra esterlina', symbol: '£', eurPerUnit: 1.17, note: 'Tipo orientativo; puedes ajustar el importe en euros' },
+]
+
+const euroAmountFormatter = new Intl.NumberFormat('es-ES', {
+  style: 'currency',
+  currency: 'EUR',
+  maximumFractionDigits: 2,
+})
+
+export function getCurrency(code?: string): CurrencyInfo {
+  const normalized = (code ?? 'EUR').trim().toUpperCase()
+  return CURRENCIES.find((currency) => currency.code === normalized) ?? CURRENCIES[0]
+}
+
+/**
+ * Reads amounts written by hand. Spanish notation uses "." for thousands and
+ * "," for decimals ("3.500,50"), so a dot followed by exactly three digits is
+ * treated as a thousands separator.
+ */
+export function parseAmountText(value?: string): number | undefined {
+  const raw = value?.trim().replace(/\s/g, '')
+  if (!raw) return undefined
+  const hasComma = raw.includes(',')
+  const hasDot = raw.includes('.')
+  let normalized = raw
+  if (hasComma) {
+    normalized = hasDot ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(',', '.')
+  } else if (hasDot) {
+    const parts = raw.split('.')
+    const last = parts[parts.length - 1]
+    if (parts.length === 2 && /^\d{1,3}$/.test(parts[0]) && last.length === 3) {
+      normalized = parts.join('')
+    }
+  }
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+/** Converts an amount to euros using the configured rate. */
+export function convertToEuro(amount: number, code?: string): number {
+  return amount * getCurrency(code).eurPerUnit
+}
+
+export function roundEuro(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+export function formatEuroAmount(value: number): string {
+  return euroAmountFormatter.format(value)
+}
+
+export function formatCurrencyAmount(amount: number, code?: string): string {
+  const currency = getCurrency(code)
+  if (currency.code === 'EUR') return formatEuroAmount(amount)
+  const formatted = amount.toLocaleString('es-ES', { maximumFractionDigits: 2 })
+  return currency.code === 'ESP' ? `${formatted} ptas` : `${formatted} ${currency.symbol}`
+}
+
+export function formatCurrencyRate(code?: string): string {
+  const currency = getCurrency(code)
+  const rate = currency.eurPerUnit.toLocaleString('es-ES', { maximumFractionDigits: 4 })
+  return `1 ${currency.symbol} = ${rate} €`
+}
+
 export interface RulerPeriod {
   ruler: string
   empire: string

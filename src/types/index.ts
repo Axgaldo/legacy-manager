@@ -242,6 +242,7 @@ export interface AssetItem extends TimestampedDoc {
   country?: string
   placeOfOrigin?: string
   ruler?: string
+  /** City or workshop where the coin was struck (Roma, Sevilla, México…). */
   mint?: string
   denomination?: string
   conservationState?: string
@@ -256,21 +257,37 @@ export interface AssetItem extends TimestampedDoc {
   // Numismática fields (optional so other categories keep working)
   numismatica_type?: 'moneda' | 'medalla'
   medal_motive?: string
-  medal_size_mm?: number
+  /** Free text so values such as "50x30", "60 mm" or "varios tamaños" fit. */
+  medal_size_mm?: string
   acquisition_operation?: string
   medal_location?: string
   value?: number
+  /** Market valuation in euros. The source is stored in `value_source`. */
   market_value?: number
+  value_source?: string
+  /** Purchase price in euros, already converted from `purchase_currency`. */
   purchase_price?: number
+  purchase_price_original?: number
+  purchase_currency?: string
+  acquisition_source?: string
   purchase_year?: number
   obverse_info?: string
   reverse_info?: string
   era?: string
   creation_year_range?: string
   reference_book?: string
+  /** Book valuation in euros, already converted from `reference_book_currency`. */
   reference_book_value?: number
+  reference_book_value_original?: number
+  reference_book_currency?: string
   empire_reign?: string
   manufacturing_place?: string
+  /** Mint mark or assayer initials (M-FM, IJ, PP…), kept apart from the city. */
+  mint_mark?: string
+  weight_grams?: string
+  diameter_mm?: string
+  inventory_number?: string
+  catalog_reference?: string
   case_location?: string
   case_number?: string
   added_date?: string

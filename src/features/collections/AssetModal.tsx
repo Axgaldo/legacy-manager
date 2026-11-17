@@ -10,15 +10,19 @@ import { ASSET_CATEGORIES } from './assetCategories'
 import {
   buildCoinName,
   buildMedalName,
+  convertToEuro,
   getEraFromYear,
   getMidpointYearFromValues,
   getPrimaryYearFromValues,
   getRulerSuggestion,
   getYearLabelFromValues,
+  parseAmountText,
   parseYearRangeText,
+  roundEuro,
 } from './numismaticaMeta'
 
 const QUICK_TAGS = ['ORO', 'PLATA', 'COBRE', 'BRONCE', 'ACERO', 'MADERA', 'CUERO', 'PLÁSTICO', 'ÉPOCA ROMANA', 'EDAD MEDIA', 'SIGLO XVIII', 'SIGLO XIX', 'SIGLO XX', 'ESPAÑA', 'CARLOS IV', 'FELIPE II', 'TRAJANO', 'EXCELENTE', 'BUEN ESTADO']
+const NUMISMATICA_QUICK_TAGS = ['RARA', 'ESCASA', 'S/C', 'AGUJERO', 'CANTO ESTRIADO', 'INVERTIDA', 'VARIANTE', 'DEFECTO', 'REPASADA', 'CONJUNTO', 'MBC', 'EBC']
 const MATERIAL_TAGS = ['ORO', 'PLATA', 'COBRE', 'BRONCE', 'ACERO', 'MADERA', 'CUERO', 'PLÁSTICO']
 const inputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20'
 
@@ -40,8 +44,12 @@ function emptyNumismaticaData(): Record<string, string> {
   return {
     value: '',
     market_value: '',
+    value_source: '',
     purchase_price: '',
+    purchase_price_original: '',
+    purchase_currency: 'EUR',
     purchase_year: '',
+    acquisition_source: '',
     numismatica_type: 'moneda',
     medal_motive: '',
     medal_year: '',
@@ -55,9 +63,16 @@ function emptyNumismaticaData(): Record<string, string> {
     creation_year_range: '',
     reference_book: '',
     reference_book_value: '',
+    reference_book_value_original: '',
+    reference_book_currency: 'EUR',
     empire_reign: '',
     ruler: '',
     mint: '',
+    mint_mark: '',
+    weight_grams: '',
+    diameter_mm: '',
+    inventory_number: '',
+    catalog_reference: '',
     manufacturing_place: '',
     case_location: '',
     case_number: '',
@@ -82,10 +97,7 @@ function toInputValue(value?: number | string | null): string {
 }
 
 function parseNumber(value: string | undefined): number | undefined {
-  const trimmed = value?.trim()
-  if (!trimmed) return undefined
-  const parsed = Number(trimmed.replace(',', '.'))
-  return Number.isFinite(parsed) ? parsed : undefined
+  return parseAmountText(value)
 }
 
 function deriveMaterial(tags: string[]): string {
@@ -115,8 +127,12 @@ function buildNumismaticaData(asset: AssetItem): Record<string, string> {
     ...base,
     value: toInputValue(asset.value),
     market_value: toInputValue(asset.market_value ?? asset.currentValue),
+    value_source: asset.value_source || '',
     purchase_price: toInputValue(asset.purchase_price ?? asset.acquisitionPrice),
+    purchase_price_original: toInputValue(asset.purchase_price_original),
+    purchase_currency: asset.purchase_currency || 'EUR',
     purchase_year: toInputValue(asset.purchase_year ?? asset.acquisitionYear),
+    acquisition_source: asset.acquisition_source || '',
     numismatica_type: asset.numismatica_type === 'medalla' ? 'medalla' : 'moneda',
     medal_motive: asset.medal_motive || '',
     medal_year: asset.numismatica_type === 'medalla' && signedYear !== undefined ? String(signedYear) : '',
@@ -129,9 +145,16 @@ function buildNumismaticaData(asset: AssetItem): Record<string, string> {
     creation_year_range: rangeText,
     reference_book: asset.reference_book || '',
     reference_book_value: toInputValue(asset.reference_book_value),
+    reference_book_value_original: toInputValue(asset.reference_book_value_original),
+    reference_book_currency: asset.reference_book_currency || 'EUR',
     empire_reign: asset.empire_reign || '',
     ruler: asset.ruler || '',
     mint: asset.mint || '',
+    mint_mark: asset.mint_mark || '',
+    weight_grams: asset.weight_grams || '',
+    diameter_mm: asset.diameter_mm || '',
+    inventory_number: asset.inventory_number || '',
+    catalog_reference: asset.catalog_reference || '',
     manufacturing_place: asset.manufacturing_place || '',
     case_location: asset.case_location || '',
     case_number: asset.case_number || '',
@@ -169,6 +192,17 @@ const YEAR_FIELDS = new Set([
   'year_mode', 'year_value', 'year_era', 'range_start', 'range_end', 'range_start_era', 'range_end_era',
 ])
 
+/**
+ * When the original amount or its currency changes, the euro field is
+ * recalculated. The user can still overwrite the euro amount afterwards.
+ */
+const CURRENCY_CONVERSIONS: Record<string, { amountField: string; currencyField: string; euroField: string }> = {
+  purchase_price_original: { amountField: 'purchase_price_original', currencyField: 'purchase_currency', euroField: 'purchase_price' },
+  purchase_currency: { amountField: 'purchase_price_original', currencyField: 'purchase_currency', euroField: 'purchase_price' },
+  reference_book_value_original: { amountField: 'reference_book_value_original', currencyField: 'reference_book_currency', euroField: 'reference_book_value' },
+  reference_book_currency: { amountField: 'reference_book_value_original', currencyField: 'reference_book_currency', euroField: 'reference_book_value' },
+}
+
 export default function AssetModal({
   isOpen,
   assetToEdit,
@@ -203,7 +237,8 @@ export default function AssetModal({
 
   const isNumismatica = category === 'numismatica'
   const isMedal = isNumismatica && numismaticaData.numismatica_type === 'medalla'
-  const tagSuggestions = useMemo(() => Array.from(new Set([...QUICK_TAGS, ...existingTags])).filter((tag) => tag.trim()), [existingTags])
+  const quickTags = isNumismatica ? NUMISMATICA_QUICK_TAGS : QUICK_TAGS
+  const tagSuggestions = useMemo(() => Array.from(new Set([...quickTags, ...existingTags])).filter((tag) => tag.trim()), [existingTags, quickTags])
   const detectedEra = useMemo(() => (year ? getHistoricalEraFromYear(Number(year)) : undefined), [year])
 
   const coinYearLabel = useMemo(() => getYearLabelFromValues(numismaticaData), [numismaticaData])
@@ -243,8 +278,10 @@ export default function AssetModal({
       return
     }
 
-    const legacyTags = [assetToEdit.brandOrAuthor, assetToEdit.material, assetToEdit.historicalEra, assetToEdit.country, assetToEdit.ruler, assetToEdit.mint, assetToEdit.denomination, assetToEdit.conservationState]
-      .filter((tag): tag is string => Boolean(tag?.trim()))
+    const legacyTags = assetToEdit.category === 'numismatica'
+      ? []
+      : [assetToEdit.brandOrAuthor, assetToEdit.material, assetToEdit.historicalEra, assetToEdit.country, assetToEdit.ruler, assetToEdit.mint, assetToEdit.denomination, assetToEdit.conservationState]
+        .filter((tag): tag is string => Boolean(tag?.trim()))
 
     setName(assetToEdit.name)
     setOwner(assetToEdit.owner || '')
@@ -271,6 +308,15 @@ export default function AssetModal({
 
   const handleNumismaticaChange = (field: string, value: string) => {
     const next = { ...numismaticaData, [field]: value }
+
+    const conversion = CURRENCY_CONVERSIONS[field]
+    if (conversion) {
+      const original = parseNumber(next[conversion.amountField])
+      if (original !== undefined) {
+        const currency = next[conversion.currencyField] || 'EUR'
+        next[conversion.euroField] = String(roundEuro(convertToEuro(original, currency)))
+      }
+    }
 
     if (field === 'numismatica_type') {
       setNumismaticaData(next)
@@ -364,7 +410,7 @@ export default function AssetModal({
     const nominalValue = parseNumber(num.value)
     const purchasePrice = parseNumber(num.purchase_price)
     const medalYear = parseNumber(num.medal_year)
-    const medalSize = parseNumber(num.medal_size_mm)
+    const medalSize = num.medal_size_mm.trim()
     const rangeMode = num.year_mode === 'range'
     const coinPrimaryYear = getPrimaryYearFromValues(num) ?? assetToEdit?.year
     const coinMidpointYear = getMidpointYearFromValues(num) ?? assetToEdit?.year
@@ -398,7 +444,7 @@ export default function AssetModal({
       name: isNumismatica ? (isMedalAsset ? medalName : coinName) : name.trim(),
       owner: resolveOwnerName(owner, owners, defaultOwner),
       category: isNumismatica ? 'numismatica' : category,
-      tags: isNumismatica ? [] : tagsList,
+      tags: tagsList,
       description: assetToEdit?.description ?? '',
       brandOrAuthor: assetToEdit?.brandOrAuthor ?? '',
       year: isNumismatica ? (isMedalAsset ? medalYear : coinPrimaryYear) : yearNumber,
@@ -425,20 +471,31 @@ export default function AssetModal({
       numismatica_type: isNumismatica ? (isMedalAsset ? 'medalla' : 'moneda') : undefined,
       medal_motive: isMedalAsset ? num.medal_motive.trim() : undefined,
       medal_size_mm: isMedalAsset ? medalSize : undefined,
-      acquisition_operation: isMedalAsset ? num.acquisition_operation.trim() : undefined,
+      acquisition_operation: isNumismatica ? num.acquisition_operation.trim() : (assetToEdit?.acquisition_operation ?? ''),
+      acquisition_source: isNumismatica ? num.acquisition_source.trim() : (assetToEdit?.acquisition_source ?? ''),
       medal_location: isMedalAsset ? num.medal_location.trim() : undefined,
       value: isMedalAsset ? undefined : isNumismatica ? nominalValue : assetToEdit?.value,
       market_value: isMedalAsset ? undefined : isNumismatica ? marketValue : assetToEdit?.market_value,
+      value_source: isMedalAsset ? undefined : isNumismatica ? num.value_source.trim() : (assetToEdit?.value_source ?? ''),
       purchase_price: isNumismatica ? purchasePrice : assetToEdit?.purchase_price,
-      purchase_year: isMedalAsset ? undefined : isNumismatica ? parseNumber(num.purchase_year) : assetToEdit?.purchase_year,
+      purchase_price_original: isNumismatica ? parseNumber(num.purchase_price_original) : assetToEdit?.purchase_price_original,
+      purchase_currency: isNumismatica ? (num.purchase_currency || 'EUR') : (assetToEdit?.purchase_currency ?? ''),
+      purchase_year: isNumismatica ? parseNumber(num.purchase_year) : assetToEdit?.purchase_year,
       obverse_info: isNumismatica ? num.obverse_info.trim() : (assetToEdit?.obverse_info ?? ''),
       reverse_info: isNumismatica ? num.reverse_info.trim() : (assetToEdit?.reverse_info ?? ''),
       era: isMedalAsset ? undefined : isNumismatica ? num.era.trim() : (assetToEdit?.era ?? ''),
       creation_year_range: creationYearRange,
       reference_book: isMedalAsset ? undefined : isNumismatica ? num.reference_book.trim() : (assetToEdit?.reference_book ?? ''),
       reference_book_value: isMedalAsset ? undefined : isNumismatica ? parseNumber(num.reference_book_value) : assetToEdit?.reference_book_value,
+      reference_book_value_original: isMedalAsset ? undefined : isNumismatica ? parseNumber(num.reference_book_value_original) : assetToEdit?.reference_book_value_original,
+      reference_book_currency: isMedalAsset ? undefined : isNumismatica ? (num.reference_book_currency || 'EUR') : (assetToEdit?.reference_book_currency ?? ''),
       empire_reign: isMedalAsset ? undefined : isNumismatica ? num.empire_reign.trim() : (assetToEdit?.empire_reign ?? ''),
       manufacturing_place: isMedalAsset ? undefined : isNumismatica ? num.manufacturing_place.trim() : (assetToEdit?.manufacturing_place ?? ''),
+      mint_mark: isMedalAsset ? undefined : isNumismatica ? num.mint_mark.trim() : (assetToEdit?.mint_mark ?? ''),
+      weight_grams: isNumismatica ? num.weight_grams.trim() : (assetToEdit?.weight_grams ?? ''),
+      diameter_mm: isMedalAsset ? undefined : isNumismatica ? num.diameter_mm.trim() : (assetToEdit?.diameter_mm ?? ''),
+      inventory_number: isNumismatica ? num.inventory_number.trim() : (assetToEdit?.inventory_number ?? ''),
+      catalog_reference: isNumismatica ? num.catalog_reference.trim() : (assetToEdit?.catalog_reference ?? ''),
       case_location: isMedalAsset ? undefined : isNumismatica ? num.case_location.trim() : (assetToEdit?.case_location ?? ''),
       case_number: isMedalAsset ? undefined : isNumismatica ? num.case_number.trim() : (assetToEdit?.case_number ?? ''),
       added_date: isNumismatica
@@ -532,45 +589,6 @@ export default function AssetModal({
                   </div>
                 </div>
 
-                <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-                  <div className="mb-2">
-                    <h3 className="text-sm font-semibold text-slate-200">Etiquetas</h3>
-                    <p className="mt-0.5 text-xs text-slate-400">Elige una sugerencia frecuente o escribe y pulsa Enter. Se guardan en una lista común para autocompletar futuros bienes.</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      list="asset-tag-suggestions"
-                      value={tagInput}
-                      onChange={(event) => setTagInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ',') {
-                          event.preventDefault()
-                          addTag(tagInput)
-                        }
-                      }}
-                      placeholder="Material, época, autor, marca…"
-                      className={inputClass}
-                    />
-                    <datalist id="asset-tag-suggestions">{tagSuggestions.map((tag) => <option key={tag} value={tag} />)}</datalist>
-                    <button type="button" onClick={() => addTag(tagInput)} className="shrink-0 rounded-xl bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-600">Añadir</button>
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {QUICK_TAGS.map((tag) => (
-                      <button key={tag} type="button" onClick={() => addTag(tag)} disabled={tags.includes(tag)} className="rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 hover:border-teal-600 hover:text-teal-200 disabled:opacity-35">{tag}</button>
-                    ))}
-                  </div>
-                  {tags.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {tags.map((tag) => (
-                        <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-teal-800 bg-teal-950/70 px-3 py-1 text-xs text-teal-200">
-                          {tag}
-                          <button type="button" aria-label={`Quitar ${tag}`} onClick={() => setTags((current) => current.filter((item) => item !== tag))} className="ml-1 text-teal-400 hover:text-white">×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </section>
-
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Valor estimado (€)</label>
@@ -593,6 +611,51 @@ export default function AssetModal({
                 onAutoFill={handleAutoFill}
               />
             )}
+
+            <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+              <div className="mb-2">
+                <h3 className="text-sm font-semibold text-slate-200">
+                  {isNumismatica ? 'Etiquetas: defectos, rarezas y variantes' : 'Etiquetas'}
+                </h3>
+                <p className="mt-0.5 text-xs text-slate-400">
+                  {isNumismatica
+                    ? 'Usa etiquetas para defectos, rarezas, variantes o conjuntos (agujero, canto estriado, rara…). Lo que no quepa, en comentarios.'
+                    : 'Elige una sugerencia frecuente o escribe y pulsa Enter. Se guardan en una lista común para autocompletar futuros bienes.'}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  list="asset-tag-suggestions"
+                  value={tagInput}
+                  onChange={(event) => setTagInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ',') {
+                      event.preventDefault()
+                      addTag(tagInput)
+                    }
+                  }}
+                  placeholder={isNumismatica ? 'Ej: rara, agujero, canto estriado…' : 'Material, época, autor, marca…'}
+                  className={inputClass}
+                />
+                <datalist id="asset-tag-suggestions">{tagSuggestions.map((tag) => <option key={tag} value={tag} />)}</datalist>
+                <button type="button" onClick={() => addTag(tagInput)} className="shrink-0 rounded-xl bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-600">Añadir</button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {quickTags.map((tag) => (
+                  <button key={tag} type="button" onClick={() => addTag(tag)} disabled={tags.includes(tag)} className="rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 hover:border-teal-600 hover:text-teal-200 disabled:opacity-35">{tag}</button>
+                ))}
+              </div>
+              {tags.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-teal-800 bg-teal-950/70 px-3 py-1 text-xs text-teal-200">
+                      {tag}
+                      <button type="button" aria-label={`Quitar ${tag}`} onClick={() => setTags((current) => current.filter((item) => item !== tag))} className="ml-1 text-teal-400 hover:text-white">×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
 
           <aside className="space-y-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
