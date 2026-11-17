@@ -98,6 +98,16 @@ No usar `npm version` sin `--no-git-tag-version` salvo que se quiera explícitam
 
 ---
 
+## Git workflow
+
+- Tras completar cada tarea, dejar el trabajo **commiteado** (código + subida de versión en el mismo commit).
+- Los commits se revisan en GitHub Desktop → pestaña **History**: al seleccionar un commit se ven los archivos y el diff línea a línea. La pestaña **Changes** solo muestra lo que aún no está commiteado.
+- **No hacer push automático:** el push lo hace el usuario desde GitHub Desktop. Publicar en `main` dispara el despliegue de GitHub Pages.
+- Mensajes de commit en formato `tipo(ámbito): resumen` (`feat`, `fix`, `docs`, `chore`).
+- No reescribir historia ya publicada (`--amend` o `push --force` sobre commits que ya están en `origin/main`).
+
+---
+
 # Autonomous Development Rules
 
 Act as a senior autonomous software engineer.

@@ -1,5 +1,9 @@
 # legacy-manager
 
+[![Build](https://img.shields.io/github/actions/workflow/status/Axgaldo/legacy-manager/deploy.yml?branch=main&label=build)](https://github.com/Axgaldo/legacy-manager/actions/workflows/deploy.yml)
+[![Version](https://img.shields.io/github/package-json/v/Axgaldo/legacy-manager?label=version)](https://github.com/Axgaldo/legacy-manager/blob/main/package.json)
+[![License](https://img.shields.io/github/license/Axgaldo/legacy-manager?label=license)](https://github.com/Axgaldo/legacy-manager/blob/main/LICENSE)
+
 Private family wealth management app.
 
 ## User authorization
