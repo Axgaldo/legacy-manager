@@ -105,6 +105,11 @@ export default function NumismaticaList({
                 {asset.catalog_reference}
               </span>
             )}
+            {asset.tags?.some((tag) => tag.toLocaleUpperCase('es') === 'REVISAR') && (
+              <span className="ml-2 rounded-full border border-amber-800 bg-amber-950/60 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                REVISAR
+              </span>
+            )}
           </p>
           <p className="mt-0.5 truncate text-[11px] text-slate-500 lg:hidden">
             {mobileSummary || 'Sin datos'}

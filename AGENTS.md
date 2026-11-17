@@ -90,6 +90,7 @@
     - **1.3.2:** `country` se separa de `mint`: país/territorio de emisión visible en moneda y medalla, ciudad/taller en `mint` y marca de ceca en `mint_mark`. El país se puede inferir del título del documento o de la cabecera y se puede corregir en el formulario.
     - **1.4.0:** Pantalla temporal `/bienes/importar` para cargar un JSON local, previsualizar y escribir por lotes con idempotencia (`import_key`). Se añaden `import_batch`, `import_source` e `import_row` como campos ocultos de trazabilidad.
     - **1.5.0:** Orden y agrupación por ubicación/contenedor en Numismática: nueva opción «Ubicación: contenedor», agrupada por álbum/estuche/bandeja para monedas y por ubicación para medallas.
+    - **1.6.0:** Filtro «Solo REVISAR» y distintivo REVISAR en la lista de Numismática. Las fichas importadas con dudas llevan la etiqueta `REVISAR` y el detalle en comentarios/notas, para poder localizarlas sin mezclarlas con el resto.
     - **Medallas:** se descartan los dos archivos ingleses de 2014 por ser un subconjunto incompleto de 2012 (sin números nuevos). Las medallas inglesas de 2012 y las fichas 238-246 de «MEDALLAS VARIOS PAISES» se asignan a Elena Carter; el resto, a Gabriel Galdó.
 
 ---

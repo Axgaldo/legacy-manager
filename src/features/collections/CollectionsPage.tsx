@@ -98,6 +98,7 @@ export default function CollectionsPage() {
   const [selectedConservationState, setSelectedConservationState] = useState('all')
   const [selectedEra, setSelectedEra] = useState('all')
   const [selectedNumismaticaType, setSelectedNumismaticaType] = useState('all')
+  const [onlyReview, setOnlyReview] = useState(false)
 
   const activeCollection: CollectionKey | undefined = isCollectionKey(collectionKey) ? collectionKey : undefined
   const isLanding = !activeCollection
@@ -133,6 +134,7 @@ export default function CollectionsPage() {
     setSelectedConservationState('all')
     setSelectedEra('all')
     setSelectedNumismaticaType('all')
+    setOnlyReview(false)
     setSearchQuery('')
   }, [collectionKey])
 
@@ -229,6 +231,11 @@ export default function CollectionsPage() {
     [scopedAssets],
   )
 
+  const reviewCount = useMemo(
+    () => scopedAssets.filter((asset) => (asset.tags ?? []).some((tag) => normalizeText(tag) === 'revisar')).length,
+    [scopedAssets],
+  )
+
   const legacyPhotoCount = useMemo(
     () => assets.reduce((sum, asset) => sum + (asset.photos ?? []).filter((photo) => photo.startsWith('data:image/')).length, 0),
     [assets],
@@ -245,8 +252,9 @@ export default function CollectionsPage() {
       const matchesEraFilter = matchesSelected(asset.era || asset.historicalEra, selectedEra)
       const matchesNumismaticaType = selectedNumismaticaType === 'all'
         || (asset.numismatica_type === 'medalla' ? 'medalla' : 'moneda') === selectedNumismaticaType
+      const matchesReview = !onlyReview || (asset.tags ?? []).some((tag) => normalizeText(tag) === 'revisar')
 
-      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType
+      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType && matchesReview
 
       const haystack = [
         ...SEARCHABLE_FIELDS.map((field) => asset[field]),
@@ -255,7 +263,7 @@ export default function CollectionsPage() {
       ].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' ')
 
       const matchesSearch = normalizeText(haystack).includes(query)
-      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType && matchesSearch
+      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType && matchesReview && matchesSearch
     })
 
     return filtered.sort((a, b) => {
@@ -266,7 +274,7 @@ export default function CollectionsPage() {
     })
   }, [
     scopedAssets, selectedOwner, selectedCategory, selectedTags, selectedMaterial, selectedConservationState,
-    selectedEra, selectedNumismaticaType, searchQuery, sortBy,
+    selectedEra, selectedNumismaticaType, onlyReview, searchQuery, sortBy,
   ])
 
   const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
@@ -561,6 +569,17 @@ export default function CollectionsPage() {
                     </div>
                   )}
                 </div>
+              )}
+              {isNumismaticaCollection && (
+                <button
+                  type="button"
+                  onClick={() => setOnlyReview((value) => !value)}
+                  aria-pressed={onlyReview}
+                  disabled={reviewCount === 0}
+                  className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${onlyReview ? 'bg-amber-700 text-white' : 'border border-amber-900 bg-amber-950/40 text-amber-200 hover:bg-amber-950/60'}`}
+                >
+                  ⚠️ Solo REVISAR ({reviewCount})
+                </button>
               )}
               <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className={`${filterInputClass} sm:w-52`}>
                 <option value="name">Ordenar: nombre</option>
