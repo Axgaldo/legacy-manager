@@ -342,6 +342,9 @@ export default function CollectionsPage() {
               {isMigratingPhotos ? 'Migrando fotos…' : `Migrar ${legacyPhotoCount} foto(s) antiguas`}
             </button>
           )}
+          <button onClick={() => navigate('/bienes/importar')} className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-800">
+            Importar datos
+          </button>
           <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-500/10 transition hover:bg-teal-600">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             {isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}

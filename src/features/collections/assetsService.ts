@@ -104,6 +104,10 @@ export function subscribeToAssets(
           case_location: optionalString(data.case_location),
           case_number: optionalString(data.case_number),
           added_date: optionalString(data.added_date),
+          import_key: optionalString(data.import_key),
+          import_batch: optionalString(data.import_batch),
+          import_source: optionalString(data.import_source),
+          import_row: optionalNumber(data.import_row),
         }
       })
       onSuccess(items)

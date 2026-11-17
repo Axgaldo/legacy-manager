@@ -254,6 +254,12 @@ export interface AssetItem extends TimestampedDoc {
   photos: string[]
   photoSizesBytes?: number[]
 
+  /** Import traceability (optional, hidden from the form). */
+  import_key?: string
+  import_batch?: string
+  import_source?: string
+  import_row?: number
+
   // Numismática fields (optional so other categories keep working)
   numismatica_type?: 'moneda' | 'medalla'
   medal_motive?: string
@@ -291,4 +297,20 @@ export interface AssetItem extends TimestampedDoc {
   case_location?: string
   case_number?: string
   added_date?: string
+}
+
+/**
+ * One row of a bulk import file. `photos` is optional because imported rows
+ * usually start without photos; the import screen fills an empty array.
+ */
+export type AssetImportRecord = Omit<AssetItem, 'id' | 'createdAt' | 'updatedAt' | 'photos'> & {
+  photos?: string[]
+  import_key: string
+  import_batch: string
+}
+
+export interface AssetImportFile {
+  batch: string
+  description?: string
+  records: AssetImportRecord[]
 }

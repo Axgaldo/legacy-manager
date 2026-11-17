@@ -53,6 +53,13 @@
 - **Legacy categories:** Old Firestore categories (`coins`, `banknotes`, `art`, `watches`, etc.) are normalized on read to the current Spanish categories. No manual data migration is required.
 - **Completed:** Numismática module with all fields (denomination, inventory_number, catalog_reference, material, conservationState, era, creation_year_range, empire_reign, ruler, country, mint, mint_mark, manufacturing_place, weight_grams, diameter_mm, obverse_info, reverse_info, value, market_value, value_source, purchase_price, purchase_price_original, purchase_currency, acquisition_source, purchase_year, reference_book, reference_book_value, reference_book_value_original, reference_book_currency, case_location, case_number, added_date). `coin_type` and generic `location` were removed.
 
+## Importación de datos (herramienta temporal)
+- Ruta privada `/bienes/importar`, accesible con el botón «Importar datos» de la página de Bienes.
+- Carga un JSON local con forma `{ batch, description?, records: AssetImportRecord[] }` (o una lista de fichas). El archivo no se sube al repositorio ni a Storage.
+- Previsualiza, valida y escribe en `assets` por lotes de 400; no importa fotos en la primera fase.
+- Idempotencia mediante `import_key`; `import_batch`, `import_source` e `import_row` quedan como trazabilidad oculta en la ficha.
+- La pantalla es temporal y se retirará cuando terminen las fases de importación.
+
 ## Development Context (Vibe Coding)
 - Be proactive: Make reasonable assumptions to keep the workflow moving.
 - Focus on: UX, robust storage handling, and clean, modular feature code.
@@ -81,6 +88,8 @@
     - **1.3.0:** Depuración del modelo de numismática antes de importar: `inventory_number`, `catalog_reference`, `acquisition_source`, `value_source`, `purchase_price_original`/`purchase_currency`, `reference_book_value_original`/`reference_book_currency`, `mint_mark`, `weight_grams`, `diameter_mm`; `medal_size_mm` pasa a texto; conversión automática a euros (ptas/francos/francos suizos/dólares/libras) manteniendo el importe original; etiquetas de defectos/rarezas para numismática; la ceca se separa en ciudad/taller (`mint`) y marca de ceca/ensayador (`mint_mark`).
     - **1.3.1:** Inventario, código de catálogo, peso y diámetro pasan a «Detalles avanzados» (moneda: después de anverso/reverso; medalla: bloque avanzado), dejando arriba los datos más frecuentes e informativos. La versión no se actualiza sola: se sube a mano con `npm version` en el mismo commit.
     - **1.3.2:** `country` se separa de `mint`: país/territorio de emisión visible en moneda y medalla, ciudad/taller en `mint` y marca de ceca en `mint_mark`. El país se puede inferir del título del documento o de la cabecera y se puede corregir en el formulario.
+    - **1.4.0:** Pantalla temporal `/bienes/importar` para cargar un JSON local, previsualizar y escribir por lotes con idempotencia (`import_key`). Se añaden `import_batch`, `import_source` e `import_row` como campos ocultos de trazabilidad.
+    - **Medallas:** se descartan los dos archivos ingleses de 2014 por ser un subconjunto incompleto de 2012 (sin números nuevos). Las medallas inglesas de 2012 y las fichas 238-246 de «MEDALLAS VARIOS PAISES» se asignan a Elena Carter; el resto, a Gabriel Galdó.
 
 ---
 
