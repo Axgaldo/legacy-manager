@@ -5,8 +5,12 @@ import {
   orderConservationStates,
 } from './numismaticaMeta'
 
-const inputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20'
-const selectClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20'
+const fieldBase = 'rounded-xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20'
+const inputClass = `w-full ${fieldBase}`
+const selectClass = `w-full ${fieldBase}`
+/** Year inputs share the row with the era select, so they must not claim 100% width. */
+const yearInputClass = `min-w-0 flex-1 ${fieldBase}`
+const yearSelectClass = `w-20 shrink-0 ${fieldBase} px-2.5`
 const labelClass = 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400'
 
 export const NUMISMATICA_DEFAULTS: Record<string, string[]> = {
@@ -114,7 +118,7 @@ function YearFields({ values, onChange, onAutoFill }: Pick<NumismaticaFieldsProp
       </div>
 
       {mode === 'single' ? (
-        <div className="flex max-w-sm gap-2">
+        <div className="flex max-w-sm items-center gap-2">
           <input
             type="number"
             min="0"
@@ -122,13 +126,13 @@ function YearFields({ values, onChange, onAutoFill }: Pick<NumismaticaFieldsProp
             value={values.year_value ?? ''}
             onChange={(event) => onChange('year_value', event.target.value)}
             placeholder="Ej: 1780"
-            className={inputClass}
+            className={yearInputClass}
             aria-label="Año concreto"
           />
           <select
             value={values.year_era ?? 'ad'}
             onChange={(event) => onChange('year_era', event.target.value)}
-            className={`${selectClass} w-28 shrink-0`}
+            className={yearSelectClass}
             aria-label="Era del año"
           >
             <option value="ad">d.C.</option>
@@ -136,48 +140,54 @@ function YearFields({ values, onChange, onAutoFill }: Pick<NumismaticaFieldsProp
           </select>
         </div>
       ) : (
-        <div className="grid max-w-2xl gap-2 sm:grid-cols-2">
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min="0"
-              inputMode="numeric"
-              value={values.range_start ?? ''}
-              onChange={(event) => onChange('range_start', event.target.value)}
-              placeholder="Desde"
-              className={inputClass}
-              aria-label="Año inicial"
-            />
-            <select
-              value={values.range_start_era ?? 'ad'}
-              onChange={(event) => onChange('range_start_era', event.target.value)}
-              className={`${selectClass} w-24 shrink-0`}
-              aria-label="Era del año inicial"
-            >
-              <option value="ad">d.C.</option>
-              <option value="bc">a.C.</option>
-            </select>
+        <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
+          <div>
+            <span className="mb-1 block text-[11px] text-slate-500">Desde</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={values.range_start ?? ''}
+                onChange={(event) => onChange('range_start', event.target.value)}
+                placeholder="Ej: 117"
+                className={yearInputClass}
+                aria-label="Año inicial"
+              />
+              <select
+                value={values.range_start_era ?? 'ad'}
+                onChange={(event) => onChange('range_start_era', event.target.value)}
+                className={yearSelectClass}
+                aria-label="Era del año inicial"
+              >
+                <option value="ad">d.C.</option>
+                <option value="bc">a.C.</option>
+              </select>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min="0"
-              inputMode="numeric"
-              value={values.range_end ?? ''}
-              onChange={(event) => onChange('range_end', event.target.value)}
-              placeholder="Hasta"
-              className={inputClass}
-              aria-label="Año final"
-            />
-            <select
-              value={values.range_end_era ?? 'ad'}
-              onChange={(event) => onChange('range_end_era', event.target.value)}
-              className={`${selectClass} w-24 shrink-0`}
-              aria-label="Era del año final"
-            >
-              <option value="ad">d.C.</option>
-              <option value="bc">a.C.</option>
-            </select>
+          <div>
+            <span className="mb-1 block text-[11px] text-slate-500">Hasta</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                inputMode="numeric"
+                value={values.range_end ?? ''}
+                onChange={(event) => onChange('range_end', event.target.value)}
+                placeholder="Ej: 138"
+                className={yearInputClass}
+                aria-label="Año final"
+              />
+              <select
+                value={values.range_end_era ?? 'ad'}
+                onChange={(event) => onChange('range_end_era', event.target.value)}
+                className={yearSelectClass}
+                aria-label="Era del año final"
+              >
+                <option value="ad">d.C.</option>
+                <option value="bc">a.C.</option>
+              </select>
+            </div>
           </div>
         </div>
       )}
@@ -220,11 +230,14 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
       <div className="rounded-xl border border-teal-900 bg-teal-950/40 px-3 py-2 text-xs text-teal-200">
         <span className="text-slate-400">Se guardará como:</span>{' '}
         <strong className="text-teal-100">{namePreview?.trim() || 'Denominación de la moneda'}</strong>
-        <span className="ml-1 text-slate-500">(editable en detalles avanzados)</span>
+        <span className="ml-1 text-slate-500">(editable más abajo)</span>
       </div>
+
+      <YearFields values={values} onChange={onChange} onAutoFill={onAutoFill} />
 
       <section className="space-y-3">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Identificación</h4>
+        <p className="text-[11px] text-slate-500">El gobernante, el imperio y la época se rellenan con la fecha; puedes corregirlos cuando quieras.</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SuggestionField field="denomination" label="Denominación *" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: denario, 8 reales, peseta…" />
           <SuggestionField field="ruler" label="Gobernante" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Adriano, Carlos IV…" extraOptions={RULER_NAMES} />
@@ -232,8 +245,6 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
           <SuggestionField field="era" label="Época" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Romana" />
         </div>
       </section>
-
-      <YearFields values={values} onChange={onChange} onAutoFill={onAutoFill} />
 
       <section className="space-y-3">
         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Material, conservación y ceca</h4>
@@ -253,6 +264,32 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
             <p className="mt-1 text-[11px] text-slate-500">Ordenado de mejor a peor.</p>
           </div>
           <SuggestionField field="mint" label="Ceca" values={values} onChange={onChange} placeholder="Ej: Roma, Sevilla, Madrid…" noSuggestions hint="Sin valores predefinidos: escribe la ceca que corresponda." />
+        </div>
+      </section>
+
+      <section className="space-y-3 border-t border-slate-800 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Nombre de la ficha</h4>
+          {values.name_override?.trim() && (
+            <button
+              type="button"
+              onClick={() => onChange('name_override', '')}
+              className="text-[11px] font-semibold text-teal-300 hover:text-teal-200"
+            >
+              Usar nombre automático
+            </button>
+          )}
+        </div>
+        <div>
+          <label htmlFor="numismatica-name" className={labelClass}>Nombre visible (opcional)</label>
+          <input
+            id="numismatica-name"
+            value={values.name_override ?? ''}
+            onChange={(event) => onChange('name_override', event.target.value)}
+            placeholder={namePreview?.trim() || 'Se genera automáticamente'}
+            className={inputClass}
+          />
+          <p className="mt-1 text-[11px] text-slate-500">Se rellena solo con la denominación y el gobernante. Escríbelo aquí solo si quieres un nombre distinto.</p>
         </div>
       </section>
 
@@ -293,19 +330,6 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
               <SuggestionField field="case_number" label="Número de posición" values={values} onChange={onChange} placeholder="Ej: #12" />
               <SuggestionField field="added_date" label="Fecha de registro" type="date" values={values} onChange={onChange} />
             </div>
-          </section>
-
-          <section className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Nombre de la ficha</h4>
-            <SuggestionField
-              field="name_override"
-              label="Nombre personalizado (opcional)"
-              values={values}
-              onChange={onChange}
-              placeholder="Si lo dejas vacío se genera automáticamente"
-              hint="Se genera con la denominación y el gobernante (y el año si no hay gobernante). Escríbelo aquí solo si quieres un nombre distinto."
-              noSuggestions
-            />
           </section>
         </div>
       </details>
