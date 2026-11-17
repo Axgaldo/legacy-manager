@@ -78,6 +78,7 @@
     - Medallas dentro de Numismática: selector Moneda/Medalla, formulario simplificado de medalla, lista unificada con 🪙/🏅 y filtro por tipo.
     - Importación local de datos: los archivos originales se dejan en `_import/` (ignorada por git) y nunca se suben al repositorio.
     - **1.3.0:** Depuración del modelo de numismática antes de importar: `inventory_number`, `catalog_reference`, `acquisition_source`, `value_source`, `purchase_price_original`/`purchase_currency`, `reference_book_value_original`/`reference_book_currency`, `mint_mark`, `weight_grams`, `diameter_mm`; `medal_size_mm` pasa a texto; conversión automática a euros (ptas/francos/francos suizos/dólares/libras) manteniendo el importe original; etiquetas de defectos/rarezas para numismática; la ceca se separa en ciudad/taller (`mint`) y marca de ceca/ensayador (`mint_mark`).
+    - **1.3.1:** Inventario, código de catálogo, peso y diámetro pasan a «Detalles avanzados» (moneda: después de anverso/reverso; medalla: bloque avanzado), dejando arriba los datos más frecuentes e informativos. La versión no se actualiza sola: se sube a mano con `npm version` en el mismo commit.
 
 ---
 

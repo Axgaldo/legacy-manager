@@ -411,9 +411,7 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <ConservationField values={values} onChange={onChange} options={conservationOptions} />
-              <SuggestionField field="inventory_number" label="Nº de inventario" values={values} onChange={onChange} noSuggestions placeholder="Ej: 78" hint="Número local del álbum, estuche o cajón." />
-              <SuggestionField field="catalog_reference" label="Código de catálogo" values={values} onChange={onChange} noSuggestions placeholder="Ej: CS-5, AB-442…" />
-              <SuggestionField field="weight_grams" label="Peso" values={values} onChange={onChange} noSuggestions placeholder="Ej: 53 g" />
+              <p className="self-end text-[11px] text-slate-500 sm:col-span-1 lg:col-span-3">El número de inventario, el código de catálogo y el peso están en «Detalles avanzados».</p>
             </div>
           </section>
 
@@ -430,6 +428,15 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
               </div>
             </div>
           </section>
+
+          <details className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-200">Detalles avanzados (opcional)</summary>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <SuggestionField field="inventory_number" label="Nº de inventario" values={values} onChange={onChange} noSuggestions placeholder="Ej: 78" hint="Número local del álbum, estuche o cajón." />
+              <SuggestionField field="catalog_reference" label="Código de catálogo" values={values} onChange={onChange} noSuggestions placeholder="Ej: CS-5, AB-442…" />
+              <SuggestionField field="weight_grams" label="Peso" values={values} onChange={onChange} noSuggestions placeholder="Ej: 53 g" />
+            </div>
+          </details>
 
           <section className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Adquisición y ubicación</h4>
@@ -459,12 +466,6 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
               <SuggestionField field="ruler" label="Gobernante" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Adriano, Carlos IV…" extraOptions={RULER_NAMES} />
               <SuggestionField field="empire_reign" label="Imperio o reinado" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Imperio Romano" extraOptions={EMPIRE_NAMES} />
               <SuggestionField field="era" label="Época" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Romana" />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <SuggestionField field="inventory_number" label="Nº de inventario" values={values} onChange={onChange} noSuggestions placeholder="Ej: 78" hint="Número local del álbum, estuche o bandeja." />
-              <SuggestionField field="catalog_reference" label="Código de catálogo" values={values} onChange={onChange} noSuggestions placeholder="Ej: CS-5, CC-154, AB-442…" />
-              <SuggestionField field="weight_grams" label="Peso" values={values} onChange={onChange} noSuggestions placeholder="Ej: 3,5 g" />
-              <SuggestionField field="diameter_mm" label="Diámetro" values={values} onChange={onChange} noSuggestions placeholder="Ej: 27 mm" />
             </div>
           </section>
 
@@ -513,6 +514,17 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
                     <label className={labelClass}>Información del reverso</label>
                     <textarea rows={3} value={values.reverse_info ?? ''} onChange={(event) => onChange('reverse_info', event.target.value)} className={inputClass} placeholder="Descripción del reverso…" />
                   </div>
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Datos específicos</h4>
+                <p className="text-[11px] text-slate-500">Datos que no aparecen en todas las piezas; por eso no están arriba con los más frecuentes.</p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <SuggestionField field="inventory_number" label="Nº de inventario" values={values} onChange={onChange} noSuggestions placeholder="Ej: 78" hint="Número local del álbum, estuche o bandeja." />
+                  <SuggestionField field="catalog_reference" label="Código de catálogo" values={values} onChange={onChange} noSuggestions placeholder="Ej: CS-5, CC-154, AB-442…" />
+                  <SuggestionField field="weight_grams" label="Peso" values={values} onChange={onChange} noSuggestions placeholder="Ej: 3,5 g" />
+                  <SuggestionField field="diameter_mm" label="Diámetro" values={values} onChange={onChange} noSuggestions placeholder="Ej: 27 mm" />
                 </div>
               </section>
 
