@@ -9,6 +9,8 @@ import { assetSlug } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
+import NumismaticaList from './NumismaticaList'
+import { CONSERVATION_STATES, formatSignedYear } from './numismaticaMeta'
 import {
   ASSET_CATEGORIES,
   type CollectionKey,
@@ -20,8 +22,8 @@ import {
 } from './assetCategories'
 
 const SEARCHABLE_FIELDS = [
-  'name', 'owner', 'brandOrAuthor', 'description', 'location', 'historicalEra', 'country', 'placeOfOrigin',
-  'ruler', 'mint', 'denomination', 'conservationState', 'material', 'notes', 'era', 'coin_type', 'empire_reign',
+  'name', 'owner', 'brandOrAuthor', 'description', 'historicalEra', 'country', 'placeOfOrigin',
+  'ruler', 'mint', 'denomination', 'conservationState', 'material', 'notes', 'era', 'empire_reign',
   'manufacturing_place', 'reference_book', 'case_location', 'case_number', 'obverse_info', 'reverse_info',
 ] as const
 
@@ -50,6 +52,10 @@ function matchesSelected(value: string | undefined, selected: string) {
   return selected === 'all' || normalizeText(value ?? '') === normalizeText(selected)
 }
 
+function assetValue(asset: AssetItem): number {
+  return asset.currentValue ?? asset.market_value ?? asset.value ?? 0
+}
+
 export default function CollectionsPage() {
   const navigate = useNavigate()
   const { assetSlug: routeAssetSlug, collectionKey } = useParams<{ assetSlug?: string; collectionKey?: string }>()
@@ -76,11 +82,11 @@ export default function CollectionsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMaterial, setSelectedMaterial] = useState('all')
   const [selectedConservationState, setSelectedConservationState] = useState('all')
-  const [selectedCoinType, setSelectedCoinType] = useState('all')
   const [selectedEra, setSelectedEra] = useState('all')
 
   const activeCollection: CollectionKey | undefined = isCollectionKey(collectionKey) ? collectionKey : undefined
   const isLanding = !activeCollection
+  const isNumismaticaCollection = activeCollection === 'numismatica'
 
   useEffect(() => {
     if (collectionKey && !isCollectionKey(collectionKey)) navigate('/bienes', { replace: true })
@@ -110,7 +116,6 @@ export default function CollectionsPage() {
     setSelectedTags([])
     setSelectedMaterial('all')
     setSelectedConservationState('all')
-    setSelectedCoinType('all')
     setSelectedEra('all')
     setSearchQuery('')
   }, [collectionKey])
@@ -138,7 +143,7 @@ export default function CollectionsPage() {
     return {
       ...collection,
       count: items.length,
-      value: items.reduce((total, asset) => total + (asset.currentValue ?? 0), 0),
+      value: items.reduce((total, asset) => total + assetValue(asset), 0),
     }
   }), [assets])
 
@@ -146,7 +151,7 @@ export default function CollectionsPage() {
     const source = activeCollection ? scopedAssets : assets
     return {
       totalCount: source.length,
-      totalValue: source.reduce((total, asset) => total + (asset.currentValue ?? 0), 0),
+      totalValue: source.reduce((total, asset) => total + assetValue(asset), 0),
       coinsCount: assets.filter((asset) => matchesCollection(asset.category, 'numismatica')).length,
     }
   }, [activeCollection, assets, scopedAssets])
@@ -164,18 +169,16 @@ export default function CollectionsPage() {
   ])), [assets])
 
   const numismaticaSuggestions = useMemo(() => {
-    const fields = ['material', 'conservationState', 'coin_type', 'era', 'empire_reign', 'reference_book', 'mint', 'denomination', 'ruler', 'case_location']
+    const fields = ['material', 'conservationState', 'era', 'empire_reign', 'reference_book', 'denomination', 'ruler', 'case_location']
     const suggestions: Record<string, string[]> = {}
     fields.forEach((field) => {
       suggestions[field] = uniqueValues(assets.map((asset) => {
         switch (field) {
           case 'material': return asset.material
           case 'conservationState': return asset.conservationState
-          case 'coin_type': return asset.coin_type
           case 'era': return asset.era
           case 'empire_reign': return asset.empire_reign
           case 'reference_book': return asset.reference_book
-          case 'mint': return asset.mint
           case 'denomination': return asset.denomination
           case 'ruler': return asset.ruler
           case 'case_location': return asset.case_location
@@ -187,8 +190,15 @@ export default function CollectionsPage() {
   }, [assets])
 
   const materialOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.material)), [scopedAssets])
-  const conservationOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.conservationState)), [scopedAssets])
-  const coinTypeOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.coin_type)), [scopedAssets])
+  const conservationOptions = useMemo(() => {
+    const existing = uniqueValues(scopedAssets.map((asset) => asset.conservationState))
+    return existing.sort((a, b) => {
+      const indexA = CONSERVATION_STATES.findIndex((state) => normalizeText(state) === normalizeText(a))
+      const indexB = CONSERVATION_STATES.findIndex((state) => normalizeText(state) === normalizeText(b))
+      return (indexA === -1 ? CONSERVATION_STATES.length : indexA) - (indexB === -1 ? CONSERVATION_STATES.length : indexB)
+        || a.localeCompare(b, 'es')
+    })
+  }, [scopedAssets])
   const eraOptions = useMemo(() => uniqueValues(scopedAssets.map((asset) => asset.era || asset.historicalEra)), [scopedAssets])
   const categoryOptions = useMemo(
     () => ASSET_CATEGORIES.filter((category) => scopedAssets.some((asset) => asset.category === category.value)),
@@ -208,10 +218,9 @@ export default function CollectionsPage() {
       const matchesTags = selectedTags.every((tag) => (asset.tags ?? []).some((item) => normalizeText(item) === normalizeText(tag)))
       const matchesMaterialFilter = matchesSelected(asset.material, selectedMaterial)
       const matchesConservationFilter = matchesSelected(asset.conservationState, selectedConservationState)
-      const matchesCoinTypeFilter = matchesSelected(asset.coin_type, selectedCoinType)
       const matchesEraFilter = matchesSelected(asset.era || asset.historicalEra, selectedEra)
 
-      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesCoinTypeFilter && matchesEraFilter
+      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter
 
       const haystack = [
         ...SEARCHABLE_FIELDS.map((field) => asset[field]),
@@ -220,17 +229,17 @@ export default function CollectionsPage() {
       ].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' ')
 
       const matchesSearch = normalizeText(haystack).includes(query)
-      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesCoinTypeFilter && matchesEraFilter && matchesSearch
+      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesSearch
     })
 
     return filtered.sort((a, b) => {
-      if (sortBy === 'value-desc') return (b.currentValue ?? 0) - (a.currentValue ?? 0)
+      if (sortBy === 'value-desc') return assetValue(b) - assetValue(a)
       if (sortBy === 'year-asc') return (a.year ?? Infinity) - (b.year ?? Infinity)
       return a.name.localeCompare(b.name, 'es')
     })
   }, [
     scopedAssets, selectedOwner, selectedCategory, selectedTags, selectedMaterial, selectedConservationState,
-    selectedCoinType, selectedEra, searchQuery, sortBy,
+    selectedEra, searchQuery, sortBy,
   ])
 
   const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
@@ -320,7 +329,7 @@ export default function CollectionsPage() {
           )}
           <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-500/10 transition hover:bg-teal-600">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Añadir bien
+            {isNumismaticaCollection ? 'Añadir moneda' : 'Añadir bien'}
           </button>
         </div>
       </div>
@@ -460,7 +469,7 @@ export default function CollectionsPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-3">
               <select value={selectedMaterial} onChange={(event) => setSelectedMaterial(event.target.value)} className={filterInputClass}>
                 <option value="all">Material: todos</option>
                 {materialOptions.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -469,56 +478,54 @@ export default function CollectionsPage() {
                 <option value="all">Estado: todos</option>
                 {conservationOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
-              <select value={selectedCoinType} onChange={(event) => setSelectedCoinType(event.target.value)} className={filterInputClass}>
-                <option value="all">Tipo: todos</option>
-                {coinTypeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
               <select value={selectedEra} onChange={(event) => setSelectedEra(event.target.value)} className={filterInputClass}>
                 <option value="all">Época: todas</option>
                 {eraOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </div>
 
-            <div className="grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
-              <div className="relative sm:col-span-2">
+            <div className="flex flex-col gap-2.5 border-t border-slate-800 pt-4 text-xs sm:flex-row">
+              <div className="relative flex-1">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Buscar nombre, ceca, material, etiqueta…"
+                  placeholder={isNumismaticaCollection ? 'Buscar nombre, ceca, gobernante, material…' : 'Buscar nombre, autor, material, etiqueta…'}
                   className={`${filterInputClass} pl-8`}
                 />
                 <span className="absolute left-2.5 top-2 text-slate-500">⌕</span>
               </div>
-              <div className="relative">
-                <button
-                  type="button"
-                  aria-expanded={tagFilterOpen}
-                  onClick={() => setTagFilterOpen((open) => !open)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-left text-sm text-slate-200"
-                >
-                  Etiquetas{selectedTags.length ? ` · ${selectedTags.length} seleccionada(s)` : ''} ▾
-                </button>
-                {tagFilterOpen && (
-                  <div className="absolute right-0 z-20 mt-2 max-h-64 w-full min-w-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-xl">
-                    {existingTags.length ? existingTags.map((tag) => (
-                      <label key={tag} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
-                        <input
-                          type="checkbox"
-                          checked={selectedTags.includes(tag)}
-                          onChange={(event) => setSelectedTags((current) => event.target.checked ? [...current, tag] : current.filter((item) => item !== tag))}
-                          className="accent-teal-500"
-                        />
-                        {tag}
-                      </label>
-                    )) : <p className="p-2 text-xs text-slate-500">Aún no hay etiquetas en el catálogo.</p>}
-                    {selectedTags.length > 0 && (
-                      <button type="button" onClick={() => setSelectedTags([])} className="mt-2 w-full border-t border-slate-700 px-2 pt-2 text-left text-xs text-teal-300">Limpiar etiquetas</button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className={filterInputClass}>
+              {!isNumismaticaCollection && (
+                <div className="relative sm:w-56">
+                  <button
+                    type="button"
+                    aria-expanded={tagFilterOpen}
+                    onClick={() => setTagFilterOpen((open) => !open)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-left text-sm text-slate-200"
+                  >
+                    Etiquetas{selectedTags.length ? ` · ${selectedTags.length} seleccionada(s)` : ''} ▾
+                  </button>
+                  {tagFilterOpen && (
+                    <div className="absolute right-0 z-20 mt-2 max-h-64 w-full min-w-64 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-xl">
+                      {existingTags.length ? existingTags.map((tag) => (
+                        <label key={tag} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-200 hover:bg-slate-800">
+                          <input
+                            type="checkbox"
+                            checked={selectedTags.includes(tag)}
+                            onChange={(event) => setSelectedTags((current) => event.target.checked ? [...current, tag] : current.filter((item) => item !== tag))}
+                            className="accent-teal-500"
+                          />
+                          {tag}
+                        </label>
+                      )) : <p className="p-2 text-xs text-slate-500">Aún no hay etiquetas en el catálogo.</p>}
+                      {selectedTags.length > 0 && (
+                        <button type="button" onClick={() => setSelectedTags([])} className="mt-2 w-full border-t border-slate-700 px-2 pt-2 text-left text-xs text-teal-300">Limpiar etiquetas</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className={`${filterInputClass} sm:w-52`}>
                 <option value="name">Ordenar: nombre</option>
                 <option value="year-asc">Año: más antiguo</option>
                 <option value="value-desc">Valor: mayor a menor</option>
@@ -533,7 +540,10 @@ export default function CollectionsPage() {
               title={scopedAssets.length === 0 ? 'Todavía no hay bienes en esta colección' : 'No hay resultados para estos filtros'}
               description={scopedAssets.length === 0 ? 'Añade el primer bien de esta colección para empezar.' : 'Prueba a cambiar los filtros o a limpiar la búsqueda.'}
               onAdd={scopedAssets.length === 0 ? handleOpenAddModal : undefined}
+              addLabel={isNumismaticaCollection ? 'Añadir moneda' : 'Añadir bien'}
             />
+          ) : isNumismaticaCollection ? (
+            <NumismaticaList assets={filteredAssets} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} />
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredAssets.map((asset) => (
@@ -587,6 +597,7 @@ function StatCard({ title, value, valueClass = 'text-slate-900' }: { title: stri
 function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
   const category = getCategoryInfo(asset.category)
   const mainPhoto = asset.photos?.[0]
+  const yearText = asset.creation_year_range?.trim() || (asset.year !== undefined ? formatSignedYear(asset.year) : '')
   const tags = Array.from(new Set([...(asset.tags ?? []), asset.material, asset.conservationState].filter((tag): tag is string => Boolean(tag?.trim())))).slice(0, 5)
 
   return (
@@ -623,7 +634,7 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
         <div>
           <h4 className="line-clamp-1 text-base font-bold text-slate-100" title={asset.name}>{asset.name}</h4>
           <p className="mt-1 text-xs text-slate-400">
-            {asset.year !== undefined ? `Año ${asset.year > 0 ? asset.year : `${Math.abs(asset.year)} a.C.`}` : ''}
+            {yearText ? `Año ${yearText}` : ''}
             {(asset.placeOfOrigin || asset.country) ? ` · ${asset.placeOfOrigin || asset.country}` : ''}
             {(asset.era || asset.historicalEra) ? ` · ${asset.era || asset.historicalEra}` : ''}
           </p>
@@ -635,13 +646,12 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
               <span key={tag} className="rounded-full border border-teal-900 bg-teal-950/60 px-2.5 py-1 text-[11px] text-teal-200">{tag}</span>
             ))}
           </div>
-          {asset.location && <p className="mt-2 flex items-center gap-1 truncate text-xs text-slate-500"><span>📍</span><span className="truncate">{asset.location}</span></p>}
         </div>
 
         <div className="flex items-baseline justify-between border-t border-slate-800 pt-2">
           <div>
             <p className="text-[10px] font-semibold uppercase text-slate-500">Valor estimado</p>
-            <p className="text-base font-bold text-emerald-400">{formatEuro(asset.currentValue)}</p>
+            <p className="text-base font-bold text-emerald-400">{formatEuro(assetValue(asset))}</p>
           </div>
           {asset.acquisitionPrice !== undefined && asset.acquisitionPrice > 0 && (
             <div className="text-right">
@@ -678,7 +688,7 @@ function LoadingState() {
   )
 }
 
-function EmptyState({ title, description, onAdd }: { title: string; description: string; onAdd?: () => void }) {
+function EmptyState({ title, description, onAdd, addLabel = 'Añadir bien' }: { title: string; description: string; onAdd?: () => void; addLabel?: string }) {
   return (
     <div className="mx-auto max-w-lg rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-12 text-center">
       <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-950/40 text-2xl text-amber-300">🪙</div>
@@ -686,7 +696,7 @@ function EmptyState({ title, description, onAdd }: { title: string; description:
       <p className="mx-auto mt-1.5 max-w-xs text-xs text-slate-500">{description}</p>
       {onAdd && (
         <button onClick={onAdd} className="mt-5 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-600">
-          + Añadir bien
+          + {addLabel}
         </button>
       )}
     </div>

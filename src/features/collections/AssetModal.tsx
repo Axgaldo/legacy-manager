@@ -7,6 +7,15 @@ import { resolveOwnerName } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { NumismaticaFields } from './NumismaticaFields'
 import { ASSET_CATEGORIES } from './assetCategories'
+import {
+  buildCoinName,
+  getEraFromYear,
+  getMidpointYearFromValues,
+  getPrimaryYearFromValues,
+  getRulerSuggestion,
+  getYearLabelFromValues,
+  parseYearRangeText,
+} from './numismaticaMeta'
 
 const QUICK_TAGS = ['ORO', 'PLATA', 'COBRE', 'BRONCE', 'ACERO', 'MADERA', 'CUERO', 'PLÁSTICO', 'ÉPOCA ROMANA', 'EDAD MEDIA', 'SIGLO XVIII', 'SIGLO XIX', 'SIGLO XX', 'ESPAÑA', 'CARLOS IV', 'FELIPE II', 'TRAJANO', 'EXCELENTE', 'BUEN ESTADO']
 const MATERIAL_TAGS = ['ORO', 'PLATA', 'COBRE', 'BRONCE', 'ACERO', 'MADERA', 'CUERO', 'PLÁSTICO']
@@ -38,7 +47,6 @@ function emptyNumismaticaData(): Record<string, string> {
     creation_year_range: '',
     reference_book: '',
     reference_book_value: '',
-    coin_type: '',
     empire_reign: '',
     ruler: '',
     mint: '',
@@ -49,6 +57,15 @@ function emptyNumismaticaData(): Record<string, string> {
     material: '',
     conservationState: '',
     added_date: '',
+    year_mode: 'single',
+    year_value: '',
+    year_era: 'ad',
+    range_start: '',
+    range_end: '',
+    range_start_era: 'ad',
+    range_end_era: 'ad',
+    range_legacy_text: '',
+    name_override: '',
   }
 }
 
@@ -76,6 +93,62 @@ function toDateInput(value: unknown): string {
   return ''
 }
 
+function buildNumismaticaData(asset: AssetItem): Record<string, string> {
+  const base = emptyNumismaticaData()
+  const rangeText = asset.creation_year_range?.trim() ?? ''
+  const parsedRange = rangeText ? parseYearRangeText(rangeText) : {}
+  const hasParsedRange = parsedRange.start !== undefined || parsedRange.end !== undefined
+  const useRange = Boolean(rangeText)
+  const signedYear = asset.year
+  const start = useRange ? parsedRange.start : signedYear
+  const end = useRange ? parsedRange.end : signedYear
+
+  const values: Record<string, string> = {
+    ...base,
+    value: toInputValue(asset.value),
+    market_value: toInputValue(asset.market_value ?? asset.currentValue),
+    purchase_price: toInputValue(asset.purchase_price ?? asset.acquisitionPrice),
+    purchase_year: toInputValue(asset.purchase_year ?? asset.acquisitionYear),
+    obverse_info: asset.obverse_info || '',
+    reverse_info: asset.reverse_info || '',
+    era: asset.era || '',
+    creation_year_range: rangeText,
+    reference_book: asset.reference_book || '',
+    reference_book_value: toInputValue(asset.reference_book_value),
+    empire_reign: asset.empire_reign || '',
+    ruler: asset.ruler || '',
+    mint: asset.mint || '',
+    manufacturing_place: asset.manufacturing_place || '',
+    case_location: asset.case_location || '',
+    case_number: asset.case_number || '',
+    denomination: asset.denomination || '',
+    material: asset.material || '',
+    conservationState: asset.conservationState || '',
+    added_date: asset.added_date || toDateInput(asset.createdAt),
+    year_mode: useRange ? 'range' : 'single',
+    year_value: !useRange && signedYear !== undefined ? String(Math.abs(signedYear)) : '',
+    year_era: signedYear !== undefined && signedYear < 0 ? 'bc' : 'ad',
+    range_start: useRange && start !== undefined ? String(Math.abs(start)) : '',
+    range_end: useRange && end !== undefined ? String(Math.abs(end)) : '',
+    range_start_era: useRange && start !== undefined && start < 0 ? 'bc' : 'ad',
+    range_end_era: useRange && end !== undefined && end < 0 ? 'bc' : 'ad',
+    range_legacy_text: useRange && !hasParsedRange ? rangeText : '',
+  }
+
+  const generated = buildCoinName({
+    denomination: values.denomination,
+    ruler: values.ruler,
+    material: values.material,
+    yearLabel: getYearLabelFromValues(values),
+  })
+  values.name_override = asset.name && asset.name !== generated ? asset.name : ''
+  return values
+}
+
+const YEAR_FIELDS = new Set([
+  'year_mode', 'year_value', 'year_era', 'range_start', 'range_end', 'range_start_era', 'range_end_era',
+])
+
 export default function AssetModal({
   isOpen,
   assetToEdit,
@@ -94,7 +167,6 @@ export default function AssetModal({
   const [category, setCategory] = useState<AssetCategory>(defaultCategory)
   const [year, setYear] = useState('')
   const [placeOfOrigin, setPlaceOfOrigin] = useState('')
-  const [location, setLocation] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [currentValue, setCurrentValue] = useState('')
@@ -102,13 +174,27 @@ export default function AssetModal({
   const [notes, setNotes] = useState('')
   const [photos, setPhotos] = useState<string[]>([])
   const [numismaticaData, setNumismaticaData] = useState<Record<string, string>>(emptyNumismaticaData)
+  const [eraTouched, setEraTouched] = useState(false)
+  const [rulerTouched, setRulerTouched] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [compressStatus, setCompressStatus] = useState('')
 
+  const isNumismatica = category === 'numismatica'
   const tagSuggestions = useMemo(() => Array.from(new Set([...QUICK_TAGS, ...existingTags])).filter((tag) => tag.trim()), [existingTags])
   const detectedEra = useMemo(() => (year ? getHistoricalEraFromYear(Number(year)) : undefined), [year])
+
+  const coinYearLabel = useMemo(() => getYearLabelFromValues(numismaticaData), [numismaticaData])
+  const generatedCoinName = useMemo(() => buildCoinName({
+    denomination: numismaticaData.denomination,
+    ruler: numismaticaData.ruler,
+    material: numismaticaData.material,
+    yearLabel: coinYearLabel,
+  }), [numismaticaData.denomination, numismaticaData.ruler, numismaticaData.material, coinYearLabel])
+  const effectiveName = isNumismatica
+    ? (numismaticaData.name_override?.trim() || generatedCoinName)
+    : name
 
   useEffect(() => {
     if (!isOpen) return
@@ -116,6 +202,8 @@ export default function AssetModal({
     setTagInput('')
     setErrorMsg('')
     setCompressStatus('')
+    setEraTouched(Boolean(assetToEdit?.era))
+    setRulerTouched(Boolean(assetToEdit?.ruler))
 
     if (!assetToEdit) {
       setName('')
@@ -123,56 +211,29 @@ export default function AssetModal({
       setCategory(defaultCategory)
       setYear('')
       setPlaceOfOrigin('')
-      setLocation('')
       setTags([])
       setCurrentValue('')
       setAcquisitionPrice('')
       setNotes('')
       setPhotos([])
-      setNumismaticaData(emptyNumismaticaData())
+      setNumismaticaData({ ...emptyNumismaticaData(), added_date: new Date().toISOString().slice(0, 10) })
       return
     }
 
     const legacyTags = [assetToEdit.brandOrAuthor, assetToEdit.material, assetToEdit.historicalEra, assetToEdit.country, assetToEdit.ruler, assetToEdit.mint, assetToEdit.denomination, assetToEdit.conservationState]
       .filter((tag): tag is string => Boolean(tag?.trim()))
-    const isNumismatica = assetToEdit.category === 'numismatica'
 
     setName(assetToEdit.name)
     setOwner(assetToEdit.owner || '')
     setCategory(assetToEdit.category || defaultCategory)
     setYear(toInputValue(assetToEdit.year))
     setPlaceOfOrigin(assetToEdit.placeOfOrigin || assetToEdit.country || '')
-    setLocation(assetToEdit.location || '')
     setTags(Array.from(new Set([...(assetToEdit.tags ?? []), ...legacyTags])))
     setCurrentValue(toInputValue(assetToEdit.currentValue))
     setAcquisitionPrice(toInputValue(assetToEdit.acquisitionPrice))
     setNotes(assetToEdit.notes || '')
     setPhotos(assetToEdit.photos || [])
-
-    setNumismaticaData({
-      ...emptyNumismaticaData(),
-      value: toInputValue(assetToEdit.value),
-      market_value: toInputValue(assetToEdit.market_value ?? (isNumismatica ? assetToEdit.currentValue : undefined)),
-      purchase_price: toInputValue(assetToEdit.purchase_price ?? (isNumismatica ? assetToEdit.acquisitionPrice : undefined)),
-      purchase_year: toInputValue(assetToEdit.purchase_year ?? (isNumismatica ? assetToEdit.acquisitionYear : undefined)),
-      obverse_info: assetToEdit.obverse_info || '',
-      reverse_info: assetToEdit.reverse_info || '',
-      era: assetToEdit.era || '',
-      creation_year_range: assetToEdit.creation_year_range || '',
-      reference_book: assetToEdit.reference_book || '',
-      reference_book_value: toInputValue(assetToEdit.reference_book_value),
-      coin_type: assetToEdit.coin_type || '',
-      empire_reign: assetToEdit.empire_reign || '',
-      ruler: assetToEdit.ruler || '',
-      mint: assetToEdit.mint || '',
-      manufacturing_place: assetToEdit.manufacturing_place || '',
-      case_location: assetToEdit.case_location || '',
-      case_number: assetToEdit.case_number || '',
-      denomination: assetToEdit.denomination || '',
-      material: assetToEdit.material || '',
-      conservationState: assetToEdit.conservationState || '',
-      added_date: assetToEdit.added_date || toDateInput(assetToEdit.createdAt),
-    })
+    setNumismaticaData(buildNumismaticaData(assetToEdit))
   }, [assetToEdit, defaultCategory, isOpen])
 
   if (!isOpen) return null
@@ -186,7 +247,47 @@ export default function AssetModal({
   }
 
   const handleNumismaticaChange = (field: string, value: string) => {
-    setNumismaticaData((current) => ({ ...current, [field]: value }))
+    const next = { ...numismaticaData, [field]: value }
+
+    if (field === 'era') {
+      setEraTouched(true)
+      setNumismaticaData(next)
+      return
+    }
+    if (field === 'ruler' || field === 'empire_reign') {
+      setRulerTouched(true)
+      setNumismaticaData(next)
+      return
+    }
+    if (YEAR_FIELDS.has(field)) {
+      const midpoint = getMidpointYearFromValues(next)
+      if (!eraTouched) {
+        const era = getEraFromYear(midpoint)
+        if (era) next.era = era
+      }
+      if (!rulerTouched) {
+        const suggestion = getRulerSuggestion(midpoint)
+        if (suggestion) {
+          next.ruler = suggestion.ruler
+          next.empire_reign = suggestion.empire
+        }
+      }
+    }
+    setNumismaticaData(next)
+  }
+
+  const handleAutoFill = () => {
+    const midpoint = getMidpointYearFromValues(numismaticaData)
+    const era = getEraFromYear(midpoint)
+    const suggestion = getRulerSuggestion(midpoint)
+    setNumismaticaData((current) => ({
+      ...current,
+      era: era ?? current.era,
+      ruler: suggestion?.ruler ?? current.ruler,
+      empire_reign: suggestion?.empire ?? current.empire_reign,
+    }))
+    setEraTouched(false)
+    setRulerTouched(false)
   }
 
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -212,36 +313,57 @@ export default function AssetModal({
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!name.trim()) {
-      setErrorMsg('Escribe el nombre o la denominación del bien.')
+
+    if (isNumismatica && !numismaticaData.denomination.trim() && !numismaticaData.name_override.trim()) {
+      setErrorMsg('Indica la denominación de la moneda (denario, 8 reales, peseta…) o escribe un nombre personalizado en detalles avanzados.')
+      return
+    }
+    if (!isNumismatica && !name.trim()) {
+      setErrorMsg('Escribe el nombre del bien.')
       return
     }
 
     setIsLoading(true)
     setErrorMsg('')
-    const isNumismatica = category === 'numismatica'
     const num = numismaticaData
     const yearNumber = parseNumber(year)
     const tagsList = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)))
     const marketValue = parseNumber(num.market_value)
     const nominalValue = parseNumber(num.value)
     const purchasePrice = parseNumber(num.purchase_price)
+    const rangeMode = num.year_mode === 'range'
+    const coinPrimaryYear = getPrimaryYearFromValues(num) ?? assetToEdit?.year
+    const coinMidpointYear = getMidpointYearFromValues(num) ?? assetToEdit?.year
+    const coinRangeLabel = getYearLabelFromValues(num)
+    const coinName = (num.name_override?.trim() || buildCoinName({
+      denomination: num.denomination,
+      ruler: num.ruler,
+      material: num.material,
+      yearLabel: coinRangeLabel,
+    })).trim()
+    const origin = isNumismatica
+      ? (num.mint.trim() || assetToEdit?.placeOfOrigin || assetToEdit?.country || '')
+      : placeOfOrigin.trim()
+    const creationYearRange = isNumismatica
+      ? rangeMode
+        ? (coinRangeLabel || num.range_legacy_text || assetToEdit?.creation_year_range || '')
+        : ''
+      : (assetToEdit?.creation_year_range ?? '')
     const historicalEra = isNumismatica
-      ? (num.era.trim() || getHistoricalEraFromYear(yearNumber) || assetToEdit?.historicalEra || '')
+      ? (num.era.trim() || getEraFromYear(coinMidpointYear) || getHistoricalEraFromYear(coinPrimaryYear) || assetToEdit?.historicalEra || '')
       : (getHistoricalEraFromYear(yearNumber) || assetToEdit?.historicalEra || '')
 
     const payload: Omit<AssetItem, 'id' | 'createdAt' | 'updatedAt'> = {
-      name: name.trim(),
+      name: (isNumismatica ? coinName : name.trim()),
       owner: resolveOwnerName(owner, owners, defaultOwner),
-      category,
-      tags: tagsList,
-      location: location.trim(),
+      category: isNumismatica ? 'numismatica' : category,
+      tags: isNumismatica ? [] : tagsList,
       description: assetToEdit?.description ?? '',
       brandOrAuthor: assetToEdit?.brandOrAuthor ?? '',
-      year: yearNumber,
+      year: isNumismatica ? coinPrimaryYear : yearNumber,
       historicalEra,
-      country: placeOfOrigin.trim() || assetToEdit?.country || '',
-      placeOfOrigin: placeOfOrigin.trim() || assetToEdit?.placeOfOrigin || '',
+      country: origin || assetToEdit?.country || '',
+      placeOfOrigin: origin || assetToEdit?.placeOfOrigin || '',
       ruler: isNumismatica ? num.ruler.trim() : (assetToEdit?.ruler ?? ''),
       mint: isNumismatica ? num.mint.trim() : (assetToEdit?.mint ?? ''),
       denomination: isNumismatica ? num.denomination.trim() : (assetToEdit?.denomination ?? ''),
@@ -254,23 +376,24 @@ export default function AssetModal({
       photos,
       photoSizesBytes: assetToEdit?.photoSizesBytes ?? [],
 
-      // Numismática fields
-      value: nominalValue,
-      market_value: marketValue,
-      purchase_price: purchasePrice,
-      purchase_year: parseNumber(num.purchase_year),
-      obverse_info: num.obverse_info.trim(),
-      reverse_info: num.reverse_info.trim(),
+      // Numismática fields (kept in the same Firestore document as generic assets)
+      value: isNumismatica ? nominalValue : assetToEdit?.value,
+      market_value: isNumismatica ? marketValue : assetToEdit?.market_value,
+      purchase_price: isNumismatica ? purchasePrice : assetToEdit?.purchase_price,
+      purchase_year: isNumismatica ? parseNumber(num.purchase_year) : assetToEdit?.purchase_year,
+      obverse_info: isNumismatica ? num.obverse_info.trim() : (assetToEdit?.obverse_info ?? ''),
+      reverse_info: isNumismatica ? num.reverse_info.trim() : (assetToEdit?.reverse_info ?? ''),
       era: isNumismatica ? num.era.trim() : (assetToEdit?.era ?? ''),
-      creation_year_range: num.creation_year_range.trim(),
-      reference_book: num.reference_book.trim(),
-      reference_book_value: parseNumber(num.reference_book_value),
-      coin_type: isNumismatica ? num.coin_type.trim() : (assetToEdit?.coin_type ?? ''),
+      creation_year_range: creationYearRange,
+      reference_book: isNumismatica ? num.reference_book.trim() : (assetToEdit?.reference_book ?? ''),
+      reference_book_value: isNumismatica ? parseNumber(num.reference_book_value) : assetToEdit?.reference_book_value,
       empire_reign: isNumismatica ? num.empire_reign.trim() : (assetToEdit?.empire_reign ?? ''),
-      manufacturing_place: num.manufacturing_place.trim(),
-      case_location: num.case_location.trim(),
-      case_number: num.case_number.trim(),
-      added_date: num.added_date || assetToEdit?.added_date || toDateInput(assetToEdit?.createdAt) || new Date().toISOString().slice(0, 10),
+      manufacturing_place: isNumismatica ? num.manufacturing_place.trim() : (assetToEdit?.manufacturing_place ?? ''),
+      case_location: isNumismatica ? num.case_location.trim() : (assetToEdit?.case_location ?? ''),
+      case_number: isNumismatica ? num.case_number.trim() : (assetToEdit?.case_number ?? ''),
+      added_date: isNumismatica
+        ? (num.added_date || assetToEdit?.added_date || toDateInput(assetToEdit?.createdAt) || new Date().toISOString().slice(0, 10))
+        : assetToEdit?.added_date,
     }
 
     try {
@@ -293,8 +416,14 @@ export default function AssetModal({
       <div className="my-auto max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="asset-modal-title">
         <div className="mb-5 flex items-start justify-between gap-3 border-b border-slate-700 pb-4">
           <div>
-            <h2 id="asset-modal-title" className="text-xl font-semibold text-slate-100">{assetToEdit ? `Editar ${assetToEdit.name}` : 'Añadir bien'}</h2>
-            <p className="mt-1 text-sm text-slate-400">Una ficha común para todos los objetos; usa etiquetas y campos reutilizables para sus características.</p>
+            <h2 id="asset-modal-title" className="text-xl font-semibold text-slate-100">
+              {assetToEdit ? `Editar ${assetToEdit.name}` : isNumismatica ? 'Añadir moneda' : 'Añadir bien'}
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              {isNumismatica
+                ? 'Ficha especial de numismática: los datos genéricos del bien se rellenan solos.'
+                : 'Una ficha común para arte y objetos diversos; usa etiquetas y campos reutilizables para sus características.'}
+            </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white">✕</button>
         </div>
@@ -303,14 +432,16 @@ export default function AssetModal({
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
           <div className="space-y-5 lg:col-start-1 lg:row-start-1">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre / Denominación *</label>
-              <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Ordenador portátil Dell XPS o 8 reales de Carlos IV" className={inputClass} />
-            </div>
+            {!isNumismatica && (
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Nombre *</label>
+                <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Ordenador portátil Dell XPS, cuadro al óleo…" className={inputClass} />
+              </div>
+            )}
 
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Categoría</label>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {ASSET_CATEGORIES.map((item) => (
                   <button
                     key={item.value}
@@ -331,84 +462,87 @@ export default function AssetModal({
               <p className="mt-1 text-[11px] text-slate-500">Elige un propietario existente o escribe uno nuevo. Si lo dejas vacío se usará {defaultOwner}.</p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Año</label>
-                <input type="number" value={year} onChange={(event) => setYear(event.target.value)} placeholder="Año de fabricación, emisión o creación" className={inputClass} />
-                {detectedEra && <p className="mt-1.5 text-xs text-teal-300">Época calculada: {detectedEra}</p>}
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Lugar de origen</label>
-                <input value={placeOfOrigin} onChange={(event) => setPlaceOfOrigin(event.target.value)} placeholder="País, región o lugar" className={inputClass} />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Ubicación actual</label>
-              <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Despacho, vitrina, caja fuerte…" className={inputClass} />
-            </div>
-
-            <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
-              <div className="mb-2">
-                <h3 className="text-sm font-semibold text-slate-200">Etiquetas</h3>
-                <p className="mt-0.5 text-xs text-slate-400">Elige una sugerencia frecuente o escribe y pulsa Enter. Se guardan en una lista común para autocompletar futuros bienes.</p>
-              </div>
-              <div className="flex gap-2">
-                <input
-                  list="asset-tag-suggestions"
-                  value={tagInput}
-                  onChange={(event) => setTagInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ',') {
-                      event.preventDefault()
-                      addTag(tagInput)
-                    }
-                  }}
-                  placeholder="Material, época, gobernante, marca…"
-                  className={inputClass}
-                />
-                <datalist id="asset-tag-suggestions">{tagSuggestions.map((tag) => <option key={tag} value={tag} />)}</datalist>
-                <button type="button" onClick={() => addTag(tagInput)} className="shrink-0 rounded-xl bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-600">Añadir</button>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {QUICK_TAGS.map((tag) => (
-                  <button key={tag} type="button" onClick={() => addTag(tag)} disabled={tags.includes(tag)} className="rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 hover:border-teal-600 hover:text-teal-200 disabled:opacity-35">{tag}</button>
-                ))}
-              </div>
-              {tags.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {tags.map((tag) => (
-                    <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-teal-800 bg-teal-950/70 px-3 py-1 text-xs text-teal-200">
-                      {tag}
-                      <button type="button" aria-label={`Quitar ${tag}`} onClick={() => setTags((current) => current.filter((item) => item !== tag))} className="ml-1 text-teal-400 hover:text-white">×</button>
-                    </span>
-                  ))}
+            {!isNumismatica && (
+              <>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Año</label>
+                    <input type="number" value={year} onChange={(event) => setYear(event.target.value)} placeholder="Año de fabricación, creación o emisión" className={inputClass} />
+                    {detectedEra && <p className="mt-1.5 text-xs text-teal-300">Época calculada: {detectedEra}</p>}
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Lugar de origen</label>
+                    <input value={placeOfOrigin} onChange={(event) => setPlaceOfOrigin(event.target.value)} placeholder="País, región o lugar" className={inputClass} />
+                  </div>
                 </div>
-              )}
-            </section>
 
-            {category !== 'numismatica' && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Valor estimado (€)</label>
-                  <input type="number" min="0" step="0.01" value={currentValue} onChange={(event) => setCurrentValue(event.target.value)} className={inputClass} />
+                <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-4">
+                  <div className="mb-2">
+                    <h3 className="text-sm font-semibold text-slate-200">Etiquetas</h3>
+                    <p className="mt-0.5 text-xs text-slate-400">Elige una sugerencia frecuente o escribe y pulsa Enter. Se guardan en una lista común para autocompletar futuros bienes.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      list="asset-tag-suggestions"
+                      value={tagInput}
+                      onChange={(event) => setTagInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ',') {
+                          event.preventDefault()
+                          addTag(tagInput)
+                        }
+                      }}
+                      placeholder="Material, época, autor, marca…"
+                      className={inputClass}
+                    />
+                    <datalist id="asset-tag-suggestions">{tagSuggestions.map((tag) => <option key={tag} value={tag} />)}</datalist>
+                    <button type="button" onClick={() => addTag(tagInput)} className="shrink-0 rounded-xl bg-teal-700 px-4 text-sm font-medium text-white hover:bg-teal-600">Añadir</button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {QUICK_TAGS.map((tag) => (
+                      <button key={tag} type="button" onClick={() => addTag(tag)} disabled={tags.includes(tag)} className="rounded-full border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 hover:border-teal-600 hover:text-teal-200 disabled:opacity-35">{tag}</button>
+                    ))}
+                  </div>
+                  {tags.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {tags.map((tag) => (
+                        <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-teal-800 bg-teal-950/70 px-3 py-1 text-xs text-teal-200">
+                          {tag}
+                          <button type="button" aria-label={`Quitar ${tag}`} onClick={() => setTags((current) => current.filter((item) => item !== tag))} className="ml-1 text-teal-400 hover:text-white">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Valor estimado (€)</label>
+                    <input type="number" min="0" step="0.01" value={currentValue} onChange={(event) => setCurrentValue(event.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Precio de adquisición (€)</label>
+                    <input type="number" min="0" step="0.01" value={acquisitionPrice} onChange={(event) => setAcquisitionPrice(event.target.value)} className={inputClass} />
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Precio de adquisición (€)</label>
-                  <input type="number" min="0" step="0.01" value={acquisitionPrice} onChange={(event) => setAcquisitionPrice(event.target.value)} className={inputClass} />
-                </div>
-              </div>
+              </>
             )}
 
-            {category === 'numismatica' && (
-              <NumismaticaFields values={numismaticaData} onChange={handleNumismaticaChange} suggestions={numismaticaSuggestions} />
+            {isNumismatica && (
+              <NumismaticaFields
+                values={numismaticaData}
+                onChange={handleNumismaticaChange}
+                suggestions={numismaticaSuggestions}
+                namePreview={effectiveName}
+                onAutoFill={handleAutoFill}
+              />
             )}
           </div>
 
           <aside className="space-y-3 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Fotografías</label>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">Fotografías {isNumismatica && <span className="normal-case text-slate-500">(opcional)</span>}</label>
                 <p className="mt-1 text-[11px] text-slate-500">La primera imagen es la principal.</p>
                 <p className="mt-1 text-[10px] text-slate-500">Fotos guardadas: {formatStorageBytes(storageUsedBytes)} · margen estimado: {formatStorageBytes(storageFreeBytes)}</p>
               </div>
@@ -417,8 +551,8 @@ export default function AssetModal({
                 <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} disabled={isCompressing} className="hidden" />
               </label>
             </div>
-            <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-slate-700 bg-slate-950">
-              {photos[0] ? <PrivateStorageImage source={photos[0]} alt={name || 'Vista principal del bien'} className="h-full w-full object-contain" /> : <div className="text-6xl text-slate-700">▧</div>}
+            <div className={`flex items-center justify-center overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 ${isNumismatica ? 'aspect-square w-32' : 'aspect-[4/3]'}`}>
+              {photos[0] ? <PrivateStorageImage source={photos[0]} alt={effectiveName || 'Vista principal del bien'} className="h-full w-full object-contain" /> : <div className={`${isNumismatica ? 'text-3xl' : 'text-6xl'} text-slate-700`}>▧</div>}
             </div>
             {compressStatus && <p className="text-xs text-teal-300">{compressStatus}</p>}
             {photos.length > 0 && (
@@ -442,7 +576,7 @@ export default function AssetModal({
           <div className="flex justify-end gap-3 border-t border-slate-700 pt-4 lg:col-span-2">
             <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancelar</button>
             <button type="submit" disabled={isLoading || isCompressing} className="rounded-xl bg-teal-700 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-600 disabled:opacity-50">
-              {isLoading ? 'Guardando…' : 'Guardar bien'}
+              {isLoading ? 'Guardando…' : isNumismatica ? 'Guardar moneda' : 'Guardar bien'}
             </button>
           </div>
         </form>

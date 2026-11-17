@@ -228,29 +228,13 @@ export interface RecurringExpenseOccurrence extends TimestampedDoc {
 }
 
 // General Assets module (Bienes y Activos)
-export type AssetCategory =
-  | 'numismatica'
-  | 'arte'
-  | 'objetos'
-  | 'relojes'
-  | 'joyas'
-  | 'electronica'
-  | 'vehiculos'
-  | 'libros'
-  | 'sellos'
-  | 'instrumentos-musicales'
-  | 'deportes'
-  | 'herramientas'
-  | 'documentos'
-  | 'coleccionables'
-  | 'otros'
+export type AssetCategory = 'numismatica' | 'arte' | 'objetos'
 
 export interface AssetItem extends TimestampedDoc {
   name: string
   owner: AssetOwner
   category: AssetCategory
   tags?: string[]
-  location?: string
   description?: string
   brandOrAuthor?: string
   year?: number
@@ -280,7 +264,6 @@ export interface AssetItem extends TimestampedDoc {
   creation_year_range?: string
   reference_book?: string
   reference_book_value?: number
-  coin_type?: string
   empire_reign?: string
   manufacturing_place?: string
   case_location?: string

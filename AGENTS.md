@@ -38,13 +38,13 @@
 
 ## Assets Module (Bienes)
 - **Entry Point:** Landing page with 3 cards (Numismática, Arte, Objetos).
-- **Numismática:** Specific fields including: value, market_value, purchase_price, purchase_year, obverse_info, reverse_info, era, creation_year_range, reference_book, reference_book_value, coin_type, material, empire_reign, mint, manufacturing_place, case_location, case_number.
-- **Common fields:** name, owner, category, tags, location, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes.
+- **Numismática:** Rows view (not cards) with a tiny thumbnail on the right; the coin form is a dedicated numismática form. Specific fields: denomination, material, conservationState, era, creation_year_range, empire_reign, ruler, mint, manufacturing_place (legacy), obverse_info, reverse_info, value, market_value, purchase_price, purchase_year, reference_book, reference_book_value, case_location, case_number, added_date. Coins are always `Moneda`; there is no `coin_type` field. Years are stored as signed numbers (negative = a.C.) plus `creation_year_range` for intervals; the form toggles between concrete year and range with d.C./a.C. selects and auto-fills era and ruler (Roman Empire / Spain) from the year.
+- **Common fields:** name, owner, category, tags, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes. `location` was removed; coin location is `case_location`/`case_number` in advanced details.
 
 ## Migration Status
 - **Cleaned:** Legacy migration buttons and functions have been removed from the UI and services.
 - **Legacy categories:** Old Firestore categories (`coins`, `banknotes`, `art`, `watches`, etc.) are normalized on read to the current Spanish categories. No manual data migration is required.
-- **Completed:** Numismática module with all fields (denomination, coin_type, material, conservationState, era, creation_year_range, empire_reign, ruler, mint, manufacturing_place, obverse_info, reverse_info, value, market_value, purchase_price, purchase_year, reference_book, reference_book_value, case_location, case_number, added_date).
+- **Completed:** Numismática module with all fields (denomination, material, conservationState, era, creation_year_range, empire_reign, ruler, mint, manufacturing_place, obverse_info, reverse_info, value, market_value, purchase_price, purchase_year, reference_book, reference_book_value, case_location, case_number, added_date). `coin_type` and generic `location` were removed.
 
 ## Development Context (Vibe Coding)
 - Be proactive: Make reasonable assumptions to keep the workflow moving.
@@ -55,8 +55,12 @@
     - Removed legacy migration UI and logic.
     - Implemented 3-card landing for Assets (Numismática, Arte, Objetos) with category routes (`/bienes/categoria/:collectionKey`).
     - Added specific fields for Numismática.
-    - Reusable values (material, conservation state, coin type, era, empire/reign, mint, denomination, reference book) use saved suggestions while allowing new values.
-    - Added collection filters: material, conservation state, coin type, era, owner, category, tags, plus full-text search.
+    - Numismática list uses compact rows (photo thumbnail on the right) while Arte and Objetos keep cards.
+    - Categories reduced to Numismática, Arte and Objetos; old categories are normalized to `objetos` on read.
+    - Coin form is special: no title/`coin_type`, tags hidden, generic fields derived and persisted in the same `assets` document. Year supports concrete year or interval with a.C./d.C.; era and ruler (Roman Empire / Spain) auto-fill from the year and remain editable. Conservation dropdown is ordered best→worst; ceca has no predefined values.
+    - Generic `location` removed from assets; coin storage location remains `case_location`/`case_number` under advanced details.
+    - Reusable values (material, conservation state, era, empire/reign, ruler, denomination, reference book) use saved suggestions while allowing new values; ceca is free text with no defaults.
+    - Added collection filters: material, conservation state, era, owner, category, tags (tags hidden for Numismática), plus full-text search.
     - Fixed modal lifecycle: it only opens on demand, closes after saving, and returns to the corresponding collection.
     - Added independent tenant entities (`tenants`), per-tenant documents (`tenantDocuments` + Storage `tenants/`), and bidirectional property links (`property.tenantIds`).
     - Inquilinos is now a tab inside the Inmuebles section; each tab has its own URL: `/inmuebles`, `/inmuebles/alquileres`, `/inmuebles/gastos`, `/inmuebles/inquilinos`. Tenant detail lives at `/inmuebles/inquilinos/:id`; old `/inquilinos` URLs redirect.

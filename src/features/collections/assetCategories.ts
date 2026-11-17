@@ -17,29 +17,17 @@ export interface CollectionInfo {
 }
 
 /**
- * Canonical categories used by the app. The three primary collections
- * (Numismática, Arte and Objetos) group all of them on the Bienes landing page.
+ * Canonical categories used by the app. Only the three primary collections
+ * remain; everything stored under an older category is normalized on read.
  */
 export const ASSET_CATEGORIES: AssetCategoryInfo[] = [
   { value: 'numismatica', label: 'Numismática', icon: '🪙', collection: 'numismatica' },
   { value: 'arte', label: 'Arte y cuadros', icon: '🎨', collection: 'arte' },
   { value: 'objetos', label: 'Objetos diversos', icon: '📦', collection: 'objetos' },
-  { value: 'relojes', label: 'Relojes', icon: '⌚', collection: 'objetos' },
-  { value: 'joyas', label: 'Joyas', icon: '💎', collection: 'objetos' },
-  { value: 'electronica', label: 'Electrónica', icon: '📺', collection: 'objetos' },
-  { value: 'vehiculos', label: 'Vehículos', icon: '🚗', collection: 'objetos' },
-  { value: 'libros', label: 'Libros', icon: '📚', collection: 'objetos' },
-  { value: 'sellos', label: 'Sellos', icon: '✉️', collection: 'objetos' },
-  { value: 'instrumentos-musicales', label: 'Instrumentos musicales', icon: '🎸', collection: 'objetos' },
-  { value: 'deportes', label: 'Deporte', icon: '⚽', collection: 'objetos' },
-  { value: 'herramientas', label: 'Herramientas', icon: '🛠️', collection: 'objetos' },
-  { value: 'documentos', label: 'Documentos', icon: '📜', collection: 'objetos' },
-  { value: 'coleccionables', label: 'Coleccionismo', icon: '🧸', collection: 'objetos' },
-  { value: 'otros', label: 'Otros', icon: '📦', collection: 'objetos' },
 ]
 
 export const PRIMARY_COLLECTIONS: CollectionInfo[] = [
-  { key: 'numismatica', label: 'Numismática', icon: '🪙', description: 'Monedas, billetes y medallas' },
+  { key: 'numismatica', label: 'Numismática', icon: '🪙', description: 'Monedas de todas las épocas' },
   { key: 'arte', label: 'Arte y cuadros', icon: '🎨', description: 'Cuadros, esculturas y obra gráfica' },
   { key: 'objetos', label: 'Objetos diversos', icon: '📦', description: 'Relojes, joyas, libros y otros bienes' },
 ]
@@ -59,19 +47,19 @@ const LEGACY_CATEGORY_ALIASES: Record<string, AssetCategory> = {
   art: 'arte',
   antiques: 'objetos',
   furniture: 'objetos',
-  watches: 'relojes',
-  jewelry: 'joyas',
-  electronics: 'electronica',
-  computers: 'electronica',
-  vehicles: 'vehiculos',
-  books: 'libros',
-  stamps: 'sellos',
-  'musical-instruments': 'instrumentos-musicales',
-  sports: 'deportes',
-  tools: 'herramientas',
-  documents: 'documentos',
-  collectibles: 'coleccionables',
-  other: 'otros',
+  watches: 'objetos',
+  jewelry: 'objetos',
+  electronics: 'objetos',
+  computers: 'objetos',
+  vehicles: 'objetos',
+  books: 'objetos',
+  stamps: 'objetos',
+  'musical-instruments': 'objetos',
+  sports: 'objetos',
+  tools: 'objetos',
+  documents: 'objetos',
+  collectibles: 'objetos',
+  other: 'objetos',
 }
 
 export function normalizeAssetCategory(value: unknown): AssetCategory {
