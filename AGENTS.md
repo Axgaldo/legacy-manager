@@ -66,9 +66,35 @@
     - Inquilinos is now a tab inside the Inmuebles section; each tab has its own URL: `/inmuebles`, `/inmuebles/alquileres`, `/inmuebles/gastos`, `/inmuebles/inquilinos`. Tenant detail lives at `/inmuebles/inquilinos/:id`; old `/inquilinos` URLs redirect.
     - Legacy embedded property tenants are migrated automatically to tenant entities the first time a property or the Inquilinos page is opened.
     - Storage rules must be published (`firebase deploy --only storage`) to allow tenant documents up to 25 MiB.
-    - Versioning: `package.json` version + short git commit + build date are injected by `vite.config.ts` (`__APP_VERSION__`, `__APP_COMMIT__`, `__APP_BUILD_DATE__`, declared in `src/vite-env.d.ts`) and shown in the sidebar footer above the account block. Bump with `npm version patch|minor|major`; do not hardcode versions in components.
+    - Versioning: `package.json` version + short git commit + build date are injected by `vite.config.ts` (`__APP_VERSION__`, `__APP_COMMIT__`, `__APP_BUILD_DATE__`, declared in `src/vite-env.d.ts`) and shown in the sidebar footer above the account block. Do not hardcode versions in components; follow the mandatory rules in "Versioning (obligatorio)".
     - License: MIT in `LICENSE`, copyright Antonio Galdó Seiquer (2026); referenced in the sidebar footer and README.
     - **VERIFIED:** `npm run build` passes after restoring strict TypeScript checks.
+
+---
+
+## Versioning (obligatorio)
+
+La app usa **SemVer** (`MAJOR.MINOR.PATCH`) en `package.json`, y la versión se inyecta en el build y se muestra en el pie de la barra lateral. No se escribe la versión a mano en ningún componente.
+
+Reglas:
+
+- **Todo cambio de código sube la versión en el mismo commit.** No se deja para después ni se hace en un commit aparte.
+- **Feature nueva o cambio funcional relevante → MINOR:** `1.1.0` → `1.2.0` (el PATCH vuelve a `0`).
+- **Corrección de bug, ajuste visual o cambio menor sin funcionalidad nueva → PATCH:** `1.1.0` → `1.1.1`.
+- **Cambio incompatible** (rompe datos, configuración o flujos existentes) **→ MAJOR:** `1.x.y` → `2.0.0`.
+- El commit incluye el código y el `package.json`/`package-lock.json` actualizados. El título puede ser `feat:` o `fix:`; la versión va en el mismo commit.
+
+Comando recomendado (no crea commit ni tag automático):
+
+```bash
+npm version patch --no-git-tag-version
+npm version minor --no-git-tag-version
+npm version major --no-git-tag-version
+```
+
+También se puede fijar una versión exacta: `npm version 1.2.0 --no-git-tag-version`.
+
+No usar `npm version` sin `--no-git-tag-version` salvo que se quiera explícitamente un commit/tag separado.
 
 ---
 
@@ -87,6 +113,7 @@ Your job is to implement tasks, not to explain how they could be implemented.
 - Run builds, tests and type checks where relevant.
 - Fix errors introduced by your changes.
 - Verify the final result.
+- Update the app version in `package.json` on every code change, in the same commit, following "Versioning (obligatorio)".
 
 ## Decision making
 - Do not ask unnecessary questions.
