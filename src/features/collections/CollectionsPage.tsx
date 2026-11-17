@@ -174,7 +174,7 @@ export default function CollectionsPage() {
   ])), [assets])
 
   const numismaticaSuggestions = useMemo(() => {
-    const fields = ['material', 'conservationState', 'era', 'empire_reign', 'reference_book', 'denomination', 'ruler', 'mint', 'mint_mark', 'case_location', 'medal_motive', 'medal_location', 'acquisition_operation', 'acquisition_source', 'value_source']
+    const fields = ['material', 'conservationState', 'era', 'empire_reign', 'country', 'reference_book', 'denomination', 'ruler', 'mint', 'mint_mark', 'case_location', 'medal_motive', 'medal_location', 'acquisition_operation', 'acquisition_source', 'value_source']
     const suggestions: Record<string, string[]> = {}
     fields.forEach((field) => {
       suggestions[field] = uniqueValues(assets.map((asset) => {
@@ -183,6 +183,7 @@ export default function CollectionsPage() {
           case 'conservationState': return asset.conservationState
           case 'era': return asset.era
           case 'empire_reign': return asset.empire_reign
+          case 'country': return asset.country
           case 'reference_book': return asset.reference_book
           case 'denomination': return asset.denomination
           case 'ruler': return asset.ruler

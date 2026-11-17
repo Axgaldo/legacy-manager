@@ -30,6 +30,7 @@ export const NUMISMATICA_DEFAULTS: Record<string, string[]> = {
   acquisition_operation: [...ACQUISITION_OPERATIONS],
   acquisition_source: ['Madrid Cayón', 'Málaga Díaz', 'Gonzalo Málaga', 'Campillo Granada', 'Jesús Vico', 'Gabinete numismático', 'Subasta', 'Particular'],
   value_source: ['Calicó 2019', 'Calicó 2008', 'Cayón 2019', 'Cayón 2008', 'Cayón 2001', 'Cayón 1984', 'Cayón 1985', 'Álvarez Burgos 1987', 'eBay', 'Ucoin', 'Jesús Vico', 'Numista', 'Subasta'],
+  country: ['España', 'Reino Unido', 'Francia', 'Estados Unidos', 'Cuba', 'Colombia', 'Suiza', 'Turquía', 'Rusia', 'Portugal', 'Italia', 'Alemania', 'México', 'Perú', 'Bolivia', 'Argentina', 'Chile', 'Jamaica', 'Islas Cook', 'Bahamas', 'Panamá', 'Filipinas', 'China', 'Tanzania', 'Bermudas', 'Gibraltar', 'Isla de Man', 'Jersey', 'Israel', 'Grecia', 'Imperio Romano'],
   reference_book: [
     'Cayón 1984 (sextercios)',
     'Cayón 1985 (compendio)',
@@ -411,7 +412,8 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <ConservationField values={values} onChange={onChange} options={conservationOptions} />
-              <p className="self-end text-[11px] text-slate-500 sm:col-span-1 lg:col-span-3">El número de inventario, el código de catálogo y el peso están en «Detalles avanzados».</p>
+              <SuggestionField field="country" label="País" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: Reino Unido, Francia…" />
+              <p className="self-end text-[11px] text-slate-500 sm:col-span-2 lg:col-span-2">El número de inventario, el código de catálogo y el peso están en «Detalles avanzados».</p>
             </div>
           </section>
 
@@ -470,10 +472,13 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
           </section>
 
           <section className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Material, conservación y ceca</h4>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Material, conservación y origen</h4>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <SuggestionField field="material" label="Material" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: oro, plata, bronce…" />
               <ConservationField values={values} onChange={onChange} options={conservationOptions} />
+              <SuggestionField field="country" label="País" values={values} onChange={onChange} suggestions={suggestions} placeholder="Ej: España, Reino Unido…" hint="País o territorio de emisión; no es la ceca." />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <SuggestionField
                 field="mint"
                 label="Ceca (ciudad o taller)"
@@ -483,8 +488,6 @@ export function NumismaticaFields({ values, onChange, suggestions, namePreview, 
                 placeholder="Ej: Roma, Sevilla, México, Potosí…"
                 hint="Lugar donde se acuñó la moneda. Si no lo sabes, déjalo vacío."
               />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <SuggestionField
                 field="mint_mark"
                 label="Marca de ceca / ensayador"

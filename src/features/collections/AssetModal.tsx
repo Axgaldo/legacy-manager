@@ -67,6 +67,7 @@ function emptyNumismaticaData(): Record<string, string> {
     reference_book_currency: 'EUR',
     empire_reign: '',
     ruler: '',
+    country: '',
     mint: '',
     mint_mark: '',
     weight_grams: '',
@@ -149,6 +150,7 @@ function buildNumismaticaData(asset: AssetItem): Record<string, string> {
     reference_book_currency: asset.reference_book_currency || 'EUR',
     empire_reign: asset.empire_reign || '',
     ruler: asset.ruler || '',
+    country: asset.country || '',
     mint: asset.mint || '',
     mint_mark: asset.mint_mark || '',
     weight_grams: asset.weight_grams || '',
@@ -422,11 +424,9 @@ export default function AssetModal({
       yearLabel: coinRangeLabel,
     })).trim()
     const medalName = (num.medal_name_override?.trim() || buildMedalName(num.medal_motive)).trim()
-    const origin = isMedalAsset
-      ? ''
-      : isNumismatica
-        ? (num.mint.trim() || assetToEdit?.placeOfOrigin || assetToEdit?.country || '')
-        : placeOfOrigin.trim()
+    const genericOrigin = placeOfOrigin.trim()
+    const numismaticaCountry = isNumismatica ? num.country.trim() : ''
+    const numismaticaPlace = isNumismatica ? (num.mint.trim() || numismaticaCountry) : ''
     const creationYearRange = isMedalAsset
       ? undefined
       : isNumismatica
@@ -449,8 +449,8 @@ export default function AssetModal({
       brandOrAuthor: assetToEdit?.brandOrAuthor ?? '',
       year: isNumismatica ? (isMedalAsset ? medalYear : coinPrimaryYear) : yearNumber,
       historicalEra,
-      country: isMedalAsset ? '' : (origin || assetToEdit?.country || ''),
-      placeOfOrigin: isMedalAsset ? '' : (origin || assetToEdit?.placeOfOrigin || ''),
+      country: isNumismatica ? numismaticaCountry : (genericOrigin || assetToEdit?.country || ''),
+      placeOfOrigin: isNumismatica ? numismaticaPlace : (genericOrigin || assetToEdit?.placeOfOrigin || ''),
       ruler: isMedalAsset ? undefined : isNumismatica ? num.ruler.trim() : (assetToEdit?.ruler ?? ''),
       mint: isMedalAsset ? undefined : isNumismatica ? num.mint.trim() : (assetToEdit?.mint ?? ''),
       denomination: isMedalAsset ? undefined : isNumismatica ? num.denomination.trim() : (assetToEdit?.denomination ?? ''),
