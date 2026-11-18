@@ -145,6 +145,11 @@ export function coinValue(asset: AssetItem): number {
   return asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price ?? 0
 }
 
+/** Valor de referencia de cualquier bien, usado por listas y estadísticas. */
+export function assetValue(asset: AssetItem): number {
+  return asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price ?? 0
+}
+
 export function hasValue(asset: AssetItem): boolean {
   return (asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price) !== undefined
 }

@@ -7,6 +7,7 @@ import PropertiesPage     from '@/features/properties/PropertiesPage'
 import PropertyDetailPage from '@/features/properties/PropertyDetailPage'
 import TenantDetailPage   from '@/features/tenants/TenantDetailPage'
 import CollectionsPage    from '@/features/collections/CollectionsPage'
+import HomePage           from '@/features/home/HomePage'
 import { PrivacyProvider } from '@/features/privacy/PrivacyProvider'
 
 /** Keeps old /inquilinos/:id links working after moving Inquilinos under Inmuebles. */
@@ -31,7 +32,7 @@ export default function App() {
               </PrivateRoute>
             }
           >
-            <Route index element={<Navigate to="/inmuebles" replace />} />
+            <Route index element={<HomePage />} />
 
             {/* Inmuebles section: one URL per tab */}
             <Route path="/inmuebles" element={<PropertiesPage tab="properties" />} />

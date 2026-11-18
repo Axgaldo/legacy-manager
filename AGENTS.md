@@ -12,6 +12,7 @@
 
 ## Directory Structure & Features
 - src/features/auth: Authentication logic (login, private routes).
+- src/features/home: Panel de inicio (lobby) en `/`: resumen de inmuebles y bienes.
 - src/features/collections: Management of assets (photos, tags, categories).
 - src/features/properties: Property management, rent rates, expenses.
 - src/features/properties/contracts: Contract management, PDF handling, and addenda.
@@ -107,6 +108,7 @@
     - **Medallas:** se descartan los dos archivos ingleses de 2014 por ser un subconjunto incompleto de 2012 (sin números nuevos). Las medallas inglesas de 2012 y las fichas 238-246 de «MEDALLAS VARIOS PAISES» se asignan a Elena Carter; el resto, a Gabriel Galdó.
     - **1.10.0:** Bienes reorganizado: al entrar en `/bienes` solo se ven las colecciones (sin tarjetas de bienes ni estadísticas); nuevas categorías **Relojes** y **Electrónica y electrodomésticos** (alias legacy `watches`→relojes y `electronics`/`computers`→electronica, el resto→objetos); colección **Todos** en `/bienes/categoria/todos` con agrupación por **Categoría** y **Tipo de objeto** y orden por categoría; todas las colecciones usan por defecto la vista de filas (`AssetList`, antes `NumismaticaList`) con selector **Lista / Cuadrícula** (`vista` en URL y localStorage, cuadrícula con foto grande y pintado 60 en 60); la ficha flotante con editar/borrar arriba es el único punto de detalle en todas las colecciones; el formulario genérico gana el campo **Marca / modelo / autor** (`brandOrAuthor`, antes volcado como etiqueta al editar).
     - **1.11.0:** **Modo incógnito** en la barra lateral (estilo Trade Republic): todas las cifras de dinero de la app se formatean con `useMoney()` (`src/features/privacy/money.ts`) y quedan enmascaradas como «€ ▓#%$&» con caracteres aleatorios al activarlo; se recuerda en `localStorage`. Unifica los 8 formateadores de euros duplicados en uno solo; los formularios de edición siguen mostrando los importes reales; los importes originales con divisa muestran el símbolo (ptas, $…) en vez del código. También: `eslint.config.js` nuevo (ESLint 9 flat config) para que `npm run lint` funcione, y README reescrito en español (módulos, despliegue, reglas y CORS).
+    - **1.12.0:** **Panel de inicio en `/`** (antes redirigía a `/inmuebles`): tarjetas resumen de Inmuebles y Bienes; calendario del mes en curso con marcas por día (verde = cobros registrados con `paidAt`, rojo = gastos sin pagar, puntuales y periódicos); anotaciones de alquileres cobrados/pendientes, gastos sin pagar, facturas y atrasos de meses anteriores; gráfica de barras cobros vs gastos por mes del año (CSS, sin dependencias); últimos 8 bienes añadidos (foto + nombre, abren su ficha) y valoración por colección. «Inicio» en la barra lateral con `NavLink end`. Todo consciente del modo incógnito: cifras enmascaradas y gráficas/barras de valor ocultas.
 
 ---
 

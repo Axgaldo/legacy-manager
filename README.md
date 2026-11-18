@@ -10,6 +10,9 @@ Aplicación web **privada** para llevar el inventario patrimonial de una familia
 
 ## Módulos
 
+### 🏛 Panel de inicio
+La portada `/` resume todo el patrimonio: calendario del mes con cobros registrados y gastos sin pagar, anotaciones de alquileres, gastos y atrasos, gráfica de cobros vs gastos del año y los últimos bienes añadidos.
+
 ### 🏠 Inmuebles
 - **Propiedades**: fichas con dirección, referencia catastral, inquilinos vinculados, fianza y valor estimado.
 - **Alquileres**: control mensual de cobros por inmueble y año, con estados automáticos (cobrado, parcial, atraso, exceso), colores manuales y cambios de renta con histórico.

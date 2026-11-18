@@ -24,6 +24,7 @@ import {
   groupOptionsForCollection,
   orderNumismaticaAssets,
   sortOptionsForCollection,
+  assetValue,
   type NumismaticaGroupBy,
   type NumismaticaSortBy,
 } from './numismaticaUi'
@@ -67,10 +68,6 @@ function uniqueValues(values: Array<string | undefined | null>): string[] {
 
 function matchesSelected(value: string | undefined, selected: string) {
   return selected === 'all' || normalizeText(value ?? '') === normalizeText(selected)
-}
-
-function assetValue(asset: AssetItem): number {
-  return asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price ?? 0
 }
 
 export default function CollectionsPage() {

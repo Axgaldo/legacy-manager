@@ -9,6 +9,15 @@ const BUILD_YEAR = BUILD_DATE.getFullYear()
 
 const navItems = [
   {
+    to: '/',
+    label: 'Inicio',
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3m10-11v10a1 1 0 01-1 1h-3m-6 0h6m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1" />
+      </svg>
+    ),
+  },
+  {
     to: '/inmuebles',
     label: 'Inmuebles',
     icon: (
@@ -63,7 +72,7 @@ export default function AppLayout() {
         <div><h1 className="text-base font-semibold leading-tight">Legacy Manager</h1><p className="text-xs text-slate-400">Patrimonio familiar</p></div>
       </div>
       <nav className="flex-1 px-4 py-6 space-y-1.5">
-        {navItems.map(({ to, label, icon }) => <NavLink key={to} to={to} onClick={() => setMenuOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive ? 'bg-teal-950 text-teal-200 ring-1 ring-teal-900' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>{icon}{label}</NavLink>)}
+        {navItems.map(({ to, label, icon }) => <NavLink key={to} to={to} end={to === '/'} onClick={() => setMenuOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive ? 'bg-teal-950 text-teal-200 ring-1 ring-teal-900' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>{icon}{label}</NavLink>)}
       </nav>
       <div className="px-4 pb-3">
         {incognitoToggle}
@@ -101,7 +110,7 @@ export default function AppLayout() {
       {menuOpen && <div className="fixed inset-0 z-50 md:hidden"><button aria-label="Cerrar menú" className="absolute inset-0 bg-black/70" onClick={() => setMenuOpen(false)} /> <div className="relative h-full w-72 max-w-[85vw]">{sidebar}</div></div>}
       <main className="flex-1 overflow-y-auto min-w-0">
         <header className="md:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-slate-900/95 border-b border-slate-800 backdrop-blur">
-          <button onClick={() => setMenuOpen(true)} aria-label="Abrir menú" className="p-2 rounded-lg hover:bg-slate-800"><span className="text-xl">☰</span></button><span className="font-semibold">{navItems.find((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))?.label ?? 'Legacy Manager'}</span>
+          <button onClick={() => setMenuOpen(true)} aria-label="Abrir menú" className="p-2 rounded-lg hover:bg-slate-800"><span className="text-xl">☰</span></button><span className="font-semibold">{navItems.find((item) => item.to === '/' ? location.pathname === '/' : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))?.label ?? 'Legacy Manager'}</span>
         </header>
         <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8"><Outlet /></div>
       </main>
