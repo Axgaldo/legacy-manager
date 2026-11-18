@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface ConfirmModalProps {
   isOpen: boolean
@@ -24,6 +25,7 @@ export default function ConfirmModal({
   onClose,
 }: ConfirmModalProps) {
   const [typedWord, setTypedWord] = useState('')
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose)
 
   if (!isOpen) return null
 
@@ -43,7 +45,7 @@ export default function ConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-700">
+      <div ref={trapRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-700">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-red-950/60 text-red-400 flex items-center justify-center shrink-0">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">

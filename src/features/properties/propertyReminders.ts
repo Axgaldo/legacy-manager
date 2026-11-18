@@ -25,23 +25,26 @@ export interface PropertyReminder {
 
 function toDate(iso: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}/.test(iso)) return null
-  const date = new Date(`${iso.slice(0, 10)}T00:00:00`)
+  // Fechas de calendario en UTC: así los cambios de hora no alteran los días.
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
 function startOfDay(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
 }
 
 function daysBetween(iso: string, now: Date): number | null {
   const date = toDate(iso)
   if (!date) return null
-  return Math.ceil((startOfDay(date) - startOfDay(now)) / DAY_MS)
+  return Math.round((date.getTime() - startOfDay(now)) / DAY_MS)
 }
 
 function formatDate(iso: string): string {
   const date = toDate(iso)
-  return date ? date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : iso
+  return date
+    ? date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
+    : iso
 }
 
 /**
@@ -111,7 +114,9 @@ export function buildPropertyReminders(args: {
       kind: 'rent-review',
       propertyId: property.id,
       title: 'Revisión de renta',
-      detail: `${property.name} · tocaba el ${formatDate(review)}`,
+      detail: daysLeft < 0
+        ? `${property.name} · tocaba el ${formatDate(review)}`
+        : `${property.name} · revisión prevista el ${formatDate(review)}`,
       date: review,
       daysLeft,
       overdue: daysLeft < 0,

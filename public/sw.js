@@ -50,13 +50,13 @@ self.addEventListener('fetch', (event) => {
       try {
         const response = await fetch(request)
         if (response.ok) {
-          cache.put(request, response.clone())
+          // Todas las rutas SPA devuelven el mismo index: se guarda una sola
+          // copia bajo la base para no duplicar HTML en cada URL visitada.
           cache.put(BASE, response.clone())
         }
         return response
       } catch {
-        return (await cache.match(request))
-          || (await cache.match(BASE))
+        return (await cache.match(BASE))
           || new Response('Sin conexión y sin copia guardada de la aplicación.', {
             status: 503,
             headers: { 'Content-Type': 'text/plain; charset=utf-8' },

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Tenant } from '@/types'
 import { createTenant, updateTenant } from './tenantsService'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface TenantModalProps {
   isOpen: boolean
@@ -25,6 +26,7 @@ const EMPTY_FORM = {
 }
 
 export default function TenantModal({ isOpen, tenantToEdit, onClose, onSaved }: TenantModalProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose)
   const [form, setForm] = useState(EMPTY_FORM)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
@@ -97,7 +99,7 @@ export default function TenantModal({ isOpen, tenantToEdit, onClose, onSaved }: 
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-950/80 p-3 backdrop-blur-xs sm:items-center sm:p-4">
-      <div className="my-auto w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-7">
+      <div ref={trapRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={tenantToEdit ? 'Editar inquilino' : 'Nuevo inquilino'} className="my-auto w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-7">
         <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
             <h2 className="text-lg font-bold text-slate-100">{tenantToEdit ? 'Editar inquilino' : 'Nuevo inquilino'}</h2>

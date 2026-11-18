@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMoney, formatEuroValue } from '@/features/privacy/money'
-import type { Expense, Property, RentPayment } from '@/types'
+import type { Expense, Property, RecurringExpenseOccurrence, RecurringExpenseSchedule, RentPayment } from '@/types'
 import { buildAnnualComparison } from './annualComparison'
 
 interface Props {
   property: Property
   payments: RentPayment[]
   expenses: Expense[]
+  schedules: RecurringExpenseSchedule[]
+  occurrences: RecurringExpenseOccurrence[]
   tenantNames: string[]
 }
 
@@ -16,12 +18,12 @@ interface Props {
  * dependencias de PDF y los importes salen sin enmascarar aunque el modo
  * incógnito esté activo.
  */
-export default function AnnualComparison({ property, payments, expenses, tenantNames }: Props) {
+export default function AnnualComparison({ property, payments, expenses, schedules, occurrences, tenantNames }: Props) {
   const money = useMoney()
   const [printing, setPrinting] = useState(false)
   const { rows, totals } = useMemo(
-    () => buildAnnualComparison({ propertyId: property.id, payments, expenses }),
-    [property.id, payments, expenses],
+    () => buildAnnualComparison({ propertyId: property.id, payments, expenses, schedules, occurrences }),
+    [property.id, payments, expenses, schedules, occurrences],
   )
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export default function AnnualComparison({ property, payments, expenses, tenantN
         <div>
           <h3 className="text-base font-bold text-slate-100">Evolución anual</h3>
           <p className="mt-1 text-xs text-slate-400">
-            Ingresos realmente cobrados frente a gastos de los últimos 5 ejercicios. El valor actual del inmueble no tiene histórico.
+            Ingresos realmente cobrados frente a gastos puntuales y periódicos de los últimos 5 ejercicios. El valor actual del inmueble no tiene histórico.
           </p>
         </div>
         <button

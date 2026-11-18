@@ -95,9 +95,12 @@ export default function HomePage() {
   useEffect(() => subscribeToAllRecurringExpenseOccurrences(year, setOccurrences, (loadError) => setError(loadError.message)), [year])
   useEffect(() => subscribeToAllContracts(setContracts, (loadError) => setError(loadError.message)), [])
 
+  // `todayKey` cambia con el día para que los avisos no se queden congelados.
+  // Se construye en ISO local, no con `toDateString()` (formato no estándar).
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const reminders = useMemo(
-    () => buildPropertyReminders({ properties, contracts }),
-    [properties, contracts],
+    () => buildPropertyReminders({ properties, contracts, now: new Date(`${todayKey}T12:00:00`) }),
+    [properties, contracts, todayKey],
   )
 
   const paymentByPropertyMonth = useMemo(
@@ -340,7 +343,7 @@ export default function HomePage() {
             <span className="text-xs text-slate-500">Contratos y revisiones de los próximos 60 días</span>
           </div>
           <ul className="mt-4 space-y-2">
-            {reminders.map((reminder) => (
+            {reminders.slice(0, 6).map((reminder) => (
               <li key={reminder.id}>
                 <button
                   type="button"
@@ -369,6 +372,11 @@ export default function HomePage() {
               </li>
             ))}
           </ul>
+          {reminders.length > 6 && (
+            <p className="mt-2 text-[11px] text-slate-500">
+              Mostrando los 6 avisos más urgentes de {reminders.length}. El resto aparece en cada inmueble.
+            </p>
+          )}
         </section>
       )}
 

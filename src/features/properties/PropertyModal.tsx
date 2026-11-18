@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Property, PropertyType, PropertyStatus } from '@/types'
 import { createProperty, updateProperty } from './propertiesService'
 import { resolveOwnerName } from '@/utils/owners'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 const SPANISH_PROVINCES = ['A Coruña', 'Álava', 'Albacete', 'Alicante', 'Almería', 'Asturias', 'Ávila', 'Badajoz', 'Barcelona', 'Bizkaia', 'Burgos', 'Cáceres', 'Cádiz', 'Cantabria', 'Castellón', 'Ciudad Real', 'Córdoba', 'Cuenca', 'Girona', 'Granada', 'Guadalajara', 'Gipuzkoa', 'Huelva', 'Huesca', 'Illes Balears', 'Jaén', 'La Rioja', 'Las Palmas', 'León', 'Lleida', 'Lugo', 'Madrid', 'Málaga', 'Murcia', 'Navarra', 'Ourense', 'Palencia', 'Pontevedra', 'Salamanca', 'Santa Cruz de Tenerife', 'Segovia', 'Sevilla', 'Soria', 'Tarragona', 'Teruel', 'Toledo', 'Valencia', 'Valladolid', 'Zamora', 'Zaragoza', 'Ceuta', 'Melilla']
 
@@ -37,6 +38,7 @@ export default function PropertyModal({
   onClose,
   onSaved,
 }: PropertyModalProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose)
   const [name, setName] = useState('')
   const [owner, setOwner] = useState('')
   const [type, setType] = useState<PropertyType>('apartment')
@@ -150,7 +152,7 @@ export default function PropertyModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/80 p-3 backdrop-blur-xs sm:items-center sm:p-4">
-      <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-8">
+      <div ref={trapRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={propertyToEdit ? 'Editar inmueble' : 'Añadir inmueble'} className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-8">
         <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div>
             <h2 className="text-xl font-bold text-slate-100">

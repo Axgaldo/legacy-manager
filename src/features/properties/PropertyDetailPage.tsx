@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument, RecurringExpenseSchedule } from '@/types'
+import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument, RecurringExpenseOccurrence, RecurringExpenseSchedule } from '@/types'
 import { subscribeToProperties } from './propertiesService'
 import { subscribeToPropertyPayments, subscribeToYearPayments, toggleInvoiceIssued, updateRentNotes, recordRentReceipt, updateRentPaymentMeta } from './paymentsService'
 import { subscribeToPropertyExpenses, addExpense, deleteExpense, updateExpenseStatus } from './expensesService'
-import { subscribeToRecurringExpenseSchedules } from './recurringExpensesService'
+import { subscribeToRecurringExpenseOccurrences, subscribeToRecurringExpenseSchedules } from './recurringExpensesService'
 import { recurringMonthlyAverageForProperty } from './recurringExpensesLogic'
 import { subscribeToPropertyContracts } from './contractsService'
 import { isRentApplicableForMonth, normalizeRentHistory, rentAmountForMonth } from './rentRates'
@@ -98,6 +98,7 @@ export default function PropertyDetailPage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [tenantDocuments, setTenantDocuments] = useState<TenantDocument[]>([])
   const [recurringSchedules, setRecurringSchedules] = useState<RecurringExpenseSchedule[]>([])
+  const [annualOccurrences, setAnnualOccurrences] = useState<RecurringExpenseOccurrence[]>([])
 
   // Modal states for new expense / contract
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
@@ -190,6 +191,13 @@ export default function PropertyDetailPage() {
     return () => {
       unsubSchedules()
     }
+  }, [propertyId])
+
+  // Ocurrencias de todos los años (comparativa anual)
+  useEffect(() => {
+    if (!propertyId) return
+    const unsub = subscribeToRecurringExpenseOccurrences(propertyId, setAnnualOccurrences)
+    return () => unsub()
   }, [propertyId])
 
   // Tenant directory and document index (used by the tenants tab and hero badges)
@@ -481,7 +489,7 @@ export default function PropertyDetailPage() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-800 text-sm font-semibold">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 text-sm font-semibold">
         <button
           onClick={() => setActiveTab('payments')}
           className={`pb-3 px-3.5 border-b-2 transition ${
@@ -799,6 +807,8 @@ export default function PropertyDetailPage() {
           property={property}
           payments={annualPayments}
           expenses={expenses}
+          schedules={recurringSchedules}
+          occurrences={annualOccurrences}
           tenantNames={linkedTenants.map((tenant) => tenant.name)}
         />
       )}

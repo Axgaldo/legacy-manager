@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Expense, RentPayment } from '@/types'
+import type { Expense, RecurringExpenseSchedule, RentPayment } from '@/types'
 import { buildAnnualComparison, paymentIncome } from './annualComparison'
 
 const now = new Date('2026-11-18T10:00:00')
@@ -83,5 +83,48 @@ describe('buildAnnualComparison', () => {
     const result = buildAnnualComparison({ propertyId: 'p1', payments: [], expenses: [], now, years: 3 })
     expect(result.rows).toHaveLength(3)
     expect(result.rows.every((row) => row.income === 0 && row.expenses === 0)).toBe(true)
+  })
+
+  it('incluye los gastos periódicos y usa la ocurrencia real cuando existe', () => {
+    const schedule = (overrides: Partial<RecurringExpenseSchedule>): RecurringExpenseSchedule => ({
+      id: 's',
+      propertyId: 'p1',
+      category: 'comunidad',
+      description: 'Comunidad',
+      amount: 100,
+      startDate: '2026-01-01',
+      intervalMonths: 1,
+      requiresInvoice: false,
+      chargeToTenant: false,
+      isDeductible: true,
+      isActive: true,
+      ...overrides,
+    })
+    const result = buildAnnualComparison({
+      propertyId: 'p1',
+      payments: [],
+      expenses: [],
+      schedules: [
+        schedule({ id: 'comunidad', amount: 100 }),
+        schedule({ id: 'ibi', category: 'ibi', amount: 600, intervalMonths: 12 }),
+        schedule({ id: 'inactivo', amount: 999, isActive: false }),
+      ],
+      occurrences: [{
+        id: 'comunidad_2026-03',
+        scheduleId: 'comunidad',
+        propertyId: 'p1',
+        year: 2026,
+        month: 3,
+        amount: 120,
+        invoiceReceived: false,
+        isPaid: false,
+      }],
+      now,
+      years: 1,
+    })
+
+    // 12 meses de comunidad (uno a 120) + IBI anual 600.
+    expect(result.rows[0].expenses).toBe(1820)
+    expect(result.rows[0].net).toBe(-1820)
   })
 })

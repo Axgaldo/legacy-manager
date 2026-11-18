@@ -5,6 +5,7 @@ import { compressImageToWebP } from '@/utils/imageCompression'
 import { getHistoricalEraFromYear } from '@/utils/historicalEras'
 import { resolveOwnerName } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { NumismaticaFields } from './NumismaticaFields'
 import { ASSET_CATEGORIES } from './assetCategories'
 import {
@@ -237,6 +238,7 @@ export default function AssetModal({
   const [isLoading, setIsLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const [compressStatus, setCompressStatus] = useState('')
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, onClose)
 
   const isNumismatica = category === 'numismatica'
   const isMedal = isNumismatica && numismaticaData.numismatica_type === 'medalla'
@@ -525,7 +527,7 @@ export default function AssetModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:p-6">
-      <div className="my-auto max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="asset-modal-title">
+      <div ref={trapRef} tabIndex={-1} className="my-auto max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-7" role="dialog" aria-modal="true" aria-labelledby="asset-modal-title">
         <div className="mb-5 flex items-start justify-between gap-3 border-b border-slate-700 pb-4">
           <div>
             <h2 id="asset-modal-title" className="text-xl font-semibold text-slate-100">

@@ -14,6 +14,7 @@ import { db } from '@/lib/firebase'
 import { deletePrivateStorageFile, isStoragePath } from '@/lib/storageFiles'
 import { AssetItem, Contract, Tenant, TenantDocument } from '@/types'
 import { getCategoryInfo } from '@/features/collections/assetCategories'
+import { asIsoDate } from '@/utils/coerce'
 
 /**
  * Papelera con borrado suave.
@@ -100,11 +101,7 @@ export function isTrashEntryExpired(entry: Pick<TrashEntry, 'expiresAt'>, now = 
 }
 
 function toIso(value: unknown): string {
-  if (typeof value === 'string' && value) return value
-  if (value instanceof Date) return value.toISOString()
-  const maybe = value as { toDate?: () => Date } | null
-  if (maybe && typeof maybe.toDate === 'function') return maybe.toDate().toISOString()
-  return ''
+  return asIsoDate(value) ?? ''
 }
 
 async function updateMany(

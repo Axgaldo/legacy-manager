@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -17,9 +17,34 @@ function resolveCommit(): string {
   }
 }
 
+/**
+ * En desarrollo, `http://localhost:5173/legacy-manager` (sin barra final) no es
+ * una ruta válida para Vite y muestra un error. Redirigimos a la URL base real
+ * antes de que llegue al middleware de Vite.
+ */
+function baseTrailingSlashRedirect(base: string): Plugin {
+  const cleanBase = `/${base.replace(/^\/|\/$/g, '')}`
+  return {
+    name: 'base-trailing-slash-redirect',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        if (!request.url) return next()
+        const [pathname, search] = request.url.split('?')
+        if (pathname === cleanBase) {
+          response.writeHead(302, { Location: `${cleanBase}/${search ? `?${search}` : ''}` })
+          response.end()
+          return
+        }
+        next()
+      })
+    },
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), baseTrailingSlashRedirect('/legacy-manager/')],
   // GitHub Pages deploys to /legacy-manager/ subdirectory
   base: '/legacy-manager/',
   define: {

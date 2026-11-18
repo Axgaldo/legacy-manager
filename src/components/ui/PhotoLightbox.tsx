@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import PrivateStorageImage from './PrivateStorageImage'
 
 /**
@@ -30,9 +31,13 @@ export default function PhotoLightbox({
 
   const goPrev = index > 0 ? () => onNavigate(index - 1) : undefined
   const goNext = index < photos.length - 1 ? () => onNavigate(index + 1) : undefined
+  // Escape y flechas ya se gestionan arriba; aquí solo se atrapa el tabulador.
+  const trapRef = useFocusTrap<HTMLDivElement>(true)
 
   return (
     <div
+      ref={trapRef}
+      tabIndex={-1}
       className="fixed inset-0 z-[60] flex flex-col bg-black/90 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"

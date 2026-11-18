@@ -4,6 +4,7 @@ import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import PhotoLightbox from '@/components/ui/PhotoLightbox'
 import { useMoney } from '@/features/privacy/money'
 import { useToast } from '@/components/ui/ToastProvider'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 import { downloadAssetPhotos } from '@/features/backup/documentsExport'
 import { getCategoryInfo } from './assetCategories'
 import {
@@ -71,6 +72,9 @@ export default function AssetDetailModal({
   const [exportProgress, setExportProgress] = useState('')
   const money = useMoney()
   const toast = useToast()
+  // Los diálogos que se abren encima (lightbox, confirmación) entran en la pila
+  // del hook y toman el control del tabulador.
+  const trapRef = useFocusTrap<HTMLDivElement>(Boolean(asset))
 
   useEffect(() => {
     if (!asset || suspended || lightboxIndex !== null) return
@@ -126,6 +130,8 @@ export default function AssetDetailModal({
 
   return (
     <div
+      ref={trapRef}
+      tabIndex={-1}
       className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:items-center sm:p-6"
       id="asset-detail-overlay"
       role="dialog"

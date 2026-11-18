@@ -6,6 +6,7 @@ import { subscribeToTenants } from '@/features/tenants/tenantsService'
 import { subscribeToAssets } from '@/features/collections/assetsService'
 import { categoryCollection, getCategoryInfo } from '@/features/collections/assetCategories'
 import { buildAssetSlugIndex, propertySlug } from '@/utils/slugs'
+import { useFocusTrap } from '@/hooks/useFocusTrap'
 
 interface SearchResult {
   id: string
@@ -32,6 +33,8 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
   const [properties, setProperties] = useState<Property[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [assets, setAssets] = useState<AssetItem[]>([])
+  // Escape ya cierra el buscador; el hook solo encierra el tabulador.
+  const trapRef = useFocusTrap<HTMLDivElement>(open)
 
   useEffect(() => {
     if (!open) {
@@ -128,6 +131,8 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
 
   return (
     <div
+      ref={trapRef}
+      tabIndex={-1}
       className="fixed inset-0 z-[65] flex items-start justify-center bg-black/70 p-4 pt-[12vh] backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
