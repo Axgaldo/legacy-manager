@@ -3,6 +3,8 @@ import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import PhotoLightbox from '@/components/ui/PhotoLightbox'
 import { useMoney } from '@/features/privacy/money'
+import { useToast } from '@/components/ui/ToastProvider'
+import { downloadAssetPhotos } from '@/features/backup/documentsExport'
 import { getCategoryInfo } from './assetCategories'
 import {
   coinValue,
@@ -65,7 +67,10 @@ export default function AssetDetailModal({
 }) {
   const [copied, setCopied] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const [exportingPhotos, setExportingPhotos] = useState(false)
+  const [exportProgress, setExportProgress] = useState('')
   const money = useMoney()
+  const toast = useToast()
 
   useEffect(() => {
     if (!asset || suspended || lightboxIndex !== null) return
@@ -99,6 +104,23 @@ export default function AssetDetailModal({
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
       window.prompt('Copia el enlace de esta ficha:', window.location.href)
+    }
+  }
+
+  const exportPhotos = async () => {
+    setExportingPhotos(true)
+    setExportProgress('')
+    try {
+      const result = await downloadAssetPhotos(asset, (progress) => setExportProgress(`${progress.done}/${progress.total}`))
+      toast.showToast(
+        `ZIP listo: ${result.files} foto${result.files === 1 ? '' : 's'}${result.skipped ? ` · ${result.skipped} omitida${result.skipped === 1 ? '' : 's'}` : ''}.`,
+        { kind: 'success' },
+      )
+    } catch (error: any) {
+      toast.showToast(error?.message || 'No se pudieron descargar las fotografías.', { kind: 'error' })
+    } finally {
+      setExportingPhotos(false)
+      setExportProgress('')
     }
   }
 
@@ -199,6 +221,15 @@ export default function AssetDetailModal({
               title="Copiar enlace de esta ficha"
             >
               {copied ? '✓ Copiado' : '🔗 Copiar enlace'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportPhotos()}
+              disabled={exportingPhotos || photos.length === 0}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
+              title={photos.length === 0 ? 'Este bien no tiene fotografías' : 'Descargar todas las fotografías en un ZIP'}
+            >
+              {exportingPhotos ? `Preparando… ${exportProgress}` : '⬇ Fotos (ZIP)'}
             </button>
             {onDuplicate && (
               <button

@@ -12,6 +12,8 @@ import { updateProperty } from './propertiesService'
 import { EXPENSE_CATEGORIES } from './expenseCategories'
 import { useAuth } from '@/features/auth/AuthProvider'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useToast } from '@/components/ui/ToastProvider'
+import { downloadPropertyDocuments } from '@/features/backup/documentsExport'
 import PropertyModal from './PropertyModal'
 import RecurringExpensesPanel from './RecurringExpensesPanel'
 import ContractsPanel from './ContractsPanel'
@@ -101,6 +103,9 @@ export default function PropertyDetailPage() {
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null)
   const [rentEditMonth, setRentEditMonth] = useState<number | null>(null)
   const [rentEditAmount, setRentEditAmount] = useState('')
+  const [exportingDocuments, setExportingDocuments] = useState(false)
+  const [exportProgress, setExportProgress] = useState('')
+  const toast = useToast()
 
   // New Expense form state
   const [expDate, setExpDate] = useState(new Date().toISOString().split('T')[0])
@@ -331,6 +336,26 @@ export default function PropertyDetailPage() {
   // Los importes de la ficha del inmueble se muestran con céntimos.
   const formatEuro = (amount?: number) => money.formatEuro(amount, 2)
 
+  const handleExportDocuments = async () => {
+    if (!property) return
+    setExportingDocuments(true)
+    setExportProgress('')
+    try {
+      const result = await downloadPropertyDocuments(property, (progress) => {
+        setExportProgress(`${progress.done}/${progress.total}`)
+      })
+      toast.showToast(
+        `ZIP listo: ${result.files} archivo${result.files === 1 ? '' : 's'}${result.skipped ? ` · ${result.skipped} omitido${result.skipped === 1 ? '' : 's'}` : ''}.`,
+        { kind: 'success' },
+      )
+    } catch (err: any) {
+      toast.showToast(err?.message || 'No se pudieron descargar los documentos.', { kind: 'error' })
+    } finally {
+      setExportingDocuments(false)
+      setExportProgress('')
+    }
+  }
+
   if (loading) {
     return (
       <div className="py-20 text-center">
@@ -362,8 +387,17 @@ export default function PropertyDetailPage() {
           <span>←</span>
           <span>Volver a Inmuebles</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="text-xs text-slate-400">Ref: {property.cadastralReference || 'Sin ref. catastral'}</span>
+          <button
+            type="button"
+            onClick={() => void handleExportDocuments()}
+            disabled={exportingDocuments}
+            title="Descarga en un ZIP los contratos, adendas y documentos de los inquilinos"
+            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-teal-600 hover:text-teal-300 disabled:opacity-60"
+          >
+            {exportingDocuments ? `Preparando… ${exportProgress}` : '⬇ Documentos (ZIP)'}
+          </button>
           <button type="button" onClick={() => setIsPropertyEditOpen(true)} className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-teal-600 hover:text-teal-300">
             Editar inmueble e inquilinos
           </button>

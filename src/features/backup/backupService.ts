@@ -6,6 +6,7 @@ import { isScheduleDueInMonth, occurrenceIdFor } from '@/features/properties/rec
 import { assetValue, locationLabel, yearLabel } from '@/features/collections/numismaticaUi'
 import { getCategoryInfo } from '@/features/collections/assetCategories'
 import { slugify } from '@/utils/slugs'
+import { toCsv } from '@/utils/csv'
 
 /**
  * Copias de seguridad y exportaciones: se generan en el dispositivo del
@@ -41,17 +42,8 @@ function downloadFile(filename: string, content: string, mime: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
 
-/** CSV con separador «;» y BOM, el formato que abre Excel es-ES directamente. */
-function toCsv(header: string[], rows: Array<Array<string | number>>): string {
-  const escape = (value: string | number) => {
-    const text = String(value ?? '')
-    return /[",\n;]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-  }
-  const number = (value: number) => String(value ?? 0).replace('.', ',')
-  return '\uFEFF' + [header, ...rows]
-    .map((row) => row.map((cell) => typeof cell === 'number' ? number(cell) : escape(cell)).join(';'))
-    .join('\n')
-}
+// El formato CSV (separador «;», coma decimal y BOM) vive en `utils/csv.ts`
+// para poder probarlo sin cargar Firebase.
 
 /** Copia completa en JSON de todas las colecciones de la app. */
 export async function downloadFullBackup(): Promise<{ documents: number }> {

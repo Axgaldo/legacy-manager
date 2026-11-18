@@ -47,6 +47,8 @@ export interface Property extends TimestampedDoc {
   fixedExpensesMonthly?: number
   currentValue?: number
   notes?: string
+  /** ISO date set when the record is moved to the trash (soft delete). */
+  deletedAt?: string
 }
 
 export interface PropertyTenant {
@@ -81,6 +83,8 @@ export interface Tenant extends TimestampedDoc {
   iban?: string
   notes?: string
   isActive?: boolean
+  /** ISO date set when the record is moved to the trash (soft delete). */
+  deletedAt?: string
 }
 
 export interface TenantDocument extends TimestampedDoc {
@@ -93,6 +97,8 @@ export interface TenantDocument extends TimestampedDoc {
   kind: TenantDocumentKind
   label?: string
   uploadedBy?: string
+  /** ISO date set when the record is moved to the trash (soft delete). */
+  deletedAt?: string
 }
 
 export interface RentRate {
@@ -253,6 +259,8 @@ export interface AssetItem extends TimestampedDoc {
   notes?: string
   photos: string[]
   photoSizesBytes?: number[]
+  /** ISO date set when the record is moved to the trash (soft delete). */
+  deletedAt?: string
 
   /** Import traceability (optional, hidden from the form). */
   import_key?: string

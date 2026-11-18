@@ -105,6 +105,18 @@ export default function AppLayout() {
         <div className="mt-2">{incognitoToggle}</div>
         <p className="mt-1.5 px-1 text-[10px] leading-snug text-slate-500">Con el modo activo, los importes se muestran como «▓#%§ €».</p>
       </div>
+
+      <div className="px-4 pb-2">
+        <NavLink
+          to="/papelera"
+          onClick={() => setMenuOpen(false)}
+          className={({ isActive }) => `flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${isActive ? 'bg-slate-800 text-teal-200 ring-1 ring-teal-900' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+        >
+          <span aria-hidden="true">🗑</span>
+          Papelera
+        </NavLink>
+      </div>
+
       <div className="border-t border-slate-800 px-4 py-3 text-[10px] leading-relaxed text-slate-500">
         <p className="flex flex-wrap items-center gap-x-1.5 font-mono text-slate-400">
           <span>v{__APP_VERSION__}</span>

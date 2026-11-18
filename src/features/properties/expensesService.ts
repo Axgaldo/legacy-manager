@@ -53,9 +53,9 @@ export function subscribeToPropertyExpenses(
   return onSnapshot(
     q,
     (snapshot) => {
-      const items: Expense[] = snapshot.docs.map((docSnap) => {
-        return mapExpense(docSnap.id, docSnap.data())
-      })
+      const items: Expense[] = snapshot.docs
+        .filter((docSnap) => !docSnap.data().deletedAt)
+        .map((docSnap) => mapExpense(docSnap.id, docSnap.data()))
       // Sort by date descending in memory
       items.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
       onSuccess(items)

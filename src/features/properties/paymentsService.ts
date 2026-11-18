@@ -57,7 +57,7 @@ export function subscribeToYearPayments(
   return onSnapshot(
     q,
     (snapshot) => {
-      onSuccess(snapshot.docs.map(mapRentPayment))
+      onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map(mapRentPayment))
     },
     (err) => {
       console.error('Error in rent payments subscription:', err)
@@ -68,7 +68,7 @@ export function subscribeToYearPayments(
 
 export function subscribeToAllYearPayments(year: number, onSuccess: (payments: RentPayment[]) => void, onError?: (error: Error) => void): Unsubscribe {
   return onSnapshot(query(collection(db, COLLECTION_NAME), where('year', '==', year)), (snapshot) => {
-    onSuccess(snapshot.docs.map(mapRentPayment))
+    onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map(mapRentPayment))
   }, (error) => { console.error('Error loading annual rent matrix:', error); onError?.(error) })
 }
 
@@ -80,7 +80,7 @@ export function subscribeToPaymentsThroughYear(
 ): Unsubscribe {
   const q = query(collection(db, COLLECTION_NAME), where('year', '<=', year))
   return onSnapshot(q, (snapshot) => {
-    onSuccess(snapshot.docs.map(mapRentPayment))
+    onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map(mapRentPayment))
   }, (error) => {
     console.error('Error fetching rent payment overview:', error)
     onError?.(error)

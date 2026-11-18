@@ -98,7 +98,7 @@ export default function TenantsPage({ embedded = false }: { embedded?: boolean }
       {migrationNotice && (
         <div className="flex items-start justify-between gap-3 rounded-xl border border-emerald-900 bg-emerald-950/50 px-4 py-3 text-xs text-emerald-200">
           <span>✨ {migrationNotice}</span>
-          <button onClick={() => setMigrationNotice('')} className="text-emerald-300 hover:text-white">✕</button>
+          <button type="button" aria-label="Cerrar aviso" onClick={() => setMigrationNotice('')} className="text-emerald-300 hover:text-white">✕</button>
         </div>
       )}
 

@@ -25,7 +25,8 @@ export function subscribeToProperties(
   return onSnapshot(
     q,
     (snapshot) => {
-      const items: Property[] = snapshot.docs.map((docSnap) => {
+      // Records in the trash (soft deleted) never reach the app lists.
+      const items: Property[] = snapshot.docs.filter((docSnap) => !docSnap.data().deletedAt).map((docSnap) => {
         const data = docSnap.data()
         return {
           id: docSnap.id,
@@ -54,6 +55,7 @@ export function subscribeToProperties(
           fixedExpensesMonthly: data.fixedExpensesMonthly ? Number(data.fixedExpensesMonthly) : undefined,
           currentValue: data.currentValue ? Number(data.currentValue) : undefined,
           notes: data.notes ?? '',
+          deletedAt: data.deletedAt || undefined,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
         }

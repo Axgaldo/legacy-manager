@@ -43,7 +43,7 @@ export default function ConfirmModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-700">
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-700">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl bg-red-950/60 text-red-400 flex items-center justify-center shrink-0">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -51,7 +51,7 @@ export default function ConfirmModal({
             </svg>
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-100">{title}</h3>
+            <h3 id="confirm-modal-title" className="text-lg font-bold text-slate-100">{title}</h3>
             <p className="text-sm text-slate-400 mt-1">{message}</p>
           </div>
         </div>

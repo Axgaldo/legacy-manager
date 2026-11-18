@@ -104,6 +104,7 @@ function mapTenant(id: string, data: Record<string, any>): Tenant {
     iban: data.iban ?? '',
     notes: data.notes ?? '',
     isActive: data.isActive !== false,
+    deletedAt: data.deletedAt || undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -121,6 +122,7 @@ function mapTenantDocument(id: string, data: Record<string, any>): TenantDocumen
     kind: (TENANT_DOCUMENT_KINDS.some((item) => item.value === data.kind) ? data.kind : 'otro') as TenantDocumentKind,
     label: data.label ?? '',
     uploadedBy: data.uploadedBy ?? '',
+    deletedAt: data.deletedAt || undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -131,7 +133,10 @@ export function subscribeToTenants(
   onError?: (error: Error) => void,
 ): Unsubscribe {
   return onSnapshot(collection(db, TENANTS_COLLECTION), (snapshot) => {
-    const items = snapshot.docs.map((item) => mapTenant(item.id, item.data()))
+    // Tenants in the trash (soft deleted) are hidden from every list.
+    const items = snapshot.docs
+      .filter((item) => !item.data().deletedAt)
+      .map((item) => mapTenant(item.id, item.data()))
     items.sort((a, b) => a.name.localeCompare(b.name, 'es'))
     onSuccess(items)
   }, (error) => {
@@ -170,7 +175,9 @@ export function subscribeToTenantDocuments(
   onError?: (error: Error) => void,
 ): Unsubscribe {
   return onSnapshot(query(collection(db, DOCUMENTS_COLLECTION), where('tenantId', '==', tenantId)), (snapshot) => {
-    const items = snapshot.docs.map((item) => mapTenantDocument(item.id, item.data()))
+    const items = snapshot.docs
+      .filter((item) => !item.data().deletedAt)
+      .map((item) => mapTenantDocument(item.id, item.data()))
     items.sort((a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt))
     onSuccess(items)
   }, (error) => {
@@ -184,7 +191,9 @@ export function subscribeToAllTenantDocuments(
   onError?: (error: Error) => void,
 ): Unsubscribe {
   return onSnapshot(collection(db, DOCUMENTS_COLLECTION), (snapshot) => {
-    onSuccess(snapshot.docs.map((item) => mapTenantDocument(item.id, item.data())))
+    onSuccess(snapshot.docs
+      .filter((item) => !item.data().deletedAt)
+      .map((item) => mapTenantDocument(item.id, item.data())))
   }, (error) => {
     console.error('Error loading tenant document index:', error)
     onError?.(error)
@@ -296,8 +305,10 @@ export async function migratePropertyTenants(property: Property): Promise<number
       // Reuse an existing tenant with the same name (for example one created from a contract)
       // instead of creating a duplicate during the import.
       const sameName = await getDocs(query(collection(db, TENANTS_COLLECTION), where('nameLower', '==', normalizeTenantName(tenant.name))))
-      if (sameName.docs[0]) {
-        createdIds.push(sameName.docs[0].id)
+      // Never reuse a tenant that is in the trash: it would stay invisible.
+      const reusable = sameName.docs.find((item) => !item.data().deletedAt)
+      if (reusable) {
+        createdIds.push(reusable.id)
         continue
       }
 
@@ -345,7 +356,8 @@ export async function ensureTenantFromLegacyData(
   if (!name) return null
 
   const existing = await getDocs(query(collection(db, TENANTS_COLLECTION), where('nameLower', '==', normalizeTenantName(name))))
-  let tenantId = existing.docs[0]?.id
+  // A tenant in the trash must not be reused: it would stay hidden.
+  let tenantId = existing.docs.find((item) => !item.data().deletedAt)?.id
   if (!tenantId) {
     tenantId = await createTenant({
       name,

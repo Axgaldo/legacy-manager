@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Property, PropertyStatus, AssetItem, RentPayment, RecurringExpenseSchedule, Tenant } from '@/types'
-import { subscribeToProperties, deleteProperty } from './propertiesService'
+import { subscribeToProperties } from './propertiesService'
+import { softDeleteProperty } from '@/features/trash/trashService'
 import { subscribeToTenants } from '@/features/tenants/tenantsService'
 import { subscribeToAssets } from '@/features/collections/assetsService'
 import { subscribeToPaymentsThroughYear } from './paymentsService'
@@ -226,9 +227,9 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
     if (!propertyToDelete) return
     setIsDeleting(true)
     try {
-      await deleteProperty(propertyToDelete.id)
+      await softDeleteProperty(propertyToDelete.id)
       setPropertyToDelete(null)
-      toast.showToast(`Inmueble «${propertyToDelete.name}» eliminado.`, { kind: 'success' })
+      toast.showToast(`Inmueble «${propertyToDelete.name}» movido a la papelera.`, { kind: 'success' })
     } catch (err: any) {
       toast.showToast('Error al eliminar: ' + err.message, { kind: 'error' })
     } finally {
@@ -603,7 +604,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                   </button>
                   <button
                     onClick={(event) => { event.stopPropagation(); setPropertyToDelete(prop) }}
-                    title="Eliminar inmueble"
+                    title="Mover a la papelera"
                     className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-950/50 transition"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -637,10 +638,10 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
       {/* Safe Delete Confirmation Modal (Protección "a prueba de fallos") */}
       <ConfirmModal
         isOpen={propertyToDelete !== null}
-        title="¿Eliminar este inmueble?"
-        message={`Esta acción borrará definitivamente "${propertyToDelete?.name}".`}
+        title="¿Mover este inmueble a la papelera?"
+        message={`«${propertyToDelete?.name}» y sus gastos, cobros y gastos periódicos se guardarán 30 días en la papelera. Los contratos y sus PDFs se conservan siempre.`}
         confirmWord="BORRAR"
-        confirmButtonText="Eliminar Inmueble"
+        confirmButtonText="Mover a papelera"
         isDestructive={true}
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}

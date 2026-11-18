@@ -103,7 +103,7 @@ export default function TenantModal({ isOpen, tenantToEdit, onClose, onSaved }: 
             <h2 className="text-lg font-bold text-slate-100">{tenantToEdit ? 'Editar inquilino' : 'Nuevo inquilino'}</h2>
             <p className="mt-1 text-xs text-slate-400">Los documentos se añaden después, desde la ficha del inquilino.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200">✕</button>
+          <button type="button" aria-label="Cerrar" onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200">✕</button>
         </div>
 
         {error && <div className="mt-4 rounded-xl border border-red-800 bg-red-950/60 p-3 text-sm text-red-200">{error}</div>}

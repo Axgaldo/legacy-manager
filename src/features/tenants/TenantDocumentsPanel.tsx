@@ -6,12 +6,12 @@ import { formatStorageBytes } from '@/lib/storageUsage'
 import {
   TENANT_DOCUMENT_ACCEPT,
   TENANT_DOCUMENT_KINDS,
-  deleteTenantDocument,
   getTenantDocumentBlob,
   subscribeToTenantDocuments,
   uploadTenantDocument,
   validateTenantDocumentFile,
 } from './tenantsService'
+import { softDeleteTenantDocument } from '@/features/trash/trashService'
 
 function documentIcon(document: TenantDocument): string {
   if (document.contentType.startsWith('image/')) return '🖼️'
@@ -109,8 +109,8 @@ export default function TenantDocumentsPanel({ tenantId }: { tenantId: string })
     if (!documentToDelete) return
     setBusyId(documentToDelete.id)
     try {
-      await deleteTenantDocument(documentToDelete)
-      setNotice('Documento eliminado.')
+      await softDeleteTenantDocument(documentToDelete.id)
+      setNotice('Documento movido a la papelera. Podrás restaurarlo durante 30 días.')
       setDocumentToDelete(null)
     } catch (err: any) {
       console.error(err)
@@ -203,10 +203,10 @@ export default function TenantDocumentsPanel({ tenantId }: { tenantId: string })
 
       <ConfirmModal
         isOpen={documentToDelete !== null}
-        title="¿Eliminar este documento?"
-        message={`Se borrará «${documentToDelete?.label || documentToDelete?.fileName}» y su archivo del almacenamiento.`}
+        title="¿Mover este documento a la papelera?"
+        message={`«${documentToDelete?.label || documentToDelete?.fileName}» se guardará 30 días en la papelera. Durante ese tiempo no aparecerá en la ficha y podrás restaurarlo.`}
         confirmWord="BORRAR"
-        confirmButtonText="Eliminar documento"
+        confirmButtonText="Mover a papelera"
         isDestructive
         onConfirm={handleConfirmDelete}
         onClose={() => setDocumentToDelete(null)}

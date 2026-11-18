@@ -40,7 +40,8 @@ export function subscribeToAssets(
   return onSnapshot(
     q,
     (snapshot) => {
-      const items: AssetItem[] = snapshot.docs.map((docSnap) => {
+      // Assets in the trash (soft deleted) never reach the collection lists.
+      const items: AssetItem[] = snapshot.docs.filter((docSnap) => !docSnap.data().deletedAt).map((docSnap) => {
         const data = docSnap.data()
         return {
           id: docSnap.id,
@@ -65,6 +66,7 @@ export function subscribeToAssets(
           notes: optionalString(data.notes),
           photos: Array.isArray(data.photos) ? data.photos : [],
           photoSizesBytes: Array.isArray(data.photoSizesBytes) ? data.photoSizesBytes.map((size: unknown) => Number(size) || 0) : [],
+          deletedAt: data.deletedAt || undefined,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
 
@@ -143,7 +145,7 @@ export async function createAsset(
  * nuevo documento para poder abrir su ficha en cuanto llegue del snapshot.
  */
 export async function duplicateAsset(asset: AssetItem): Promise<string> {
-  const { id, createdAt, updatedAt, photos, photoSizesBytes, import_key, ...payload } = asset
+  const { id, createdAt, updatedAt, photos, photoSizesBytes, import_key, deletedAt, ...payload } = asset
   const copy: Omit<AssetItem, 'id' | 'createdAt' | 'updatedAt'> = {
     ...payload,
     name: `${asset.name} (copia)`,

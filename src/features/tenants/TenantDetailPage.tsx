@@ -7,11 +7,11 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import TenantModal from './TenantModal'
 import TenantDocumentsPanel from './TenantDocumentsPanel'
 import {
-  deleteTenantCompletely,
   linkTenantToProperty,
   subscribeToTenants,
   unlinkTenantFromProperty,
 } from './tenantsService'
+import { softDeleteTenant } from '@/features/trash/trashService'
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '👤'
@@ -79,7 +79,7 @@ export default function TenantDetailPage() {
     setIsDeleting(true)
     setError('')
     try {
-      await deleteTenantCompletely(tenant.id, properties)
+      await softDeleteTenant(tenant.id)
       navigate('/inmuebles/inquilinos', { replace: true })
     } catch (err: any) {
       setError(err?.message || 'No se pudo eliminar el inquilino.')
@@ -114,7 +114,7 @@ export default function TenantDetailPage() {
         <Link to="/inmuebles/inquilinos" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-teal-200">← Volver a Inquilinos</Link>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => setIsEditOpen(true)} className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-teal-600 hover:text-teal-200">Editar datos</button>
-          <button onClick={() => setIsDeleteOpen(true)} className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-950/70">Eliminar inquilino</button>
+          <button onClick={() => setIsDeleteOpen(true)} className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs font-semibold text-red-300 hover:bg-red-950/70">Mover a la papelera</button>
         </div>
       </div>
 
@@ -186,10 +186,10 @@ export default function TenantDetailPage() {
 
       <ConfirmModal
         isOpen={isDeleteOpen}
-        title={`¿Eliminar a ${tenant.name}?`}
-        message={`Se eliminarán su ficha, sus documentos y los vínculos con ${linkedProperties.length} inmueble(s). Los inmuebles y sus datos no se tocan.`}
+        title={`¿Mover a ${tenant.name} a la papelera?`}
+        message={`Su ficha y sus documentos se guardarán 30 días en la papelera. Los vínculos con ${linkedProperties.length} inmueble(s) se conservan para poder restaurarlo sin perder nada.`}
         confirmWord="BORRAR"
-        confirmButtonText="Eliminar inquilino"
+        confirmButtonText="Mover a papelera"
         isDestructive
         isLoading={isDeleting}
         onConfirm={handleDelete}

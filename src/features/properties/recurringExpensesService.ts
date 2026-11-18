@@ -32,20 +32,20 @@ function mapOccurrence(id: string, data: Record<string, any>): RecurringExpenseO
 
 export function subscribeToRecurringExpenseSchedules(propertyId: string, onSuccess: (items: RecurringExpenseSchedule[]) => void, onError?: (error: Error) => void): Unsubscribe {
   return onSnapshot(query(collection(db, SCHEDULES), where('propertyId', '==', propertyId)), (snapshot) => {
-    onSuccess(snapshot.docs.map((item) => mapSchedule(item.id, item.data())).sort((a, b) => a.description.localeCompare(b.description)))
+    onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapSchedule(item.id, item.data())).sort((a, b) => a.description.localeCompare(b.description)))
   }, (error) => onError?.(error))
 }
 
 export function subscribeToAllRecurringExpenseSchedules(onSuccess: (items: RecurringExpenseSchedule[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(collection(db, SCHEDULES), (snapshot) => onSuccess(snapshot.docs.map((item) => mapSchedule(item.id, item.data()))), (error) => onError?.(error))
+  return onSnapshot(collection(db, SCHEDULES), (snapshot) => onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapSchedule(item.id, item.data()))), (error) => onError?.(error))
 }
 
 export function subscribeToRecurringExpenseOccurrences(propertyId: string, onSuccess: (items: RecurringExpenseOccurrence[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(query(collection(db, OCCURRENCES), where('propertyId', '==', propertyId)), (snapshot) => onSuccess(snapshot.docs.map((item) => mapOccurrence(item.id, item.data()))), (error) => onError?.(error))
+  return onSnapshot(query(collection(db, OCCURRENCES), where('propertyId', '==', propertyId)), (snapshot) => onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapOccurrence(item.id, item.data()))), (error) => onError?.(error))
 }
 
 export function subscribeToAllRecurringExpenseOccurrences(year: number, onSuccess: (items: RecurringExpenseOccurrence[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(query(collection(db, OCCURRENCES), where('year', '==', year)), (snapshot) => onSuccess(snapshot.docs.map((item) => mapOccurrence(item.id, item.data()))), (error) => onError?.(error))
+  return onSnapshot(query(collection(db, OCCURRENCES), where('year', '==', year)), (snapshot) => onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapOccurrence(item.id, item.data()))), (error) => onError?.(error))
 }
 
 export async function addRecurringExpenseSchedule(schedule: Omit<RecurringExpenseSchedule, 'id' | 'createdAt' | 'updatedAt'>) {

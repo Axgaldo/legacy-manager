@@ -8,6 +8,7 @@ import PropertyDetailPage from '@/features/properties/PropertyDetailPage'
 import TenantDetailPage   from '@/features/tenants/TenantDetailPage'
 import CollectionsPage    from '@/features/collections/CollectionsPage'
 import HomePage           from '@/features/home/HomePage'
+import TrashPage          from '@/features/trash/TrashPage'
 import { PrivacyProvider } from '@/features/privacy/PrivacyProvider'
 import { ToastProvider } from '@/components/ui/ToastProvider'
 
@@ -55,6 +56,8 @@ export default function App() {
             <Route path="/bienes/categoria/:collectionKey" element={<CollectionsPage />} />
             <Route path="/bienes/categoria/:collectionKey/:assetSlug" element={<CollectionsPage />} />
             <Route path="/bienes/:assetSlug" element={<CollectionsPage />} />
+
+            <Route path="/papelera" element={<TrashPage />} />
 
             {/* Unknown URLs (old links, typos) fall back to the home panel instead of a blank page. */}
             <Route path="*" element={<Navigate to="/" replace />} />

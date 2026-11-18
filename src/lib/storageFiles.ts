@@ -28,9 +28,12 @@ export async function uploadPrivateStorageBlob(
   contentType: string,
   onProgress?: (percent: number) => void,
 ): Promise<number> {
+  // Los nombres de archivo llevan UUID y las reglas impiden sobrescribirlos, así
+  // que el navegador puede guardarlos indefinidamente: la segunda visita no
+  // vuelve a descargar fotos ni PDFs y se reduce el tráfico facturable.
   const task = uploadBytesResumable(ref(storage, path), blob, {
     contentType,
-    cacheControl: 'private, no-store',
+    cacheControl: 'private, max-age=31536000, immutable',
   })
   return new Promise((resolve, reject) => {
     task.on('state_changed', (snapshot) => {

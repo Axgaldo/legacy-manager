@@ -1,7 +1,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AssetCategory, AssetItem, Property } from '@/types'
-import { subscribeToAssets, deleteAsset, duplicateAsset, migrateLegacyAssetPhotos } from './assetsService'
+import { subscribeToAssets, duplicateAsset, migrateLegacyAssetPhotos } from './assetsService'
+import { softDeleteAsset } from '@/features/trash/trashService'
 import { subscribeToProperties } from '@/features/properties/propertiesService'
 import AssetModal from './AssetModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -483,10 +484,10 @@ export default function CollectionsPage() {
     if (!assetToDelete) return
     setIsDeleting(true)
     try {
-      await deleteAsset(assetToDelete.id)
+      await softDeleteAsset(assetToDelete.id)
       if (detailAsset?.id === assetToDelete.id) handleCloseDetail()
       setAssetToDelete(null)
-      toast.showToast(`«${assetToDelete.name}» eliminado del inventario.`, { kind: 'success' })
+      toast.showToast(`«${assetToDelete.name}» movido a la papelera.`, { kind: 'success' })
     } catch (error) {
       toast.showToast(`Error al eliminar: ${error instanceof Error ? error.message : 'Error desconocido'}`, { kind: 'error' })
     } finally {
@@ -868,10 +869,10 @@ export default function CollectionsPage() {
 
       <ConfirmModal
         isOpen={assetToDelete !== null}
-        title="¿Eliminar este bien del inventario?"
-        message={`Esta acción borrará definitivamente "${assetToDelete?.name}" y sus fotografías.`}
+        title="¿Mover este bien a la papelera?"
+        message={`«${assetToDelete?.name}» se guardará 30 días en la papelera, con sus fotografías. Podrás restaurarlo desde la Papelera.`}
         confirmWord="BORRAR"
-        confirmButtonText="Eliminar Bien"
+        confirmButtonText="Mover a papelera"
         isDestructive={true}
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}

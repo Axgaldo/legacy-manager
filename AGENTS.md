@@ -19,6 +19,7 @@
 - src/features/properties: Property management, rent rates, expenses.
 - src/features/properties/contracts: Contract management, PDF handling, and addenda.
 - src/features/tenants: Independent tenant directory, documents and property links.
+- src/features/trash: Papelera (borrado suave), purga manual y página `/papelera`.
 - src/features/privacy: Modo incógnito (PrivacyProvider) y formato central de importes (`useMoney`).
 - src/lib: Firebase initialization and storage utilities.
 - src/utils: Helper functions (compression, slug generation, etc.).
@@ -62,6 +63,38 @@
 - **Relojes:** no dedicated form; the generic asset form is enough: nombre, **marca/modelo/autor** (campo propio guardado en `brandOrAuthor`), año, lugar de origen, valores, fotos y etiquetas.
 - **Electrónica y electrodomésticos:** same generic form; no special fields for now.
 - **Common fields:** name, owner, category, tags, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, mint_mark, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes. `location` was removed; coin location is `case_location`/`case_number` in advanced details.
+
+## Papelera (borrado suave, obligatorio)
+
+- **Nada se borra al instante desde la interfaz**: los documentos reciben `deletedAt` (ISO) y los mappers de cada servicio los ignoran (`if (!data.deletedAt)`). Retención: **30 días** (`TRASH_RETENTION_DAYS` en `src/features/trash/trashService.ts`).
+- **Alcance**: inmuebles, bienes, inquilinos y documentos de inquilino. Los gastos puntuales y los cobros no tienen entrada propia en la papelera, pero **se ocultan en cascada** con su inmueble.
+- **Cascada de inmueble**: `softDeleteProperty` marca el inmueble y sus `expenses`, `rentPayments`, `recurringExpenseSchedules` y `recurringExpenseOccurrences` con **el mismo `deletedAt`**. Restaurar devuelve solo los hijos con esa marca exacta (no resucita algo borrado antes). Purgar borra todos los documentos de esas colecciones del inmueble.
+- **Inquilinos**: mover a la papelera guarda ficha y `tenantDocuments` y **conserva los vínculos** (`property.tenantIds`) para que restaurar sea exacto; al purgar se borran documentos, archivos `tenants/` y los vínculos de los inmuebles.
+- **Contratos**: no se tocan nunca (archivo histórico inmutable). Al purgar un inmueble, sus contratos y PDFs permanecen en Firestore/Storage; las reglas de Storage impiden borrar `contracts/`. Es intencionado.
+- **Purga**: se hace **desde la app**, nunca con Cloud Functions (sin plan Blaze): al abrir `/papelera` se eliminan los caducados y el resto espera a «Eliminar ya» o «Vaciar papelera». Si nadie abre la papelera, nada se borra solo.
+- **Lectura**: `loadTrash()` es una lectura puntual sin listeners (`where('deletedAt','>','')`, válido para los ISO que escribe la app y excluye documentos sin el campo); las listas normales filtran en el mapper, así que Inicio, fiscal, búsqueda y KPIs no cuentan lo borrado.
+- **Nueva colección hija de inmuebles**: añadirla a `PROPERTY_CHILD_COLLECTIONS` para que se oculte y se purgue con el inmueble.
+- **Restaurar/purgar**: siempre con `restoreTrashEntry` / `purgeTrashEntry`; no duplicar esa lógica en componentes.
+
+## Archivos y caché (importante)
+
+- `uploadPrivateStorageBlob` sube con `Cache-Control: private, max-age=31536000, immutable`: los nombres llevan UUID y las reglas impiden sobrescribir. **Solo afecta a subidas nuevas**; las fotos y PDFs antiguos conservan `no-store` porque `allow update` es `false` en Storage. Para aprovecharlo en los antiguos hay que volver a subirlos (encaja con las miniaturas pendientes).
+- **Exportaciones ZIP**: `src/features/backup/documentsExport.ts` + `src/utils/zip.ts` (ZIP propio, sin dependencias, método *store*). Descarga los archivos con la sesión del usuario; nunca genera URLs públicas. Incluye `LEEME.txt` con el contexto.
+- El backup JSON cubre 11 colecciones, pero **no** los archivos de Storage: para eso están los ZIP por inmueble y por bien.
+
+## PWA y service worker
+
+- `public/manifest.webmanifest` + `public/sw.js`. El registro ocurre solo en producción en `src/main.tsx` con `?v=__APP_VERSION__`, y al activarse borra las cachés de versiones anteriores.
+- Estrategia: navegación **red primero** con copia cacheada como respaldo (nunca sirve HTML viejo estando online); `assets/` (con hash) e iconos, caché primero. Firebase y otros dominios **no se interceptan**.
+- Si tras desplegar se ve una versión rara: DevTools → Application → Service Workers → *Unregister* + *Clear storage*.
+- Iconos `icon-192.png` / `icon-512.png` derivados del favicon para instalar en móvil.
+
+## Tests (Vitest)
+
+- `npm test` (una pasada) y `npm run test:watch`. Vitest 3 usa `vite.config.ts` y el alias `@`, sin configuración extra.
+- Cubierto: `recurringExpensesLogic` (prorrateo IBI/12, vencimientos, media mensual), `rentRates` (tramos, meses sin alquiler), `numbers` (miles), `csv` (escapado, BOM, decimales), `money` (formato y máscaras del modo incógnito) y `zip` (cabeceras, CRC32, nombres seguros).
+- Son tests de **lógica pura**: no tocan Firebase, DOM ni red, y no hay E2E. No se ejecutan en el despliegue; hay que lanzarlos a mano antes de commitear cambios de dinero o cálculos.
+- Si un test falla tras un cambio de modelo, se actualiza junto con la lógica y se explica en el commit; nunca se borra el test para "arreglarlo".
 
 ## Migration Status
 - **Cleaned:** Legacy migration buttons and functions have been removed from the UI and services.
@@ -120,6 +153,7 @@
     - **1.16.0:** Ajustes de UX: **miniaturas de PDF de contratos en vertical** (cuadradas en compacto, 3:4 en normal, ajustadas al ancho y sin barra) y al pulsarlas el PDF **se abre en una pestaña nueva** (antes sustituía la app); tarjetas de inquilinos del inmueble: **toda la tarjeta abre la ficha**, botón «Abrir ficha» eliminado; Bienes: «Ver colección →» retirado de las tarjetas (ya son pulsables) y en la cuadrícula el botón pasa de «Ver detalles» a **«Editar», que abre el formulario directamente**; cifras de dinero con **separador de miles siempre** («1.000 €», no «1000 €»; Intl es-ES no agrupa las 4 cifras) vía `groupThousands` en `src/utils/numbers.ts`, aplicado a euros e importes originales (CSV y años sin cambios, como debe ser).
     - **1.16.1:** Miniaturas de PDF todavía más discretas: la del contrato pasa a tamaño fijo pequeño (`w-32/36`, 3:4, columna `auto` que abraza la miniatura en vez de media tarjeta) y la de las **adendas aún más pequeña (`w-24/28`) y a la derecha** del bloque de controles (flex con `justify-between`). Panel de inicio: eliminados los «Abrir Inmuebles →» y «Abrir Bienes →» redundantes (la tarjeta entera ya es el botón).
     - **1.16.2:** Red de seguridad de navegación: ruta comodín que devuelve a Inicio en URLs desconocidas (antes quedaba la pantalla en blanco) y `ErrorBoundary` global + otro por pantalla dentro del layout (conserva la barra lateral) con mensaje de recuperación, «Recargar», «Volver al inicio» y detalles técnicos. Backlog priorizado guardado en AGENTS.md.
+    - **1.17.0:** Ronda de robustez y archivo. **Papelera con borrado suave** (`deletedAt`, 30 días, `/papelera` en el pie de la barra lateral): inmuebles (con cascada de gastos, cobros y periódicos por marca de tiempo), bienes, inquilinos y documentos; restaurar y purgar desde la app, sin Cloud Functions. **ZIP de documentos** por inmueble (contratos, adendas y archivos de inquilinos) y de **fotos** por bien, con generador ZIP propio sin dependencias (`src/utils/zip.ts`, verificado con el descompresor de Windows) y `LEEME.txt`. **Cache-Control `immutable`** en Storage para subidas nuevas (las antiguas siguen `no-store` porque las reglas bloquean `update`). **Vitest** con 46 pruebas de lógica pura (gastos periódicos, tramos de renta, miles, CSV, importes/máscaras y ZIP) y scripts `npm test` / `npm run test:watch`. **PWA instalable**: manifest, iconos 192/512 e icono de app, y service worker network-first que cachea shell y assets con hash sin interceptar Firebase. **Accesibilidad**: `aria-label` en cierres de modales y avisos y `role="dialog"`/`aria-labelledby` en `ConfirmModal`. Textos de borrado actualizados a «Mover a papelera».
 
 ---
 
@@ -128,26 +162,21 @@
 Orden aproximado por relación impacto/esfuerzo. No implementar sin necesidad: son mejoras, no deuda que bloquee.
 
 **P0 — baratas y de alto impacto**
-- **Tests de la lógica de dinero con Vitest** (`npm i -D vitest`): `recurringExpensesLogic` (prorrateo IBI/12, vencimientos, media mensual), `rentRates` (tramos y meses sin alquiler), reducción del 50 % y agregados de `TaxOverview`, conversión de divisas en `numismaticaMeta`, `groupThousands` y escapado de CSV en `backupService`. Esa lógica alimenta Inicio, KPIs, ficha, fiscal y exportaciones; un fallo silencioso ahí afecta a cuatro pantallas a la vez.
-- **Cache-Control de las fotos**: `uploadPrivateStorageBlob` usa `private, no-store`, así que cada scroll vuelve a descargar la imagen completa. Los nombres son UUID y nunca se sobrescriben (`update: if false` en assets), por lo que se puede usar `private, max-age=31536000, immutable`.
 - **Recordatorio de copia de seguridad**: guardar la fecha del último `downloadFullBackup()` en `localStorage` y mostrar un aviso en Inicio (toast o tarjeta discreta) si han pasado más de 30 días. No sube nada a Firebase: solo recuerda descargar el JSON que ya existe.
 
 **P1 — rendimiento y coste (cero coste)**
-- **Code splitting**: `React.lazy` por ruta + `manualChunks` (vendor react / firebase). Hoy el build es un único chunk de ~1,04 MB (~270 kB gzip).
-- **Miniaturas de fotos**: al subir, generar un WebP de ~400 px (`thumb-*`) y usarlo en listas/cuadrículas; la imagen completa solo en la ficha y el lightbox. Reduce drásticamente el egress de Storage.
-- **Persistencia offline**: `initializeFirestore(app, { localCache: persistentLocalCache(...) })` para arranque instantáneo desde caché, uso sin cobertura y menos lecturas facturables.
+- **Code splitting**: `React.lazy` por ruta + `manualChunks` (vendor react / firebase). Hoy el build es un único chunk de ~1,06 MB (~276 kB gzip).
+- **Miniaturas de fotos**: al subir, generar un WebP de ~400 px (`thumb-*`) y usarlo en listas/cuadrículas; la imagen completa solo en la ficha y el lightbox. Reduce drásticamente el egress de Storage. Al volver a subir las antiguas heredan también la nueva `Cache-Control` immutable.
+- **Persistencia offline**: `initializeFirestore(app, { localCache: persistentLocalCache(...) })` para arranque instantáneo desde caché, uso sin cobertura y menos lecturas facturables. El service worker ya guarda el shell, pero los datos siguen viniendo de la red.
 
 **P2 — producto**
-- **Papelera con borrado suave** (`deletedAt`) para inmuebles, bienes, inquilinos y sus documentos: filtro en las consultas normales, pantalla de papelera, restaurar y «Vaciar papelera». Purga manual desde la app (sin Cloud Functions de pago).
-- **Descargar documentos de un inmueble/bien** en ZIP (o manifiesto con los archivos de Storage): el backup JSON cubre 11 colecciones pero no PDFs ni fotos.
-- **Accesibilidad**: `aria-label` en los botones de solo icono que aún no lo tienen (`TenantModal`, `ContractsPanel`, `TenantsPage`, `AssetList`) y `aria-live="polite"` en el contenedor de toasts.
-- **PWA**: manifest + service worker para instalarla en el móvil y tener shell offline (coste cero).
+- Completado en 1.17.0: papelera con borrado suave y purga desde la app, ZIP de documentos por inmueble y de fotos por bien, `aria-label` en los iconos que faltaban y PWA instalable. No repetir estas propuestas.
 
 **P3 — mantenibilidad**
 - **Unificar los `subscribeToX`** en un helper `subscribeCollection<T>(name, mapper)` con manejo de errores homogéneo (hoy se repite el patrón en ~10 servicios).
 - **Validar en la frontera de lectura**: helpers compartidos `num()/str()/bool()` (ya existen en `assetsService`) para que un documento legacy no pinte `NaN €` en fiscal.
-- **Trocear componentes grandes**: `CollectionsPage` (956 líneas), `PropertyDetailPage` (810), `AssetModal` (673), extrayendo hooks (`useAssetForm`, `usePropertyExpenses`).
-- **CI**: `.github/workflows/ci.yml` con `npm run lint && npm run build` en push y PR (hoy el lint no se ejecuta en ningún sitio).
+- **Trocear componentes grandes**: `CollectionsPage` (~960 líneas), `PropertyDetailPage` (~900), `AssetModal` (673), extrayendo hooks (`useAssetForm`, `usePropertyExpenses`).
+- **CI**: `.github/workflows/ci.yml` con `npm test && npm run lint && npm run build` en push y PR (hoy el lint y los tests no se ejecutan en ningún sitio automatizado).
 - **Limpiar `fixedExpensesMonthly`** del tipo `Property` y de `propertiesService` (ya no tiene UI).
 - **Revisar los 10 warnings de `exhaustive-deps`**, sobre todo los de `PropertyDetailPage`: efectos que pueden conservar datos del inmueble anterior al cambiar de id.
 
