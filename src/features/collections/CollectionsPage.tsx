@@ -10,6 +10,13 @@ import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
 import NumismaticaList from './NumismaticaList'
+import {
+  NUMISMATICA_GROUP_OPTIONS,
+  NUMISMATICA_SORT_OPTIONS,
+  type NumismaticaGroupBy,
+  type NumismaticaSortBy,
+} from './numismaticaUi'
+import AssetDetailModal from './AssetDetailModal'
 import { CONSERVATION_STATES, formatSignedYear } from './numismaticaMeta'
 import {
   ASSET_CATEGORIES,
@@ -59,17 +66,6 @@ function assetValue(asset: AssetItem): number {
   return asset.currentValue ?? asset.market_value ?? asset.value ?? asset.purchase_price ?? 0
 }
 
-function containerLabel(asset: AssetItem): string {
-  if (asset.numismatica_type === 'medalla') return asset.medal_location?.trim() || 'Sin ubicación'
-  return asset.case_location?.trim() || 'Sin contenedor'
-}
-
-function locationSortKey(asset: AssetItem): string {
-  const container = normalizeText(containerLabel(asset))
-  const position = (asset.case_number ?? '').replace(/[^\d]/g, '').padStart(6, '0')
-  return `${container}\u0000${position}\u0000${normalizeText(asset.name)}`
-}
-
 export default function CollectionsPage() {
   const navigate = useNavigate()
   const { assetSlug: routeAssetSlug, collectionKey } = useParams<{ assetSlug?: string; collectionKey?: string }>()
@@ -84,6 +80,7 @@ export default function CollectionsPage() {
 
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [detailAsset, setDetailAsset] = useState<AssetItem | null>(null)
 
   const [assetToDelete, setAssetToDelete] = useState<AssetItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -92,7 +89,8 @@ export default function CollectionsPage() {
   const [selectedCategory, setSelectedCategory] = useState<'all' | AssetCategory>('all')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagFilterOpen, setTagFilterOpen] = useState(false)
-  const [sortBy, setSortBy] = useState('name')
+  const [sortBy, setSortBy] = useState<NumismaticaSortBy>('name')
+  const [groupBy, setGroupBy] = useState<NumismaticaGroupBy>('location')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMaterial, setSelectedMaterial] = useState('all')
   const [selectedConservationState, setSelectedConservationState] = useState('all')
@@ -136,7 +134,9 @@ export default function CollectionsPage() {
     setSelectedNumismaticaType('all')
     setOnlyReview(false)
     setSearchQuery('')
-  }, [collectionKey])
+    setSortBy(activeCollection === 'numismatica' ? 'inventory' : 'name')
+    setGroupBy('location')
+  }, [collectionKey, activeCollection])
 
   const ownerOptions = useMemo(() => getOwnerOptions(properties, assets), [properties, assets])
   const defaultOwner = useMemo(() => getDefaultOwner(properties, assets), [properties, assets])
@@ -146,9 +146,11 @@ export default function CollectionsPage() {
   )
 
   useEffect(() => {
-    if (!routeAssetSlug || !routedAsset) return
-    setEditingAsset(routedAsset)
-    setIsModalOpen(true)
+    if (!routeAssetSlug) {
+      setDetailAsset(null)
+      return
+    }
+    if (routedAsset) setDetailAsset(routedAsset)
   }, [routeAssetSlug, routedAsset])
 
   const scopedAssets = useMemo(
@@ -269,7 +271,14 @@ export default function CollectionsPage() {
     return filtered.sort((a, b) => {
       if (sortBy === 'value-desc') return assetValue(b) - assetValue(a)
       if (sortBy === 'year-asc') return (a.year ?? Infinity) - (b.year ?? Infinity)
-      if (sortBy === 'location-asc') return locationSortKey(a).localeCompare(locationSortKey(b), 'es')
+      if (sortBy === 'material') return (a.material ?? '').localeCompare(b.material ?? '', 'es')
+      if (sortBy === 'conservation') return (a.conservationState ?? '').localeCompare(b.conservationState ?? '', 'es')
+      if (sortBy === 'inventory') {
+        const aNumber = Number.parseInt((a.inventory_number ?? a.case_number ?? '').replace(/[^\d]/g, ''), 10)
+        const bNumber = Number.parseInt((b.inventory_number ?? b.case_number ?? '').replace(/[^\d]/g, ''), 10)
+        return (Number.isNaN(aNumber) ? Infinity : aNumber) - (Number.isNaN(bNumber) ? Infinity : bNumber)
+          || a.name.localeCompare(b.name, 'es')
+      }
       return a.name.localeCompare(b.name, 'es')
     })
   }, [
@@ -284,7 +293,19 @@ export default function CollectionsPage() {
     setIsModalOpen(true)
   }
 
-  const handleOpenEditModal = (asset: AssetItem) => {
+  const handleOpenDetail = (asset: AssetItem) => {
+    navigate(`/bienes/categoria/${categoryCollection(asset.category)}/${assetSlug(asset, assets)}`)
+  }
+
+  const handleCloseDetail = () => {
+    setDetailAsset(null)
+    if (routeAssetSlug) {
+      const target = activeCollection ?? categoryCollection(detailAsset?.category)
+      navigate(`/bienes/categoria/${target}`, { replace: true })
+    }
+  }
+
+  const handleEditFromDetail = (asset: AssetItem) => {
     setEditingAsset(asset)
     setIsModalOpen(true)
   }
@@ -292,15 +313,12 @@ export default function CollectionsPage() {
   const handleCloseAssetModal = () => {
     setIsModalOpen(false)
     setEditingAsset(null)
-    if (routeAssetSlug) {
-      const target = categoryCollection(routedAsset?.category ?? editingAsset?.category)
-      navigate(`/bienes/categoria/${target}`, { replace: true })
-    }
   }
 
   const handleAssetSaved = (category: AssetCategory) => {
     setIsModalOpen(false)
     setEditingAsset(null)
+    setDetailAsset(null)
     navigate(`/bienes/categoria/${categoryCollection(category)}`, { replace: Boolean(routeAssetSlug) })
   }
 
@@ -309,6 +327,7 @@ export default function CollectionsPage() {
     setIsDeleting(true)
     try {
       await deleteAsset(assetToDelete.id)
+      if (detailAsset?.id === assetToDelete.id) handleCloseDetail()
       setAssetToDelete(null)
     } catch (error) {
       alert(`Error al eliminar: ${error instanceof Error ? error.message : 'Error desconocido'}`)
@@ -362,9 +381,6 @@ export default function CollectionsPage() {
               {isMigratingPhotos ? 'Migrando fotos…' : `Migrar ${legacyPhotoCount} foto(s) antiguas`}
             </button>
           )}
-          <button onClick={() => navigate('/bienes/importar')} className="rounded-xl border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-800">
-            Importar datos
-          </button>
           <button onClick={handleOpenAddModal} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-teal-500/10 transition hover:bg-teal-600">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             {isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
@@ -452,7 +468,7 @@ export default function CollectionsPage() {
             ) : (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {recentAssets.map((asset) => (
-                  <AssetCard key={asset.id} asset={asset} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} />
+                  <AssetCard key={asset.id} asset={asset} onOpen={handleOpenDetail} onDelete={setAssetToDelete} />
                 ))}
               </div>
             )}
@@ -581,12 +597,38 @@ export default function CollectionsPage() {
                   ⚠️ Solo REVISAR ({reviewCount})
                 </button>
               )}
-              <select value={sortBy} onChange={(event) => setSortBy(event.target.value)} className={`${filterInputClass} sm:w-52`}>
-                <option value="name">Ordenar: nombre</option>
-                <option value="year-asc">Año: más antiguo</option>
-                <option value="value-desc">Valor: mayor a menor</option>
-                <option value="location-asc">Ubicación: contenedor</option>
-              </select>
+              {isNumismaticaCollection ? (
+                <>
+                  <select
+                    value={groupBy}
+                    onChange={(event) => setGroupBy(event.target.value as NumismaticaGroupBy)}
+                    className={`${filterInputClass} sm:w-52`}
+                    aria-label="Agrupar por"
+                  >
+                    <option value="none">Agrupar: sin agrupar</option>
+                    {NUMISMATICA_GROUP_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>Agrupar: {option.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={sortBy}
+                    onChange={(event) => setSortBy(event.target.value as NumismaticaSortBy)}
+                    className={`${filterInputClass} sm:w-56`}
+                    aria-label="Ordenar por"
+                  >
+                    {NUMISMATICA_SORT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>Ordenar: {option.label}</option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <select value={sortBy} onChange={(event) => setSortBy(event.target.value as NumismaticaSortBy)} className={`${filterInputClass} sm:w-52`}>
+                  <option value="name">Ordenar: nombre</option>
+                  <option value="year-asc">Año: más antiguo</option>
+                  <option value="value-desc">Valor: mayor a menor</option>
+                  <option value="material">Material</option>
+                </select>
+              )}
             </div>
           </div>
 
@@ -600,16 +642,24 @@ export default function CollectionsPage() {
               addLabel={isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
             />
           ) : isNumismaticaCollection ? (
-            <NumismaticaList assets={filteredAssets} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} groupByLocation={sortBy === 'location-asc'} />
+            <NumismaticaList assets={filteredAssets} onOpen={handleOpenDetail} onDelete={setAssetToDelete} groupBy={groupBy} sortBy={sortBy} />
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredAssets.map((asset) => (
-                <AssetCard key={asset.id} asset={asset} onOpen={handleOpenEditModal} onDelete={setAssetToDelete} />
+                <AssetCard key={asset.id} asset={asset} onOpen={handleOpenDetail} onDelete={setAssetToDelete} />
               ))}
             </div>
           )}
         </>
       )}
+
+      <AssetDetailModal
+        asset={detailAsset}
+        suspended={isModalOpen}
+        onClose={handleCloseDetail}
+        onEdit={handleEditFromDetail}
+        onDelete={setAssetToDelete}
+      />
 
       <AssetModal
         isOpen={isModalOpen}

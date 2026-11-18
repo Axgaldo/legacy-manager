@@ -7,7 +7,6 @@ import PropertiesPage     from '@/features/properties/PropertiesPage'
 import PropertyDetailPage from '@/features/properties/PropertyDetailPage'
 import TenantDetailPage   from '@/features/tenants/TenantDetailPage'
 import CollectionsPage    from '@/features/collections/CollectionsPage'
-import ImportAssetsPage   from '@/features/collections/ImportAssetsPage'
 
 /** Keeps old /inquilinos/:id links working after moving Inquilinos under Inmuebles. */
 function LegacyTenantRedirect() {
@@ -44,8 +43,9 @@ export default function App() {
             <Route path="/inquilinos/:id" element={<LegacyTenantRedirect />} />
 
             <Route path="/bienes" element={<CollectionsPage />} />
-            <Route path="/bienes/importar" element={<ImportAssetsPage />} />
+            <Route path="/bienes/importar" element={<Navigate to="/bienes" replace />} />
             <Route path="/bienes/categoria/:collectionKey" element={<CollectionsPage />} />
+            <Route path="/bienes/categoria/:collectionKey/:assetSlug" element={<CollectionsPage />} />
             <Route path="/bienes/:assetSlug" element={<CollectionsPage />} />
           </Route>
         </Routes>

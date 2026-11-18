@@ -1,0 +1,316 @@
+import { ReactNode, useEffect, useState } from 'react'
+import { AssetItem } from '@/types'
+import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
+import { getCategoryInfo } from './assetCategories'
+import {
+  coinValue,
+  conservationTone,
+  formatEuro,
+  hasValue,
+  isMedal,
+  locationLabel,
+  normalizeUiText,
+  sizeLabel,
+  yearLabel,
+} from './numismaticaUi'
+
+function formatText(value?: string | number): string {
+  if (value === undefined || value === null) return ''
+  return String(value).trim()
+}
+
+function formatOriginal(amount?: number, currency?: string): string {
+  if (amount === undefined) return ''
+  const formatted = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(amount)
+  return currency ? `${formatted} ${currency}` : formatted
+}
+
+function Field({ label, value }: { label: string; value?: string | number }) {
+  const text = formatText(value)
+  if (!text) return null
+  return (
+    <div className="min-w-0">
+      <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm text-slate-200">{text}</dd>
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+      <h4 className="mb-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">{title}</h4>
+      {children}
+    </section>
+  )
+}
+
+export default function AssetDetailModal({
+  asset,
+  onClose,
+  onEdit,
+  onDelete,
+  suspended = false,
+}: {
+  asset: AssetItem | null
+  onClose: () => void
+  onEdit: (asset: AssetItem) => void
+  onDelete: (asset: AssetItem) => void
+  suspended?: boolean
+}) {
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!asset || suspended) return
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [asset, onClose, suspended])
+
+  useEffect(() => {
+    setCopied(false)
+  }, [asset?.id])
+
+  if (!asset) return null
+
+  const category = getCategoryInfo(asset.category)
+  const medal = isMedal(asset)
+  const tone = conservationTone(asset.conservationState)
+  const photos = asset.photos ?? []
+  const tags = (asset.tags ?? []).filter((tag) => tag.trim())
+  const value = coinValue(asset)
+  const isNumismatica = normalizeUiText(asset.category) === 'numismatica'
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      window.prompt('Copia el enlace de esta ficha:', window.location.href)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Ficha de ${asset.name}`}
+      onClick={onClose}
+    >
+      <div
+        className="my-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="sticky top-0 z-10 flex flex-wrap items-start justify-between gap-3 border-b border-slate-700 bg-slate-900/95 px-5 py-4 backdrop-blur">
+          <div className="min-w-0">
+            <p className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              <span>{category.icon} {category.label}</span>
+              <span className="text-slate-700">·</span>
+              <span>{medal ? 'Medalla' : isNumismatica ? 'Moneda' : 'Bien'}</span>
+              {asset.owner && <><span className="text-slate-700">·</span><span>👤 {asset.owner}</span></>}
+            </p>
+            <h3 className="mt-1 text-xl font-bold tracking-tight text-slate-100">{asset.name}</h3>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {asset.catalog_reference && (
+                <span className="rounded border border-slate-700 bg-slate-950 px-2 py-0.5 font-mono text-[10px] text-slate-300">
+                  {asset.catalog_reference}
+                </span>
+              )}
+              {asset.conservationState && (
+                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${tone.chip}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+                  {asset.conservationState}
+                </span>
+              )}
+              {tags.slice(0, 6).map((tag) => (
+                <span
+                  key={tag}
+                  className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    normalizeUiText(tag) === 'revisar'
+                      ? 'border-amber-800 bg-amber-950/60 text-amber-300'
+                      : 'border-slate-700 bg-slate-950 text-slate-400'
+                  }`}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={copyLink}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              title="Copiar enlace de esta ficha"
+            >
+              {copied ? '✓ Copiado' : '🔗 Copiar enlace'}
+            </button>
+            <button
+              type="button"
+              onClick={() => onEdit(asset)}
+              className="rounded-lg bg-teal-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-teal-600"
+            >
+              Editar
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(asset)}
+              className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-950/70"
+            >
+              Borrar
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar ficha"
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-slate-100"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <SummaryTile label="Año" value={yearLabel(asset)} />
+              <SummaryTile label="Material" value={asset.material || '—'} />
+              <SummaryTile label={medal ? 'Tamaño' : 'Ceca'} value={medal ? sizeLabel(asset.medal_size_mm) || '—' : asset.mint || '—'} />
+              <SummaryTile
+                label="Valor"
+                value={hasValue(asset) ? formatEuro(value) : '—'}
+                valueClass={hasValue(asset) ? 'text-emerald-400' : 'text-slate-500'}
+              />
+            </div>
+
+            {(asset.obverse_info || asset.reverse_info) && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {asset.obverse_info && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Anverso</p>
+                    <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-200">{asset.obverse_info}</p>
+                  </div>
+                )}
+                {asset.reverse_info && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Reverso</p>
+                    <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-200">{asset.reverse_info}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {asset.description && (
+              <Section title="Descripción">
+                <p className="whitespace-pre-line text-sm leading-relaxed text-slate-300">{asset.description}</p>
+              </Section>
+            )}
+
+            <Section title="Datos">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                <Field label="Denominación" value={asset.denomination} />
+                <Field label="Gobernante" value={asset.ruler} />
+                <Field label="Período" value={asset.empire_reign} />
+                <Field label="País" value={asset.country} />
+                <Field label="Ceca" value={asset.mint} />
+                <Field label="Marca de ceca" value={asset.mint_mark} />
+                <Field label="Época" value={asset.era || asset.historicalEra} />
+                <Field label="Peso" value={asset.weight_grams ? `${asset.weight_grams} g` : ''} />
+                <Field label="Diámetro" value={asset.diameter_mm ? `${asset.diameter_mm} mm` : ''} />
+                <Field label="Catálogo" value={asset.catalog_reference} />
+                <Field label="Nº inventario" value={asset.inventory_number} />
+                <Field label="Ubicación" value={locationLabel(asset)} />
+                <Field label="Motivo" value={asset.medal_motive} />
+                <Field label="Autor / marca" value={asset.brandOrAuthor} />
+                <Field label="Origen" value={asset.placeOfOrigin} />
+                <Field label="Año de adquisición" value={asset.acquisitionYear} />
+              </dl>
+            </Section>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Section title="Valoración">
+                <dl className="grid grid-cols-1 gap-3">
+                  <Field label="Valor de mercado" value={asset.market_value !== undefined ? formatEuro(asset.market_value) : ''} />
+                  <Field label="Valor de referencia" value={asset.reference_book_value !== undefined ? formatEuro(asset.reference_book_value) : ''} />
+                  <Field
+                    label="Importe original de referencia"
+                    value={formatOriginal(asset.reference_book_value_original, asset.reference_book_currency)}
+                  />
+                  <Field label="Libro de referencia" value={asset.reference_book} />
+                  <Field label="Valor declarado" value={asset.value !== undefined ? formatEuro(asset.value) : ''} />
+                  <Field label="Fuente del valor" value={asset.value_source} />
+                  <Field label="Precio de compra" value={asset.purchase_price !== undefined ? formatEuro(asset.purchase_price) : ''} />
+                  <Field
+                    label="Importe original de compra"
+                    value={formatOriginal(asset.purchase_price_original, asset.purchase_currency)}
+                  />
+                  <Field label="Año de compra" value={asset.purchase_year} />
+                  <Field label="Operación" value={asset.acquisition_operation} />
+                  <Field label="Procedencia" value={asset.acquisition_source} />
+                </dl>
+              </Section>
+
+              <Section title="Notas">
+                {asset.notes ? (
+                  <p className="whitespace-pre-line text-sm leading-relaxed text-slate-300">{asset.notes}</p>
+                ) : (
+                  <p className="text-xs text-slate-500">Sin notas.</p>
+                )}
+                <div className="mt-3 border-t border-slate-800 pt-3 text-[11px] text-slate-500">
+                  <p>Alta: {asset.added_date || '—'}</p>
+                  <p className="mt-0.5">ID: {asset.id}</p>
+                </div>
+              </Section>
+            </div>
+          </div>
+
+          <aside className="space-y-3">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Imágenes ({photos.length})</h4>
+            {photos.length === 0 ? (
+              <div className="flex aspect-square w-full items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/60 text-4xl text-slate-700">
+                {category.icon}
+              </div>
+            ) : (
+              <div className={`grid gap-3 ${photos.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {photos.map((photo, index) => (
+                  <div
+                    key={`${photo}-${index}`}
+                    className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-950"
+                    title="Imagen de la ficha"
+                  >
+                    <PrivateStorageImage
+                      source={photo}
+                      alt={`${asset.name} ${index + 1}`}
+                      className="h-full w-full object-contain transition group-hover:scale-[1.02]"
+                    />
+                    {asset.photoSizesBytes?.[index] ? (
+                      <span className="absolute bottom-1 right-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[9px] text-slate-400">
+                        {(asset.photoSizesBytes[index] / 1024).toFixed(0)} KB
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SummaryTile({ label, value, valueClass = 'text-slate-100' }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className={`mt-0.5 truncate text-sm font-semibold ${valueClass}`} title={value}>{value}</p>
+    </div>
+  )
+}

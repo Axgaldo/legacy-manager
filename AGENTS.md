@@ -45,6 +45,7 @@
     - **Divisas:** `purchase_price_original` + `purchase_currency` and `reference_book_value_original` + `reference_book_currency` keep the original amount; the euro fields (`purchase_price`, `reference_book_value`) are auto-converted and remain editable. Peseta (166,386) and French franc (6,55957) use fixed rates; CHF/USD/GBP use editable approximate defaults.
     - **Etiquetas en numismática:** defects, rarities, variants and sets use tags/comments (e.g. `RARA`, `AGUJERO`, `CANTO ESTRIADO`, `CONJUNTO`) instead of dedicated fields.
     - Documents without `numismatica_type` are treated as `moneda`; legacy `medals`/`medallas` categories normalize to `numismatica` and infer `medalla`. The list shows 🪙/🏅, the catalog code next to the name, and the filter row has a **Tipo** selector (todo / monedas / medallas).
+    - **Lista y ficha:** agrupación por defecto por contenedor y orden por número del archivador, con selectores de agrupar/ordenar; cada fila muestra dos líneas (datos + anverso, reverso, notas y etiquetas) y el estado de conservación va coloreado. Al pulsar una pieza se abre una ficha flotante con todos los datos e imágenes, botones de editar/borrar y URL propia `/bienes/categoria/:coleccion/:slug` para compartirla.
 - **Relojes:** no dedicated form; the generic asset form plus photos is enough.
 - **Common fields:** name, owner, category, tags, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, mint_mark, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes. `location` was removed; coin location is `case_location`/`case_number` in advanced details.
 
@@ -53,12 +54,10 @@
 - **Legacy categories:** Old Firestore categories (`coins`, `banknotes`, `art`, `watches`, etc.) are normalized on read to the current Spanish categories. No manual data migration is required.
 - **Completed:** Numismática module with all fields (denomination, inventory_number, catalog_reference, material, conservationState, era, creation_year_range, empire_reign, ruler, country, mint, mint_mark, manufacturing_place, weight_grams, diameter_mm, obverse_info, reverse_info, value, market_value, value_source, purchase_price, purchase_price_original, purchase_currency, acquisition_source, purchase_year, reference_book, reference_book_value, reference_book_value_original, reference_book_currency, case_location, case_number, added_date). `coin_type` and generic `location` were removed.
 
-## Importación de datos (herramienta temporal)
-- Ruta privada `/bienes/importar`, accesible con el botón «Importar datos» de la página de Bienes.
-- Carga un JSON local con forma `{ batch, description?, records: AssetImportRecord[] }` (o una lista de fichas). El archivo no se sube al repositorio ni a Storage.
-- Previsualiza, valida y escribe en `assets` por lotes de 400; no importa fotos en la primera fase.
-- Idempotencia mediante `import_key`; `import_batch`, `import_source` e `import_row` quedan como trazabilidad oculta en la ficha.
-- La pantalla es temporal y se retirará cuando terminen las fases de importación.
+## Importación de datos (retirada)
+- La pantalla temporal `/bienes/importar` y el botón «Importar datos» se han **eliminado** una vez completadas las fases de importación.
+- Se conservan los campos ocultos de trazabilidad ya escritos en las fichas: `import_key`, `import_batch`, `import_source` e `import_row`.
+- Los JSON y las herramientas de importación siguen en `_import/` (ignorada por git) solo como respaldo documental.
 
 ## Development Context (Vibe Coding)
 - Be proactive: Make reasonable assumptions to keep the workflow moving.
@@ -91,6 +90,7 @@
     - **1.4.0:** Pantalla temporal `/bienes/importar` para cargar un JSON local, previsualizar y escribir por lotes con idempotencia (`import_key`). Se añaden `import_batch`, `import_source` e `import_row` como campos ocultos de trazabilidad.
     - **1.5.0:** Orden y agrupación por ubicación/contenedor en Numismática: nueva opción «Ubicación: contenedor», agrupada por álbum/estuche/bandeja para monedas y por ubicación para medallas.
     - **1.6.0:** Filtro «Solo REVISAR» y distintivo REVISAR en la lista de Numismática. Las fichas importadas con dudas llevan la etiqueta `REVISAR` y el detalle en comentarios/notas, para poder localizarlas sin mezclarlas con el resto.
+    - **1.7.0:** Lista de Numismática rediseñada: agrupación por defecto por contenedor y orden por número del archivador, con selectores de agrupar (ubicación, propietario, material, conservación, época, tipo) y ordenar (inventario, nombre, valor, año, material, conservación). Cada fila ocupa dos líneas y muestra anverso, reverso, notas y etiquetas; los estados de conservación llevan color. Al pulsar una pieza se abre una ficha flotante con todos los datos, imágenes a la derecha, botones de editar/borrar/copiar enlace, y URL propia `/bienes/categoria/:coleccion/:slug`. Se retira la pantalla de importación.
     - **Medallas:** se descartan los dos archivos ingleses de 2014 por ser un subconjunto incompleto de 2012 (sin números nuevos). Las medallas inglesas de 2012 y las fichas 238-246 de «MEDALLAS VARIOS PAISES» se asignan a Elena Carter; el resto, a Gabriel Galdó.
 
 ---
