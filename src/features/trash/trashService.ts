@@ -301,6 +301,13 @@ export async function purgeTrashEntry(entry: TrashEntry): Promise<PurgeResult> {
 
   if (entry.kind === 'asset') {
     const skippedFiles = await deleteStorageFiles((entry.photos ?? []).filter(isStoragePath))
+    // Respaldos de fotos legacy guardados en Firestore (base64) antes de Storage.
+    const backups = await getDocs(collection(db, 'assetPhotoBackups', entry.id, 'photos'))
+    for (let index = 0; index < backups.docs.length; index += BATCH_LIMIT) {
+      const batch = writeBatch(db)
+      backups.docs.slice(index, index + BATCH_LIMIT).forEach((item) => batch.delete(item.ref))
+      await batch.commit()
+    }
     await deleteDoc(doc(db, COLLECTIONS.assets, entry.id))
     return { skippedFiles }
   }

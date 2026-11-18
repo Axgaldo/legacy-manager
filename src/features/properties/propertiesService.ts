@@ -3,7 +3,6 @@ import {
   doc,
   addDoc,
   updateDoc,
-  deleteDoc,
   onSnapshot,
   query,
   orderBy,
@@ -52,7 +51,6 @@ export function subscribeToProperties(
           tenantNif: data.tenantNif ?? '',
           depositAmount: data.depositAmount ? Number(data.depositAmount) : undefined,
           avraReference: data.avraReference ?? '',
-          fixedExpensesMonthly: data.fixedExpensesMonthly ? Number(data.fixedExpensesMonthly) : undefined,
           currentValue: data.currentValue ? Number(data.currentValue) : undefined,
           notes: data.notes ?? '',
           deletedAt: data.deletedAt || undefined,
@@ -91,7 +89,3 @@ export async function updateProperty(
   })
 }
 
-export async function deleteProperty(id: string) {
-  const docRef = doc(db, COLLECTION_NAME, id)
-  return await deleteDoc(docRef)
-}

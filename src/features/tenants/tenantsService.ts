@@ -3,7 +3,6 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -19,7 +18,6 @@ import { db } from '@/lib/firebase'
 import { Property, Tenant, TenantDocument, TenantDocumentKind } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
 import {
-  deletePrivateStorageFile,
   getPrivateStorageBlob,
   uploadPrivateStorageBlob,
 } from '@/lib/storageFiles'
@@ -246,17 +244,6 @@ export async function getTenantDocumentBlob(document: TenantDocument): Promise<B
   return getPrivateStorageBlob(document.storagePath)
 }
 
-export async function deleteTenantDocument(document: TenantDocument): Promise<void> {
-  if (document.storagePath) {
-    try {
-      await deletePrivateStorageFile(document.storagePath)
-    } catch (error) {
-      console.warn('No se pudo borrar el archivo del almacenamiento, se elimina solo el registro:', error)
-    }
-  }
-  await deleteDoc(doc(db, DOCUMENTS_COLLECTION, document.id))
-}
-
 export async function linkTenantToProperty(property: Property, tenantId: string): Promise<void> {
   if ((property.tenantIds ?? []).includes(tenantId)) return
   await updateDoc(doc(db, PROPERTIES_COLLECTION, property.id), {
@@ -375,21 +362,6 @@ export async function ensureTenantFromLegacyData(
     })
   }
   return tenantId
-}
-
-/** Deletes the tenant, all of its documents and every link from its properties. */
-export async function deleteTenantCompletely(tenantId: string, properties: Property[]): Promise<void> {
-  const documents = await getDocs(query(collection(db, DOCUMENTS_COLLECTION), where('tenantId', '==', tenantId)))
-  for (const item of documents.docs) {
-    await deleteTenantDocument(mapTenantDocument(item.id, item.data()))
-  }
-
-  const linkedProperties = properties.filter((property) => (property.tenantIds ?? []).includes(tenantId))
-  for (const property of linkedProperties) {
-    await unlinkTenantFromProperty(property, tenantId)
-  }
-
-  await deleteDoc(doc(db, TENANTS_COLLECTION, tenantId))
 }
 
 function timestampValue(value: any): number {

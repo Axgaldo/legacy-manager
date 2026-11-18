@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Property, PropertyStatus, AssetItem, RentPayment, RecurringExpenseSchedule, Tenant } from '@/types'
 import { subscribeToProperties } from './propertiesService'
@@ -186,7 +186,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
   }, [properties, recurringSchedules, today])
 
   // Filtered properties
-  const tenantNamesFor = (property: Property): string[] => {
+  const tenantNamesFor = useCallback((property: Property): string[] => {
     const linked = (property.tenantIds ?? [])
       .map((tenantId) => tenants.find((tenant) => tenant.id === tenantId)?.name)
       .filter((name): name is string => Boolean(name))
@@ -194,7 +194,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
     const embedded = property.tenants?.map((tenant) => tenant.name).filter(Boolean) ?? []
     if (embedded.length) return embedded
     return property.tenantName ? [property.tenantName] : []
-  }
+  }, [tenants])
 
   const filteredProperties = useMemo(() => {
     return properties.filter((p) => {
@@ -211,7 +211,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
 
       return matchesStatus && matchesOwner && matchesSearch
     })
-  }, [properties, statusFilter, ownerFilter, searchQuery, tenants])
+  }, [properties, statusFilter, ownerFilter, searchQuery, tenantNamesFor])
 
   const handleOpenAddModal = () => {
     setEditingProperty(null)

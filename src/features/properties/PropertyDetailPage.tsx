@@ -126,6 +126,10 @@ export default function PropertyDetailPage() {
     return () => window.clearInterval(timer)
   }, [])
 
+  // Id estable del inmueble: evita que los efectos dependan del objeto completo
+  // (que cambia con cada snapshot) y que se queden con datos del inmueble anterior.
+  const propertyId = property?.id
+
   // Subscribe to property
   useEffect(() => {
     if (!id) return
@@ -145,39 +149,39 @@ export default function PropertyDetailPage() {
 
   // Subscribe to rent payments for selected year
   useEffect(() => {
-    if (!property) return
-    const unsub = subscribeToYearPayments(property.id, selectedYear, (items) => {
+    if (!propertyId) return
+    const unsub = subscribeToYearPayments(propertyId, selectedYear, (items) => {
       setPayments(items)
     })
     return () => unsub()
-  }, [property?.id, selectedYear])
+  }, [propertyId, selectedYear])
 
   // Subscribe to expenses
   useEffect(() => {
-    if (!property) return
-    const unsub = subscribeToPropertyExpenses(property.id, (items) => {
+    if (!propertyId) return
+    const unsub = subscribeToPropertyExpenses(propertyId, (items) => {
       setExpenses(items)
     })
     return () => unsub()
-  }, [property?.id])
+  }, [propertyId])
 
   // Subscribe to contracts
   useEffect(() => {
-    if (!property) return
-    const unsub = subscribeToPropertyContracts(property.id, (items) => {
+    if (!propertyId) return
+    const unsub = subscribeToPropertyContracts(propertyId, (items) => {
       setContracts(items)
     })
     return () => unsub()
-  }, [property?.id])
+  }, [propertyId])
 
   // Subscribe to recurring expenses (hero de la ficha: media mensual)
   useEffect(() => {
-    if (!property) return
-    const unsubSchedules = subscribeToRecurringExpenseSchedules(property.id, setRecurringSchedules, () => {})
+    if (!propertyId) return
+    const unsubSchedules = subscribeToRecurringExpenseSchedules(propertyId, setRecurringSchedules, () => {})
     return () => {
       unsubSchedules()
     }
-  }, [property?.id])
+  }, [propertyId])
 
   // Tenant directory and document index (used by the tenants tab and hero badges)
   useEffect(() => subscribeToTenants(setTenants, (error) => console.error('No se pudieron cargar los inquilinos:', error)), [])
@@ -187,7 +191,7 @@ export default function PropertyDetailPage() {
   useEffect(() => {
     if (!property || !id) return
     void migratePropertyTenants(property)
-  }, [property])
+  }, [property, id])
 
   // Map of payments by month (1..12)
   const paymentsByMonth = useMemo(() => {

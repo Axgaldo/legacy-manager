@@ -44,7 +44,6 @@ export interface Property extends TimestampedDoc {
   tenantNif?: string
   depositAmount?: number
   avraReference?: string
-  fixedExpensesMonthly?: number
   currentValue?: number
   notes?: string
   /** ISO date set when the record is moved to the trash (soft delete). */

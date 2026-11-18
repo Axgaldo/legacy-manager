@@ -2,11 +2,9 @@ import {
   collection,
   doc,
   addDoc,
-  getDoc,
   getDocs,
   setDoc,
   updateDoc,
-  deleteDoc,
   onSnapshot,
   query,
   orderBy,
@@ -174,14 +172,6 @@ export async function updateAsset(
   }
   const retained = new Set(stored.paths)
   await Promise.allSettled(previousPhotos.filter(isStoragePath).filter((path) => !retained.has(path)).map(deletePrivateStorageFile))
-}
-
-export async function deleteAsset(id: string) {
-  const docRef = doc(db, COLLECTION_NAME, id)
-  const snapshot = await getDoc(docRef)
-  const asset = snapshot.data()
-  await deleteDoc(docRef)
-  if (Array.isArray(asset?.photos)) await Promise.allSettled(asset.photos.filter((path: unknown): path is string => typeof path === 'string' && isStoragePath(path)).map(deletePrivateStorageFile))
 }
 
 export async function migrateLegacyAssetPhotos(onProgress?: (done: number, total: number) => void) {
