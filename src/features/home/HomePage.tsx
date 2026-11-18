@@ -286,7 +286,6 @@ export default function HomePage() {
             <span className="mx-1.5 text-slate-700">·</span>
             Flujo neto aprox.: <span className={`font-semibold ${netMonthly >= 0 ? 'text-teal-300' : 'text-red-400'}`}>{money.formatEuro(netMonthly)}</span>
           </p>
-          <p className="mt-2 text-xs font-semibold text-teal-300 group-hover:text-teal-200">Abrir Inmuebles →</p>
         </button>
 
         <button
@@ -300,7 +299,6 @@ export default function HomePage() {
           <p className="mt-3 border-t border-slate-800 pt-3 text-xs text-slate-400">
             Valoración total: <span className="font-semibold text-emerald-400">{money.formatEuro(totalAssetsValue)}</span>
           </p>
-          <p className="mt-2 text-xs font-semibold text-teal-300 group-hover:text-teal-200">Abrir Bienes →</p>
         </button>
       </div>
 

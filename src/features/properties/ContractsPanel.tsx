@@ -242,9 +242,11 @@ export default function ContractsPanel({ property, contracts, tenants = [] }: Pr
 
   const editingContractPdf = editingContract ? versionsByDocument.get('contract:' + editingContract.id)?.[0] : undefined
 
-  const renderFilePreview = (key: string, title: string, compact = false) => {
+  const renderFilePreview = (key: string, title: string, size: 'md' | 'sm' = 'md') => {
     const latest = versionsByDocument.get(key)?.[0]
-    return latest ? <PdfThumbnail version={latest} title={title} compact={compact} onOpen={() => void openPdfInNewTab(latest)} /> : <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-slate-700 text-xs text-slate-500">Todavía no hay PDF asociado.</div>
+    return latest
+      ? <PdfThumbnail version={latest} title={title} size={size} onOpen={() => void openPdfInNewTab(latest)} />
+      : <div className={`${size === 'sm' ? 'w-24 sm:w-28' : 'w-32 sm:w-36'} flex aspect-[3/4] items-center justify-center rounded-lg border border-dashed border-slate-700 px-2 text-center text-[10px] leading-snug text-slate-500`}>Todavía no hay PDF asociado</div>
   }
 
   const renderFileControls = (key: string, contractId: string, kind: ContractFileKind, addendumId?: string) => {
@@ -256,7 +258,7 @@ export default function ContractsPanel({ property, contracts, tenants = [] }: Pr
     </div>
   }
 
-  const renderFiles = (key: string, title: string, contractId: string, kind: ContractFileKind, addendumId?: string) => <div className="mt-3 space-y-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">{renderFilePreview(key, title, kind === 'addendum')} {renderFileControls(key, contractId, kind, addendumId)}</div>
+  const renderFiles = (key: string, title: string, contractId: string, kind: ContractFileKind, addendumId?: string) => <div className="mt-3 flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-start sm:justify-between">{renderFileControls(key, contractId, kind, addendumId)} {renderFilePreview(key, title, 'sm')}</div>
 
   return <div className="space-y-5 animate-in fade-in duration-150">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-base font-bold text-slate-100">Contratos y adendas</h3><p className="mt-1 text-xs text-slate-400">PDF privados en Firebase Storage, con versiones conservadas.</p></div><div className="flex flex-wrap gap-2">{versions.some((version) => !version.storagePath) && <button disabled={isMigrating} onClick={() => void migrateExistingPdfs()} className="rounded-xl border border-slate-700 px-3 py-2 text-xs text-slate-200 disabled:opacity-50">{isMigrating ? 'Migrando…' : `Migrar ${versions.filter((version) => !version.storagePath).length} PDF(s) antiguos`}</button>}<button onClick={() => setNewContractOpen(true)} className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white hover:bg-teal-600">+ Añadir contrato PDF</button></div></div>
@@ -274,7 +276,7 @@ export default function ContractsPanel({ property, contracts, tenants = [] }: Pr
       <div className="space-y-4">
         {contracts.map((contract) => (
           <article key={contract.id} className={contract.isActive ? 'rounded-2xl border border-emerald-500 bg-slate-900 p-5 shadow-lg shadow-emerald-950/30 ring-1 ring-emerald-500/40' : 'rounded-2xl border border-slate-800 bg-slate-900 p-5'}>
-            <div className="grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-[minmax(250px,0.9fr)_minmax(0,1.5fr)]">
+            <div className="grid grid-cols-1 gap-x-5 gap-y-3 md:grid-cols-[minmax(0,1fr)_auto]">
               <button type="button" onClick={() => beginEdit(contract)} className="block w-full rounded-xl text-left transition hover:bg-slate-800/40 focus:outline-none focus:ring-2 focus:ring-teal-500 md:col-start-1 md:row-start-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className={contract.isActive ? 'rounded-full border border-emerald-400/50 bg-emerald-400/15 px-3 py-1 text-[11px] font-extrabold tracking-wide text-emerald-300' : 'rounded-full bg-slate-800 px-3 py-1 text-[11px] font-bold text-slate-400'}>{contract.isActive ? 'VIGENTE' : contract.endDate ? 'FINALIZADO' : 'NO VIGENTE'}</span>
@@ -327,7 +329,7 @@ export default function ContractsPanel({ property, contracts, tenants = [] }: Pr
   </div>
 }
 
-function PdfThumbnail({ version, title, compact = false, onOpen }: { version: ContractFileVersion; title: string; compact?: boolean; onOpen: () => void }) {
+function PdfThumbnail({ version, title, size = 'md', onOpen }: { version: ContractFileVersion; title: string; size?: 'md' | 'sm'; onOpen: () => void }) {
   const [url, setUrl] = useState('')
   const thumbnailRef = useRef<HTMLButtonElement | null>(null)
   useEffect(() => {
@@ -351,9 +353,9 @@ function PdfThumbnail({ version, title, compact = false, onOpen }: { version: Co
     }
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [version.id])
-  return <button ref={thumbnailRef} type="button" onClick={onOpen} className="group block w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-left" title={`Abrir ${title} en una pestaña nueva`}>
-    <div className={`relative w-full overflow-hidden bg-slate-800 ${compact ? 'aspect-square' : 'aspect-[3/4]'}`}>{url ? <iframe title={`Vista previa ${title}`} src={`${url}#zoom=page-width&toolbar=0`} tabIndex={-1} className="pointer-events-none absolute inset-x-0 top-0 h-[300%] w-full" /> : <div className="flex h-full items-center justify-center text-4xl text-teal-300">▤</div>}<span className="absolute inset-0 bg-transparent group-hover:bg-teal-400/5" /></div>
-    <div className="truncate border-t border-slate-800 px-2 py-1.5 text-[10px] text-slate-300">Abrir PDF en pestaña nueva · {version.fileName}</div>
+  return <button ref={thumbnailRef} type="button" onClick={onOpen} className={`group block ${size === 'sm' ? 'w-24 sm:w-28' : 'w-32 sm:w-36'} overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-left`} title={`Abrir ${title} en una pestaña nueva`}>
+    <div className="relative aspect-[3/4] w-full overflow-hidden bg-slate-800">{url ? <iframe title={`Vista previa ${title}`} src={`${url}#zoom=page-width&toolbar=0`} tabIndex={-1} className="pointer-events-none absolute inset-x-0 top-0 h-[300%] w-full" /> : <div className="flex h-full items-center justify-center text-2xl text-teal-300">▤</div>}<span className="absolute inset-0 bg-transparent group-hover:bg-teal-400/5" /></div>
+    <div className="truncate border-t border-slate-800 px-2 py-1.5 text-[10px] text-slate-300">Abrir PDF · {version.fileName}</div>
   </button>
 }
 function EditorPdfPreview({ version }: { version: ContractFileVersion }) {
