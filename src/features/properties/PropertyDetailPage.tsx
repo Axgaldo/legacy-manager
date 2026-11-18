@@ -375,8 +375,8 @@ export default function PropertyDetailPage() {
 
   if (!property) {
     return (
-      <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
-        <h3 className="text-lg font-bold text-slate-800">Inmueble no encontrado</h3>
+      <div className="bg-slate-900 rounded-2xl p-12 text-center border border-slate-800">
+        <h3 className="text-lg font-bold text-slate-100">Inmueble no encontrado</h3>
         <Link to="/inmuebles" className="mt-4 inline-block text-sm font-semibold text-teal-300 hover:underline">
           ← Volver al listado de Inmuebles
         </Link>
@@ -404,19 +404,19 @@ export default function PropertyDetailPage() {
       </div>
 
       {/* Property Hero Banner */}
-      <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-slate-900">{property.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-100">{property.name}</h1>
             <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-teal-200 border border-slate-700">
               👤 {property.owner || 'Gabriel'}
             </span>
             <span
               className={`px-2.5 py-1 rounded-full text-xs font-bold border ${
                 property.status === 'rented'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800'
                   : property.status === 'vacant'
-                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  ? 'bg-amber-950/60 text-amber-300 border-amber-800'
                   : 'bg-slate-800 text-teal-200 border-slate-700'
               }`}
             >
@@ -431,12 +431,12 @@ export default function PropertyDetailPage() {
           {/* Quick Info Badges */}
           <div className="flex flex-wrap items-center gap-2 mt-3">
             {(linkedTenants.length > 0 || property.tenants?.length || property.tenantName) && (
-              <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-xs font-medium text-slate-700">
+              <span className="px-2.5 py-1 bg-slate-800 rounded-lg text-xs font-medium text-slate-300">
                 👤 Inquilinos: <strong>{linkedTenants.map((tenant) => tenant.name).filter(Boolean).join(', ') || property.tenants?.map((tenant) => tenant.name).filter(Boolean).join(', ') || property.tenantName}</strong>
               </span>
             )}
             {property.depositAmount !== undefined && property.depositAmount > 0 && (
-              <span className="px-2.5 py-1 bg-emerald-50 rounded-lg text-xs font-medium text-emerald-800 border border-emerald-200">
+              <span className="px-2.5 py-1 bg-emerald-950/60 rounded-lg text-xs font-medium text-emerald-300 border border-emerald-800">
                 🔒 Fianza: <strong>{formatEuro(property.depositAmount)}</strong>
               </span>
             )}
@@ -449,27 +449,27 @@ export default function PropertyDetailPage() {
         </div>
 
         {/* Right Financial summary */}
-        <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/60 shrink-0">
+        <div className="flex items-center gap-4 bg-slate-950/50 p-4 rounded-xl border border-slate-800 shrink-0">
           <div>
             <p className="text-[10px] uppercase font-bold text-slate-400">Renta Mensual</p>
-            <p className="text-xl font-bold text-emerald-600">{formatEuro(rentAmountForMonth(property, today.getFullYear(), today.getMonth() + 1))}/mes</p>
+            <p className="text-xl font-bold text-emerald-400">{formatEuro(rentAmountForMonth(property, today.getFullYear(), today.getMonth() + 1))}/mes</p>
           </div>
-          <div className="w-px h-8 bg-slate-200" />
+          <div className="w-px h-8 bg-slate-800" />
           <div>
             <p className="text-[10px] uppercase font-bold text-slate-400">Gastos Fijos</p>
-            <p className="text-xl font-bold text-slate-700">{formatEuro(property.fixedExpensesMonthly)}/mes</p>
+            <p className="text-xl font-bold text-slate-300">{formatEuro(property.fixedExpensesMonthly)}/mes</p>
           </div>
         </div>
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 text-sm font-semibold">
+      <div className="flex items-center gap-2 border-b border-slate-800 text-sm font-semibold">
         <button
           onClick={() => setActiveTab('payments')}
           className={`pb-3 px-3.5 border-b-2 transition ${
             activeTab === 'payments'
               ? 'border-teal-700 text-teal-300'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              : 'border-transparent text-slate-500 hover:text-slate-200'
           }`}
         >
           💳 Control Mensual de Cobros
@@ -479,14 +479,14 @@ export default function PropertyDetailPage() {
           className={`pb-3 px-3.5 border-b-2 transition ${
             activeTab === 'expenses'
               ? 'border-teal-700 text-teal-300'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              : 'border-transparent text-slate-500 hover:text-slate-200'
           }`}
         >
           🧾 Gastos puntuales ({expenses.length})
         </button>
         <button
           onClick={() => setActiveTab('recurring')}
-          className={`pb-3 px-3.5 border-b-2 transition ${activeTab === 'recurring' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+          className={`pb-3 px-3.5 border-b-2 transition ${activeTab === 'recurring' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-200'}`}
         >
           🔁 Gastos periódicos
         </button>
@@ -495,7 +495,7 @@ export default function PropertyDetailPage() {
           className={`pb-3 px-3.5 border-b-2 transition ${
             activeTab === 'contracts'
               ? 'border-teal-700 text-teal-300'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              : 'border-transparent text-slate-500 hover:text-slate-200'
           }`}
         >
           📑 Historial de Contratos ({contracts.length})
@@ -505,7 +505,7 @@ export default function PropertyDetailPage() {
           className={`pb-3 px-3.5 border-b-2 transition ${
             activeTab === 'tenants'
               ? 'border-teal-700 text-teal-300'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              : 'border-transparent text-slate-500 hover:text-slate-200'
           }`}
         >
           👥 Inquilinos ({linkedTenants.length})
@@ -515,7 +515,7 @@ export default function PropertyDetailPage() {
           className={`pb-3 px-3.5 border-b-2 transition ${
             activeTab === 'tax'
               ? 'border-teal-700 text-teal-300'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              : 'border-transparent text-slate-500 hover:text-slate-200'
           }`}
         >
           📊 Resumen Fiscal (Renta / IRPF)
@@ -526,13 +526,13 @@ export default function PropertyDetailPage() {
       {activeTab === 'payments' && (
         <div className="space-y-5 animate-in fade-in duration-150">
           {/* Year selector & Quick stats */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-slate-500 uppercase">Año de ejercicio:</span>
+              <span className="text-xs font-bold text-slate-400 uppercase">Año de ejercicio:</span>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-sm bg-white text-slate-800 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="px-3 py-1.5 rounded-lg border border-slate-700 font-bold text-sm bg-slate-950 text-slate-100 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               >
                 {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((yr) => (
                   <option key={yr} value={yr}>
@@ -545,7 +545,7 @@ export default function PropertyDetailPage() {
             <div className="flex items-center gap-6 text-xs">
               <div>
                 <span className="text-slate-400">Cobrado ({paymentsSummary.paidMonthsCount}/{paymentsSummary.dueMonths} meses vencidos):</span>
-                <span className="ml-1.5 font-bold text-emerald-600">{formatEuro(paymentsSummary.totalCollected)}</span>
+                <span className="ml-1.5 font-bold text-emerald-400">{formatEuro(paymentsSummary.totalCollected)}</span>
               </div>
               <div>
                 <span className="text-slate-400">Pendiente (vencido + mes actual):</span>
@@ -559,9 +559,9 @@ export default function PropertyDetailPage() {
           </div>
 
           {/* Real-time Monthly Grid */}
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto shadow-xs">
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 overflow-x-auto shadow-xs">
             <table className="w-full min-w-[880px] text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
+              <thead className="bg-slate-950 border-b border-slate-800 text-slate-500 uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="py-3 px-4 w-32">Mes</th>
                   <th className="py-3 px-4 w-44">Renta / recibido</th>
@@ -571,7 +571,7 @@ export default function PropertyDetailPage() {
                   <th className="py-3 px-4 w-40">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-800">
                 {MONTH_NAMES.map((monthName, idx) => {
                   const monthNum = idx + 1
                   const payment = paymentsByMonth.get(monthNum)
@@ -596,11 +596,11 @@ export default function PropertyDetailPage() {
                     <tr
                       key={monthNum}
                       className={`transition ${
-                        !rentApplicable ? 'bg-slate-950/50' : isPaid ? 'bg-emerald-50/10 hover:bg-emerald-50/20' : isOverdue ? 'bg-red-950/35 hover:bg-red-950/55' : isCurrentMonth ? 'bg-amber-950/25 hover:bg-amber-950/40' : 'hover:bg-slate-800/60'
+                        !rentApplicable ? 'bg-slate-950/50' : isPaid ? 'bg-emerald-950/25 hover:bg-emerald-950/40' : isOverdue ? 'bg-red-950/35 hover:bg-red-950/55' : isCurrentMonth ? 'bg-amber-950/25 hover:bg-amber-950/40' : 'hover:bg-slate-800/60'
                       }`}
                     >
                       {/* Mes */}
-                      <td className={`py-3 px-4 font-bold ${rentApplicable ? 'text-slate-800' : 'text-slate-500'}`}>
+                      <td className={`py-3 px-4 font-bold ${rentApplicable ? 'text-slate-200' : 'text-slate-500'}`}>
                         {monthName} {selectedYear}
                       </td>
 
@@ -611,7 +611,7 @@ export default function PropertyDetailPage() {
                             <div className="flex flex-wrap items-baseline gap-1.5">
                               <span className={`text-sm font-bold ${statusMeta.text}`}>{formatEuro(amount)}</span>
                               {rentChanged && (
-                                <span className="rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-700">
+                                <span className="rounded-full border border-sky-800 bg-sky-950/60 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-300">
                                   Estimada
                                 </span>
                               )}
@@ -641,7 +641,7 @@ export default function PropertyDetailPage() {
                               <select
                                 value={manualStatus}
                                 onChange={(event) => void handleManualStatus(monthNum, amount, event.target.value as RentPaymentManualStatus)}
-                                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-1.5 py-1 text-[11px] font-semibold text-slate-700 focus:border-teal-500 focus:outline-hidden"
+                                className="min-w-0 flex-1 rounded-md border border-slate-700 bg-slate-950 px-1.5 py-1 text-[11px] font-semibold text-slate-300 focus:border-teal-500 focus:outline-hidden"
                                 title="Cambiar manualmente el color y la etiqueta"
                               >
                                 {MANUAL_STATUS_OPTIONS.map((option) => (
@@ -669,7 +669,7 @@ export default function PropertyDetailPage() {
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition border ${
                             invoiceIssued
                               ? 'bg-slate-800 text-teal-200 border-slate-700 hover:bg-slate-700'
-                              : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'
+                              : 'bg-slate-950 text-slate-400 border-slate-700 hover:border-slate-500'
                           }`}
                         >
                           <span>📄</span>
@@ -686,7 +686,7 @@ export default function PropertyDetailPage() {
                               defaultValue={payment?.notes || ''}
                               onBlur={(e) => handleNoteBlur(monthNum, e.target.value.trim())}
                               placeholder="Anotaciones..."
-                              className="w-full px-2.5 py-1.5 bg-transparent hover:bg-white focus:bg-white border border-transparent hover:border-slate-200 focus:border-teal-500 rounded-lg text-xs transition focus:outline-hidden"
+                              className="w-full px-2.5 py-1.5 bg-transparent hover:bg-slate-950 focus:bg-slate-950 border border-transparent hover:border-slate-700 focus:border-teal-500 rounded-lg text-xs transition focus:outline-hidden"
                             />
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${statusMeta.badge}`}>
@@ -694,7 +694,7 @@ export default function PropertyDetailPage() {
                                 {statusMeta.label}
                               </span>
                               {warningActive && showWarning && (
-                                <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${warningIsExcess ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+                                <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${warningIsExcess ? 'border-amber-800 bg-amber-950/60 text-amber-300' : 'border-red-800 bg-red-950/60 text-red-300'}`}>
                                   {warningIsExcess ? `Exceso ${formatEuro(received - amount)}` : `Faltan ${formatEuro(amount - received)}`}
                                   <button
                                     type="button"
@@ -710,7 +710,7 @@ export default function PropertyDetailPage() {
                                 <button
                                   type="button"
                                   onClick={() => void handleWarningVisibility(monthNum, amount, true)}
-                                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                                  className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400 hover:border-slate-500 hover:text-slate-200"
                                   title="Volver a mostrar el aviso"
                                 >
                                   👁 Mostrar aviso
@@ -781,19 +781,19 @@ export default function PropertyDetailPage() {
       {/* ─── TAB 4: RESUMEN FISCAL (RENTA / IRPF) ────────────────────────── */}
       {activeTab === 'tax' && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-white border border-slate-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Resumen Fiscal de Rendimiento de Capital Inmobiliario</h3>
+              <h3 className="text-base font-bold text-slate-100">Resumen Fiscal de Rendimiento de Capital Inmobiliario</h3>
               <p className="text-xs text-slate-500">
                 Cálculo automático de Ingresos íntegros y Gastos deducibles según normativa del IRPF.
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <span className="font-bold text-slate-600">Ejercicio Fiscal:</span>
+              <span className="font-bold text-slate-400">Ejercicio Fiscal:</span>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="px-3 py-1.5 rounded-lg border border-slate-300 font-bold text-sm bg-white"
+                className="px-3 py-1.5 rounded-lg border border-slate-700 font-bold text-sm bg-slate-950 text-slate-100"
               >
                 {[currentYear - 1, currentYear].map((yr) => (
                   <option key={yr} value={yr}>{yr}</option>
@@ -805,23 +805,23 @@ export default function PropertyDetailPage() {
           {/* Tax Breakdown Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {/* Box 1: Ingresos */}
-            <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200">
-              <p className="text-xs font-bold text-emerald-800 uppercase tracking-wider">(+) Ingresos Íntegros</p>
-              <p className="text-3xl font-extrabold text-emerald-700 mt-2">{formatEuro(taxSummary.totalIncome)}</p>
-              <p className="text-xs text-emerald-700/80 mt-1">Total de rentas cobradas en {selectedYear}</p>
+            <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-800">
+              <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">(+) Ingresos Íntegros</p>
+              <p className="text-3xl font-extrabold text-emerald-300 mt-2">{formatEuro(taxSummary.totalIncome)}</p>
+              <p className="text-xs text-emerald-400/80 mt-1">Total de rentas cobradas en {selectedYear}</p>
             </div>
 
             {/* Box 2: Gastos Deducibles */}
-            <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200">
-              <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">(-) Gastos Deducibles</p>
-              <p className="text-3xl font-extrabold text-amber-700 mt-2">{formatEuro(taxSummary.totalDeductibleExpenses)}</p>
-              <p className="text-xs text-amber-700/80 mt-1">Comunidad, IBI, seguros y reparaciones</p>
+            <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-800">
+              <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">(-) Gastos Deducibles</p>
+              <p className="text-3xl font-extrabold text-amber-300 mt-2">{formatEuro(taxSummary.totalDeductibleExpenses)}</p>
+              <p className="text-xs text-amber-400/80 mt-1">Comunidad, IBI, seguros y reparaciones</p>
             </div>
 
             {/* Box 3: Rendimiento Neto */}
             <div className="p-5 rounded-2xl bg-slate-800 border border-slate-700">
               <p className="text-xs font-bold text-teal-200 uppercase tracking-wider">(=) Rendimiento Neto Previo</p>
-              <p className={`text-3xl font-extrabold mt-2 ${taxSummary.netReturn >= 0 ? 'text-teal-200' : 'text-red-600'}`}>
+              <p className={`text-3xl font-extrabold mt-2 ${taxSummary.netReturn >= 0 ? 'text-teal-200' : 'text-red-400'}`}>
                 {formatEuro(taxSummary.netReturn)}
               </p>
               <p className="text-xs text-teal-200/80 mt-1">
@@ -831,41 +831,41 @@ export default function PropertyDetailPage() {
           </div>
 
           {/* Detailed Deductible Expenses Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xs space-y-4">
+            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider">
               Desglose de Gastos Deducibles para la Declaración de la Renta ({selectedYear})
             </h4>
 
-            <div className="divide-y divide-slate-100 text-xs">
+            <div className="divide-y divide-slate-800 text-xs">
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-600">Comunidad de propietarios</span>
-                <span className="font-semibold text-slate-900">{formatEuro(taxSummary.comunidad)}</span>
+                <span className="text-slate-400">Comunidad de propietarios</span>
+                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.comunidad)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-600">Tributos y tasas (IBI, basura)</span>
-                <span className="font-semibold text-slate-900">{formatEuro(taxSummary.ibi)}</span>
+                <span className="text-slate-400">Tributos y tasas (IBI, basura)</span>
+                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.ibi)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-600">Primas de seguro (Hogar, impago)</span>
-                <span className="font-semibold text-slate-900">{formatEuro(taxSummary.seguro)}</span>
+                <span className="text-slate-400">Primas de seguro (Hogar, impago)</span>
+                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.seguro)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-600">Reparación y conservación</span>
-                <span className="font-semibold text-slate-900">{formatEuro(taxSummary.reparacion)}</span>
+                <span className="text-slate-400">Reparación y conservación</span>
+                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.reparacion)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-600">Suministros</span>
-                <span className="font-semibold text-slate-900">{formatEuro(taxSummary.suministros)}</span>
+                <span className="text-slate-400">Suministros</span>
+                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.suministros)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-600">Administración y honorarios</span>
-                <span className="font-semibold text-slate-900">{formatEuro(taxSummary.administracion)}</span>
+                <span className="text-slate-400">Administración y honorarios</span>
+                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.administracion)}</span>
               </div>
               <div className="py-2.5 flex justify-between">
-                <span className="text-slate-600">Otros gastos justificados</span>
-                <span className="font-semibold text-slate-900">{formatEuro(taxSummary.otros)}</span>
+                <span className="text-slate-400">Otros gastos justificados</span>
+                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.otros)}</span>
               </div>
-              <div className="py-3 flex justify-between font-bold text-sm text-slate-900 bg-slate-50 px-2 rounded-lg mt-2">
+              <div className="py-3 flex justify-between font-bold text-sm text-slate-100 bg-slate-950 px-2 rounded-lg mt-2">
                 <span>TOTAL GASTOS DEDUCIBLES</span>
                 <span>{formatEuro(taxSummary.totalDeductibleExpenses)}</span>
               </div>
@@ -877,28 +877,28 @@ export default function PropertyDetailPage() {
       {/* ─── MODAL NUEVO GASTO / FACTURA ───────────────────────────────── */}
       {isExpenseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-100">
+          <div className="bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-slate-700">
             <h3 className="text-lg font-bold text-slate-100">Registrar gasto / factura</h3>
             <form onSubmit={handleCreateExpense} className="space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Fecha *</label>
+                <label className="block font-semibold text-slate-300 mb-1">Fecha *</label>
                 <input
                   type="date"
                   required
                   value={expDate}
                   onChange={(e) => setExpDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+                  className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-lg text-xs"
                 />
               </div>
 
-              <p className="rounded-lg bg-slate-100 px-3 py-2 text-[11px] text-slate-600">Este formulario registra un gasto puntual. Para configurar un gasto que se repita, usa la pestaña «Gastos periódicos».</p>
+              <p className="rounded-lg bg-slate-950/60 px-3 py-2 text-[11px] text-slate-400">Este formulario registra un gasto puntual. Para configurar un gasto que se repita, usa la pestaña «Gastos periódicos».</p>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Categoría deducible *</label>
+                <label className="block font-semibold text-slate-300 mb-1">Categoría deducible *</label>
                 <select
                   value={expCategory}
                   onChange={(e) => setExpCategory(e.target.value as ExpenseCategory)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white"
+                  className="w-full px-3 py-2 border border-slate-700 rounded-lg text-xs bg-slate-950 text-slate-100"
                 >
                   {EXPENSE_CATEGORIES.map((c) => (
                     <option key={c.value} value={c.value}>
@@ -909,20 +909,20 @@ export default function PropertyDetailPage() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Concepto / Descripción *</label>
+                <label className="block font-semibold text-slate-300 mb-1">Concepto / Descripción *</label>
                 <input
                   type="text"
                   required
                   value={expDescription}
                   onChange={(e) => setExpDescription(e.target.value)}
                   placeholder="Ej. Reparación fuga agua termo"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+                  className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-lg text-xs placeholder:text-slate-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Importe (€) *</label>
+                  <label className="block font-semibold text-slate-300 mb-1">Importe (€) *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -931,24 +931,24 @@ export default function PropertyDetailPage() {
                     value={expAmount}
                     onChange={(e) => setExpAmount(e.target.value)}
                     placeholder="120"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                    className="w-full px-3 py-2 border border-slate-700 bg-slate-950 rounded-lg text-xs font-bold text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Nº Factura / Ref.</label>
+                  <label className="block font-semibold text-slate-300 mb-1">Nº Factura / Ref.</label>
                   <input
                     type="text"
                     value={expInvoiceNumber}
                     onChange={(e) => setExpInvoiceNumber(e.target.value)}
                     placeholder="FAC-2026/04"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs"
+                    className="w-full px-3 py-2 border border-slate-700 bg-slate-950 text-slate-100 rounded-lg text-xs"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2">
-                <div><label className="flex items-center gap-2 font-semibold text-slate-700"><input type="checkbox" checked={expInvoiceReceived} onChange={(e) => setExpInvoiceReceived(e.target.checked)} className="accent-teal-600" />Factura recibida</label>{expInvoiceReceived && <input aria-label="Fecha de recepción de factura" type="date" value={expInvoiceReceivedDate} onChange={(e) => setExpInvoiceReceivedDate(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs" />}</div>
-                <div><label className="flex items-center gap-2 font-semibold text-slate-700"><input type="checkbox" checked={expIsPaid} onChange={(e) => setExpIsPaid(e.target.checked)} className="accent-teal-600" />Ya está pagado</label>{expIsPaid && <input aria-label="Fecha de pago" type="date" value={expPaidAt} onChange={(e) => setExpPaidAt(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs" />}</div>
+              <div className="grid grid-cols-1 gap-3 rounded-xl border border-slate-800 p-3 sm:grid-cols-2">
+                <div><label className="flex items-center gap-2 font-semibold text-slate-300"><input type="checkbox" checked={expInvoiceReceived} onChange={(e) => setExpInvoiceReceived(e.target.checked)} className="accent-teal-600" />Factura recibida</label>{expInvoiceReceived && <input aria-label="Fecha de recepción de factura" type="date" value={expInvoiceReceivedDate} onChange={(e) => setExpInvoiceReceivedDate(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 text-slate-100 px-2 py-1.5 text-xs" />}</div>
+                <div><label className="flex items-center gap-2 font-semibold text-slate-300"><input type="checkbox" checked={expIsPaid} onChange={(e) => setExpIsPaid(e.target.checked)} className="accent-teal-600" />Ya está pagado</label>{expIsPaid && <input aria-label="Fecha de pago" type="date" value={expPaidAt} onChange={(e) => setExpPaidAt(e.target.value)} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 text-slate-100 px-2 py-1.5 text-xs" />}</div>
               </div>
 
               <div className="flex items-center gap-2 pt-1">
@@ -959,16 +959,16 @@ export default function PropertyDetailPage() {
                   onChange={(e) => setExpIsDeductible(e.target.checked)}
                   className="rounded text-teal-300"
                 />
-                <label htmlFor="deductible" className="text-slate-600 select-none">
+                <label htmlFor="deductible" className="text-slate-400 select-none">
                   Gasto deducible en IRPF / Declaración de la Renta
                 </label>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsExpenseModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="px-4 py-2 text-slate-300 hover:bg-slate-800 rounded-lg"
                 >
                   Cancelar
                 </button>

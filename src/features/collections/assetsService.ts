@@ -137,6 +137,23 @@ export async function createAsset(
   }
 }
 
+/**
+ * Crea una copia editable de una ficha: mismos datos, nombre con «(copia)» y
+ * sin fotos (las originales pertenecen al bien de origen). Devuelve el id del
+ * nuevo documento para poder abrir su ficha en cuanto llegue del snapshot.
+ */
+export async function duplicateAsset(asset: AssetItem): Promise<string> {
+  const { id, createdAt, updatedAt, photos, photoSizesBytes, import_key, ...payload } = asset
+  const copy: Omit<AssetItem, 'id' | 'createdAt' | 'updatedAt'> = {
+    ...payload,
+    name: `${asset.name} (copia)`,
+    photos: [],
+    photoSizesBytes: [],
+  }
+  const ref = await createAsset(copy)
+  return ref.id
+}
+
 export async function updateAsset(
   id: string,
   asset: Partial<Omit<AssetItem, 'id' | 'createdAt' | 'updatedAt'>>,

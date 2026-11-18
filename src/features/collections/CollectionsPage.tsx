@@ -1,10 +1,11 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AssetCategory, AssetItem, Property } from '@/types'
-import { subscribeToAssets, deleteAsset, migrateLegacyAssetPhotos } from './assetsService'
+import { subscribeToAssets, deleteAsset, duplicateAsset, migrateLegacyAssetPhotos } from './assetsService'
 import { subscribeToProperties } from '@/features/properties/propertiesService'
 import AssetModal from './AssetModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import { useToast } from '@/components/ui/ToastProvider'
 import { buildAssetSlugIndex } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
@@ -89,6 +90,7 @@ export default function CollectionsPage() {
 
   const [assetToDelete, setAssetToDelete] = useState<AssetItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [pendingDuplicateId, setPendingDuplicateId] = useState<string | null>(null)
 
   const [selectedOwner, setSelectedOwner] = useState('all')
   const [selectedCategory, setSelectedCategory] = useState<'all' | AssetCategory>('all')
@@ -107,6 +109,7 @@ export default function CollectionsPage() {
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const isSearchPending = deferredSearchQuery !== searchQuery
   const money = useMoney()
+  const toast = useToast()
 
   const activeCollection: CollectionKey | undefined = isCollectionKey(collectionKey) ? collectionKey : undefined
   const isLanding = !activeCollection
@@ -238,6 +241,17 @@ export default function CollectionsPage() {
     }
     if (routedAsset) setDetailAsset(routedAsset)
   }, [routeAssetSlug, routedAsset])
+
+  // Abre la ficha de la copia recién creada, en cuanto Firestore la devuelve.
+  useEffect(() => {
+    if (!pendingDuplicateId) return
+    const slug = slugIndex.slugById.get(pendingDuplicateId)
+    if (!slug) return
+    setPendingDuplicateId(null)
+    const target = slugIndex.bySlug.get(slug)
+    if (!target) return
+    navigate(`/bienes/categoria/${categoryCollection(target.category)}/${slug}`)
+  }, [pendingDuplicateId, slugIndex, navigate])
 
   const scopedAssets = useMemo(
     () => (activeCollection ? assets.filter((asset) => matchesCollection(asset.category, activeCollection)) : assets),
@@ -411,6 +425,16 @@ export default function CollectionsPage() {
     navigate(`/bienes/categoria/${targetCollection}/${slug}${listQuerySuffix}`, { replace: true })
   }
 
+  /** Duplica la ficha y abre la copia en cuanto llega del snapshot. */
+  const handleDuplicate = async (asset: AssetItem) => {
+    try {
+      setPendingDuplicateId(await duplicateAsset(asset))
+      toast.showToast(`Copia creada: «${asset.name} (copia)». Se abrirá su ficha para que la edites.`, { kind: 'success' })
+    } catch (error) {
+      toast.showToast(`No se pudo duplicar: ${error instanceof Error ? error.message : 'Error desconocido'}`, { kind: 'error' })
+    }
+  }
+
   const handleOpenAddModal = () => {
     setEditingAsset(null)
     setIsModalOpen(true)
@@ -445,6 +469,7 @@ export default function CollectionsPage() {
     setIsModalOpen(false)
     setEditingAsset(null)
     setDetailAsset(null)
+    toast.showToast(editingAsset ? `«${editingAsset.name}» actualizado.` : `Bien guardado en ${getCategoryInfo(category).label}.`, { kind: 'success' })
     const target = activeCollection ?? categoryCollection(category)
     navigate(`/bienes/categoria/${target}${listQuerySuffix}`, { replace: Boolean(routeAssetSlug) })
   }
@@ -456,8 +481,9 @@ export default function CollectionsPage() {
       await deleteAsset(assetToDelete.id)
       if (detailAsset?.id === assetToDelete.id) handleCloseDetail()
       setAssetToDelete(null)
+      toast.showToast(`«${assetToDelete.name}» eliminado del inventario.`, { kind: 'success' })
     } catch (error) {
-      alert(`Error al eliminar: ${error instanceof Error ? error.message : 'Error desconocido'}`)
+      toast.showToast(`Error al eliminar: ${error instanceof Error ? error.message : 'Error desconocido'}`, { kind: 'error' })
     } finally {
       setIsDeleting(false)
     }
@@ -532,12 +558,12 @@ export default function CollectionsPage() {
       )}
 
       {firestoreError && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+        <div className="flex items-start gap-3 rounded-xl border border-amber-800 bg-amber-950/50 p-4 text-sm text-amber-200">
           <span className="text-lg">⚠️</span>
           <div>
             <p className="font-semibold">Aviso de permisos de Firestore:</p>
-            <p className="mt-0.5 text-xs text-amber-700">Verifica haber publicado las reglas con tu UID en Firebase Console.</p>
-            <p className="mt-1 font-mono text-[11px] text-amber-600">{firestoreError}</p>
+            <p className="mt-0.5 text-xs text-amber-300/80">Verifica haber publicado las reglas con tu UID en Firebase Console.</p>
+            <p className="mt-1 font-mono text-[11px] text-amber-400/70">{firestoreError}</p>
           </div>
         </div>
       )}
@@ -590,7 +616,7 @@ export default function CollectionsPage() {
               <span className="shrink-0 text-[11px] font-bold uppercase text-slate-500">Propietario:</span>
               <button
                 onClick={() => setSelectedOwner('all')}
-                className={`shrink-0 rounded-xl px-3 py-1.5 font-semibold transition ${selectedOwner === 'all' ? 'bg-slate-100 text-slate-900' : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
+                className={`shrink-0 rounded-xl px-3 py-1.5 font-semibold transition ${selectedOwner === 'all' ? 'bg-teal-700 text-white' : 'border border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}`}
               >
                 Todos ({scopedAssets.length})
               </button>
@@ -819,6 +845,7 @@ export default function CollectionsPage() {
         onClose={handleCloseDetail}
         onEdit={handleEditFromDetail}
         onDelete={setAssetToDelete}
+        onDuplicate={(asset) => void handleDuplicate(asset)}
       />
 
       <AssetModal

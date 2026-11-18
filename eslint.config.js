@@ -21,6 +21,8 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-explicit-any': 'off',
+      // `const { id, ...rest } = doc` es omisión intencionada, no variable sin usar.
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true, argsIgnorePattern: '^_' }],
     },
   },
 )

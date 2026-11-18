@@ -6,12 +6,12 @@
 [![Version](https://img.shields.io/github/package-json/v/Axgaldo/legacy-manager?label=versión)](https://github.com/Axgaldo/legacy-manager/blob/main/package.json)
 [![License](https://img.shields.io/github/license/Axgaldo/legacy-manager?label=licencia)](https://github.com/Axgaldo/legacy-manager/blob/main/LICENSE)
 
-Aplicación web **privada** para llevar el inventario patrimonial de una familia. Corre en GitHub Pages sobre Firebase (Authentication, Firestore y Cloud Storage) dentro de los límites **sin coste** del plan Spark.
+Aplicación web **privada** para llevar el inventario patrimonial de una familia. Corre en GitHub Pages sobre Firebase (Authentication, Firestore y Cloud Storage) dentro de los límites **sin coste** del plan Spark. Incluye **búsqueda global** (Ctrl+K), **modo incógnito** que oculta los importes y **copias de seguridad** descargables.
 
 ## Módulos
 
 ### 🏛 Panel de inicio
-La portada `/` resume todo el patrimonio: calendario del mes con cobros registrados y gastos sin pagar, anotaciones de alquileres, gastos y atrasos, gráfica de cobros vs gastos del año y los últimos bienes añadidos.
+La portada `/` resume todo el patrimonio: calendario del mes con cobros registrados y gastos sin pagar, anotaciones de alquileres, gastos y atrasos, gráfica de cobros vs gastos del año y los últimos bienes añadidos. Desde el panel se descargan la **copia de seguridad completa (JSON)** y los **exportables CSV** (resumen fiscal anual e inventario de bienes).
 
 ### 🏠 Inmuebles
 - **Propiedades**: fichas con dirección, referencia catastral, inquilinos vinculados, fianza y valor estimado.

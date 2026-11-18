@@ -13,6 +13,8 @@ import { buildAssetSlugIndex } from '@/utils/slugs'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { useMoney } from '@/features/privacy/money'
 import { usePrivacy } from '@/features/privacy/PrivacyProvider'
+import { useToast } from '@/components/ui/ToastProvider'
+import { downloadAssetsCsv, downloadFiscalYearCsv, downloadFullBackup } from '@/features/backup/backupService'
 
 const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MONTHS_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -43,6 +45,7 @@ export default function HomePage() {
   const navigate = useNavigate()
   const money = useMoney()
   const { incognito } = usePrivacy()
+  const toast = useToast()
 
   const now = new Date()
   const year = now.getFullYear()
@@ -58,6 +61,8 @@ export default function HomePage() {
   const [propertiesReady, setPropertiesReady] = useState(false)
   const [assetsReady, setAssetsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [backupBusy, setBackupBusy] = useState<'json' | 'fiscal' | 'assets' | null>(null)
+  const [fiscalYear, setFiscalYear] = useState(year)
 
   const loading = !propertiesReady || !assetsReady
 
@@ -207,6 +212,26 @@ export default function HomePage() {
       return
     }
     navigate(`/bienes/categoria/${categoryCollection(asset.category)}/${slug}`)
+  }
+
+  const handleBackup = async (kind: 'json' | 'fiscal' | 'assets') => {
+    try {
+      setBackupBusy(kind)
+      if (kind === 'json') {
+        const { documents } = await downloadFullBackup()
+        toast.showToast(`Copia de seguridad descargada: ${documents} documento(s) en JSON.`, { kind: 'success' })
+      } else if (kind === 'fiscal') {
+        const result = await downloadFiscalYearCsv(fiscalYear)
+        toast.showToast(`Resumen fiscal ${fiscalYear} descargado (${result.properties} inmueble(s)).`, { kind: 'success' })
+      } else {
+        downloadAssetsCsv(assets)
+        toast.showToast(`Inventario descargado: ${assets.length} pieza(s) en CSV.`, { kind: 'success' })
+      }
+    } catch (backupError) {
+      toast.showToast(`No se pudo generar el archivo: ${backupError instanceof Error ? backupError.message : 'Error desconocido'}`, { kind: 'error' })
+    } finally {
+      setBackupBusy(null)
+    }
   }
 
   const todayLabel = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now)
@@ -487,6 +512,65 @@ export default function HomePage() {
             })}
             <p className="border-t border-slate-800 pt-2.5 text-[10px] text-slate-500">Piezas por colección y valoración ({incognito ? 'oculta' : 'proporción sobre el total'}).</p>
           </div>
+        </div>
+      </section>
+
+      {/* Copia de seguridad y exportaciones */}
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <h3 className="text-base font-bold text-slate-100">💾 Copia de seguridad y exportaciones</h3>
+        <p className="mt-1 text-xs text-slate-400">
+          Los archivos se generan en tu dispositivo con una lectura puntual de Firestore; no se suben a ningún servicio.
+          Incluyen las cifras reales aunque el modo incógnito esté activo. El plan gratuito de Firebase no hace copias
+          automáticas: guarda la copia JSON de vez en cuando.
+        </p>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => void handleBackup('json')}
+            disabled={backupBusy !== null}
+            className="rounded-xl border border-slate-700 bg-slate-950 p-4 text-left transition hover:border-teal-600 disabled:opacity-50"
+          >
+            <p className="text-sm font-semibold text-slate-100">
+              {backupBusy === 'json' ? 'Generando copia…' : 'Copia completa (JSON)'}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">Inmuebles, alquileres, gastos, inquilinos, contratos y bienes, tal cual están en Firestore.</p>
+          </button>
+
+          <div className="rounded-xl border border-slate-700 bg-slate-950 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-100">Resumen fiscal (CSV)</p>
+              <select
+                value={fiscalYear}
+                onChange={(event) => setFiscalYear(Number(event.target.value))}
+                aria-label="Año fiscal"
+                className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+              >
+                {[year - 2, year - 1, year].map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">Por inmueble: renta cobrada y gastos deducibles por categoría, como la pestaña fiscal.</p>
+            <button
+              type="button"
+              onClick={() => void handleBackup('fiscal')}
+              disabled={backupBusy !== null}
+              className="mt-3 w-full rounded-lg bg-teal-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-600 disabled:opacity-50"
+            >
+              {backupBusy === 'fiscal' ? 'Generando…' : `Descargar fiscal ${fiscalYear}`}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void handleBackup('assets')}
+            disabled={backupBusy !== null || assets.length === 0}
+            className="rounded-xl border border-slate-700 bg-slate-950 p-4 text-left transition hover:border-teal-600 disabled:opacity-50"
+          >
+            <p className="text-sm font-semibold text-slate-100">
+              {backupBusy === 'assets' ? 'Generando inventario…' : 'Inventario de bienes (CSV)'}
+            </p>
+            <p className="mt-1 text-xs text-slate-400">Todas las piezas con colección, año, material, ubicación, inventario y valores.</p>
+          </button>
         </div>
       </section>
     </div>

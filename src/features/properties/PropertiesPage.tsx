@@ -13,6 +13,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import { propertySlug } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import { useMoney } from '@/features/privacy/money'
+import { useToast } from '@/components/ui/ToastProvider'
 import TenantsPage from '@/features/tenants/TenantsPage'
 
 export type PropertiesTab = 'properties' | 'rentals' | 'expenses' | 'tenants'
@@ -211,21 +212,23 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
     try {
       await deleteProperty(propertyToDelete.id)
       setPropertyToDelete(null)
+      toast.showToast(`Inmueble «${propertyToDelete.name}» eliminado.`, { kind: 'success' })
     } catch (err: any) {
-      alert('Error al eliminar: ' + err.message)
+      toast.showToast('Error al eliminar: ' + err.message, { kind: 'error' })
     } finally {
       setIsDeleting(false)
     }
   }
 
   const money = useMoney()
+  const toast = useToast()
 
   return (
     <div className="space-y-7">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Inmuebles</h2>
+          <h2 className="text-2xl font-bold text-slate-100 tracking-tight">Inmuebles</h2>
           <p className="text-sm text-slate-500 mt-0.5">
             Gestión y seguimiento patrimonial de inmuebles en España
           </p>
@@ -255,14 +258,14 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
 
       {/* Firestore Security Rules Banner if error */}
       {firestoreError && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm flex items-start gap-3">
+        <div className="p-4 rounded-xl bg-amber-950/50 border border-amber-800 text-amber-200 text-sm flex items-start gap-3">
           <span className="text-lg">⚠️</span>
           <div>
             <p className="font-semibold">Aviso de permisos de Firestore:</p>
-            <p className="text-xs text-amber-700 mt-0.5">
+            <p className="text-xs text-amber-300/80 mt-0.5">
               Si acabas de empezar, asegúrate de haber pegado las reglas en Firebase Console → Firestore Database → pestaña "Reglas" y haber hecho clic en "Publicar".
             </p>
-            <p className="text-[11px] font-mono text-amber-600 mt-1">{firestoreError}</p>
+            <p className="text-[11px] font-mono text-amber-400/70 mt-1">{firestoreError}</p>
           </div>
         </div>
       )}
@@ -272,12 +275,12 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
       {/* KPI Cards Overview */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Inmuebles */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Inmuebles Totales
           </p>
           <div className="flex items-baseline gap-2 mt-2">
-            <span className="text-2xl font-bold text-slate-900">{metrics.totalCount}</span>
+            <span className="text-2xl font-bold text-slate-100">{metrics.totalCount}</span>
             <span className="text-xs text-slate-500">
               ({metrics.rentedCount} alquilados · {metrics.vacantCount} vacíos)
             </span>
@@ -285,33 +288,33 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
         </div>
 
         {/* Ingresos Mensuales */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs">
+          <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
             Ingresos Brutos / Mes
           </p>
-          <p className="text-2xl font-bold text-emerald-600 mt-2">
+          <p className="text-2xl font-bold text-emerald-400 mt-2">
             {money.formatEuro(metrics.totalMonthlyRent)}
           </p>
         </div>
 
         {/* Gastos Mensuales */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
             Gastos Fijos / Mes
           </p>
-          <p className="text-2xl font-bold text-slate-700 mt-2">
+          <p className="text-2xl font-bold text-slate-300 mt-2">
             {money.formatEuro(metrics.totalMonthlyExpenses)}
           </p>
         </div>
 
         {/* Rendimiento Neto Mensual */}
-        <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs">
           <p className="text-xs font-semibold text-teal-300 uppercase tracking-wider">
             Flujo Neto / Mes
           </p>
           <p
             className={`text-2xl font-bold mt-2 ${
-              metrics.netMonthly >= 0 ? 'text-teal-200' : 'text-red-600'
+              metrics.netMonthly >= 0 ? 'text-teal-200' : 'text-red-400'
             }`}
           >
             {money.formatEuro(metrics.netMonthly)}
@@ -334,8 +337,8 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
             onClick={() => setOwnerFilter('all')}
             className={`px-3 py-1.5 rounded-xl font-semibold transition shrink-0 ${
               ownerFilter === 'all'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                ? 'bg-teal-700 text-white shadow-xs'
+                : 'bg-slate-950 border border-slate-700 text-slate-300 hover:bg-slate-800'
             }`}
           >
             Todos ({properties.length})
@@ -349,7 +352,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                 className={`px-3 py-1.5 rounded-xl font-semibold transition shrink-0 flex items-center gap-1.5 ${
                   ownerFilter === o
                     ? 'bg-teal-700 text-white shadow-xs'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    : 'bg-slate-950 border border-slate-700 text-slate-300 hover:bg-slate-800'
                 }`}
               >
                 <span>👤 {o}</span>
@@ -360,13 +363,13 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-xl max-w-fit">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-800/60 rounded-xl max-w-fit">
           <button
             onClick={() => setStatusFilter('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               statusFilter === 'all'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-slate-950 text-white shadow-xs'
+                : 'text-slate-400 hover:text-slate-100'
             }`}
           >
             Todos ({properties.length})
@@ -375,8 +378,8 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
             onClick={() => setStatusFilter('rented')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               statusFilter === 'rented'
-                ? 'bg-white text-emerald-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-slate-950 text-emerald-300 shadow-xs'
+                : 'text-slate-400 hover:text-slate-100'
             }`}
           >
             Alquilados ({metrics.rentedCount})
@@ -385,8 +388,8 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
             onClick={() => setStatusFilter('vacant')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               statusFilter === 'vacant'
-                ? 'bg-white text-amber-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-slate-950 text-amber-300 shadow-xs'
+                : 'text-slate-400 hover:text-slate-100'
             }`}
           >
             Vacíos ({metrics.vacantCount})
@@ -395,8 +398,8 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
             onClick={() => setStatusFilter('owner-use')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               statusFilter === 'owner-use'
-                ? 'bg-white text-teal-200 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-slate-950 text-teal-200 shadow-xs'
+                : 'text-slate-400 hover:text-slate-100'
             }`}
           >
             Uso propio
@@ -409,7 +412,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar por nombre, calle o inquilino…"
-            className="w-full sm:w-72 px-3.5 py-2 pl-9 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+            className="w-full sm:w-72 px-3.5 py-2 pl-9 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder:text-slate-500 focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
           />
           <svg
             className="w-4 h-4 text-slate-400 absolute left-3 top-2.5"
@@ -435,11 +438,11 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
           <p className="text-sm text-slate-500">Cargando inmuebles de Firestore…</p>
         </div>
       ) : filteredProperties.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center max-w-lg mx-auto">
+        <div className="bg-slate-900 rounded-2xl border border-dashed border-slate-700 p-12 text-center max-w-lg mx-auto">
           <div className="w-14 h-14 rounded-2xl bg-slate-800 text-teal-300 text-2xl flex items-center justify-center mx-auto mb-4">
             🏢
           </div>
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-slate-100">
             {properties.length === 0 ? 'No hay inmuebles registrados aún' : 'No hay resultados'}
           </h3>
           <p className="text-xs text-slate-500 mt-1.5 max-w-xs mx-auto">
@@ -474,7 +477,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-2xl shrink-0">{TYPE_ICONS[prop.type] || '🏠'}</span>
                     <div className="min-w-0">
-                      <h4 className="text-base font-bold text-slate-900 truncate" title={prop.name}>
+                      <h4 className="text-base font-bold text-slate-100 truncate" title={prop.name}>
                         {prop.name}
                       </h4>
                       <p className="text-xs text-slate-400 font-medium">
@@ -492,9 +495,9 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                   <span
                     className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-bold border ${
                       prop.status === 'rented'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800'
                         : prop.status === 'vacant'
-                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        ? 'bg-amber-950/60 text-amber-300 border-amber-800'
                         : 'bg-slate-800 text-teal-200 border-slate-700'
                     }`}
                   >
@@ -515,11 +518,11 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
               </div>
 
               {/* Financial & Tenant Details */}
-              <div className="px-5 py-3.5 bg-slate-50/70 border-y border-slate-100 space-y-2">
+              <div className="px-5 py-3.5 bg-slate-950/50 border-y border-slate-800 space-y-2">
                 {prop.status === 'rented' ? (
                   <div className="flex items-baseline justify-between">
                     <span className="text-xs text-slate-500">Renta mensual:</span>
-                    <span className="text-sm font-bold text-emerald-600">
+                    <span className="text-sm font-bold text-emerald-400">
                       {money.formatEuro(rentAmountForMonth(prop, currentYear, currentMonth))}/mes
                     </span>
                   </div>
@@ -541,9 +544,9 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                 })()}
 
                 {tenantNamesFor(prop).length > 0 && prop.status === 'rented' && (
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200/50">
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/70">
                     <span className="text-slate-500">Inquilino:</span>
-                    <span className="font-medium text-slate-800 truncate ml-2">
+                    <span className="font-medium text-slate-200 truncate ml-2">
                       {tenantNamesFor(prop).join(', ')}
                     </span>
                   </div>
@@ -552,16 +555,16 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                 {prop.fixedExpensesMonthly !== undefined && prop.fixedExpensesMonthly > 0 && (
                   <div className="flex items-baseline justify-between text-xs">
                     <span className="text-slate-500">Gastos fijos:</span>
-                    <span className="font-medium text-slate-600">
+                    <span className="font-medium text-slate-400">
                       {money.formatEuro(prop.fixedExpensesMonthly)}/mes
                     </span>
                   </div>
                 )}
 
                 {prop.currentValue !== undefined && prop.currentValue > 0 && (
-                  <div className="flex items-baseline justify-between text-xs pt-1 border-t border-slate-200/50">
+                  <div className="flex items-baseline justify-between text-xs pt-1 border-t border-slate-800/70">
                     <span className="text-slate-400">Valor tasación:</span>
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-slate-300">
                       {money.formatEuro(prop.currentValue)}
                     </span>
                   </div>
@@ -569,22 +572,22 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
               </div>
 
               {/* Card Footer Actions */}
-              <div className="p-3.5 px-5 flex items-center justify-between bg-white">
-                <span className="text-[11px] text-slate-400 font-mono">
+              <div className="p-3.5 px-5 flex items-center justify-between bg-slate-950/60 border-t border-slate-800">
+                <span className="text-[11px] text-slate-500 font-mono">
                   {prop.cadastralReference ? `Ref: ${prop.cadastralReference.slice(0, 8)}…` : ''}
                 </span>
 
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={(event) => { event.stopPropagation(); handleOpenEditModal(prop) }}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 transition"
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:bg-slate-800 transition"
                   >
                     Editar
                   </button>
                   <button
                     onClick={(event) => { event.stopPropagation(); setPropertyToDelete(prop) }}
                     title="Eliminar inmueble"
-                    className="p-1.5 rounded-lg text-slate-300 hover:text-red-600 hover:bg-red-50 transition"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-950/50 transition"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path

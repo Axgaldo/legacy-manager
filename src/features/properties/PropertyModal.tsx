@@ -15,8 +15,8 @@ const PROPERTY_TYPES: { value: PropertyType; label: string; icon: string }[] = [
 ]
 
 const PROPERTY_STATUSES: { value: PropertyStatus; label: string; color: string }[] = [
-  { value: 'rented', label: 'Alquilado', color: 'bg-emerald-50 text-emerald-700 border-slate-700' },
-  { value: 'vacant', label: 'Vacío / Disponible', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  { value: 'rented', label: 'Alquilado', color: 'bg-emerald-950/60 text-emerald-300 border-emerald-800' },
+  { value: 'vacant', label: 'Vacío / Disponible', color: 'bg-amber-950/60 text-amber-300 border-amber-800' },
   { value: 'owner-use', label: 'Uso propio', color: 'bg-slate-800 text-teal-200 border-slate-700' },
 ]
 
@@ -157,9 +157,9 @@ export default function PropertyModal({
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/80 p-3 backdrop-blur-xs sm:items-center sm:p-4">
       <div className="my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-8">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">
+            <h2 className="text-xl font-bold text-slate-100">
               {propertyToEdit ? 'Editar Inmueble' : 'Añadir Nuevo Inmueble'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -169,14 +169,14 @@ export default function PropertyModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 rounded-lg p-1.5 transition"
+            className="text-slate-400 hover:text-slate-200 rounded-lg p-1.5 transition"
           >
             ✕
           </button>
         </div>
 
         {errorMsg && (
-          <div className="mt-4 p-3 rounded-xl bg-red-50 text-red-700 text-sm font-medium border border-red-200">
+          <div className="mt-4 p-3 rounded-xl bg-red-950/60 text-red-300 text-sm font-medium border border-red-900">
             {errorMsg}
           </div>
         )}
@@ -184,7 +184,7 @@ export default function PropertyModal({
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           {/* Propietario / Titular */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
               Propietario / Titular
             </label>
             <input
@@ -202,7 +202,7 @@ export default function PropertyModal({
           {/* Nombre y Tipo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Nombre / Alias *
               </label>
               <input
@@ -211,12 +211,12 @@ export default function PropertyModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej. Piso Triana 2ºB o Garaje Centro"
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 border border-slate-700 bg-slate-950 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Tipo de Inmueble
               </label>
               <select
@@ -235,7 +235,7 @@ export default function PropertyModal({
 
           {/* Estado actual */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
               Estado actual
             </label>
             <div className="grid grid-cols-3 gap-2.5">
@@ -249,7 +249,7 @@ export default function PropertyModal({
                     className={`py-2 px-3 rounded-xl text-xs font-semibold border transition text-center ${
                       isSelected
                         ? `${ps.color} ring-2 ring-teal-500 shadow-xs font-bold`
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        : 'border-slate-700 text-slate-400 hover:bg-slate-800'
                     }`}
                   >
                     {ps.label}
@@ -260,12 +260,12 @@ export default function PropertyModal({
           </div>
 
           {/* Ubicación: Dirección, Ciudad, Provincia */}
-          <div className="p-4 bg-slate-50 rounded-xl space-y-3.5 border border-slate-200/60">
-            <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+          <div className="p-4 bg-slate-950/50 rounded-xl space-y-3.5 border border-slate-800">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               Inmueble en España
             </h4>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
+              <label className="block text-xs font-medium text-slate-400 mb-1">
                 Dirección completa (Calle, nº, piso)
               </label>
               <input
@@ -273,28 +273,28 @@ export default function PropertyModal({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Ej. C/ Betis 14, 2º Izquierda"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Municipio</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Municipio</label>
                 <input
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   placeholder="Ej. Sevilla"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Provincia</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Provincia</label>
                 <select
                   value={province}
                   onChange={(e) => setProvince(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
                 >
                   {SPANISH_PROVINCES.map((p) => (
                     <option key={p} value={p}>
@@ -305,13 +305,13 @@ export default function PropertyModal({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Código Postal</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Código Postal</label>
                 <input
                   type="text"
                   value={postalCode}
                   onChange={(e) => setPostalCode(e.target.value)}
                   placeholder="41010"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
                 />
               </div>
             </div>
@@ -344,7 +344,7 @@ export default function PropertyModal({
           {/* Finanzas: Gastos fijos y Valor estimado */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Gastos fijos estimados al mes (€)
               </label>
               <input
@@ -354,13 +354,13 @@ export default function PropertyModal({
                 value={fixedExpensesMonthly}
                 onChange={(e) => setFixedExpensesMonthly(e.target.value)}
                 placeholder="Ej. 65 (comunidad + IBI/12)"
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 border border-slate-700 bg-slate-950 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               />
               <span className="text-[11px] text-slate-400">Comunidad, seguros, IBI prorrateado</span>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Valor estimado del inmueble (€)
               </label>
               <input
@@ -370,7 +370,7 @@ export default function PropertyModal({
                 value={currentValue}
                 onChange={(e) => setCurrentValue(e.target.value)}
                 placeholder="Ej. 180000"
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 border border-slate-700 bg-slate-950 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               />
               <span className="text-[11px] text-slate-400">Valor de tasación o mercado aproximado</span>
             </div>
@@ -379,7 +379,7 @@ export default function PropertyModal({
           {/* Referencia Catastral y Notas */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Referencia Catastral (opcional)
               </label>
               <input
@@ -392,7 +392,7 @@ export default function PropertyModal({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
                 Notas adicionales
               </label>
               <input
@@ -400,25 +400,25 @@ export default function PropertyModal({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Cualquier apunte relevante..."
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
+                className="w-full px-3.5 py-2.5 border border-slate-700 bg-slate-950 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
               />
             </div>
           </div>
 
           {/* Botones de acción */}
-          <div className="flex items-center justify-end gap-3 pt-5 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-3 pt-5 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition"
+              className="px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 rounded-xl transition"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 active:scale-98 rounded-xl shadow-md transition disabled:bg-slate-300"
+              className="px-6 py-2.5 text-sm font-semibold text-white bg-teal-700 hover:bg-teal-600 active:scale-98 rounded-xl shadow-md transition disabled:bg-slate-700"
             >
               {isLoading ? 'Guardando en Firebase…' : propertyToEdit ? 'Guardar Cambios' : 'Crear Inmueble'}
             </button>

@@ -1,7 +1,8 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { usePrivacy } from '@/features/privacy/PrivacyProvider'
+import GlobalSearch from '@/features/search/GlobalSearch'
 
 const BUILD_DATE = new Date(__APP_BUILD_DATE__)
 const BUILD_DATE_LABEL = BUILD_DATE.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -41,7 +42,31 @@ export default function AppLayout() {
   const { user, signOutUser } = useAuth()
   const { incognito, toggleIncognito } = usePrivacy()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const location = useLocation()
+
+  // Ctrl+K / ⌘K abre la búsqueda global desde cualquier pantalla.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  const searchTrigger = (
+    <button
+      type="button"
+      onClick={() => setSearchOpen(true)}
+      className="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-400 transition hover:border-teal-600 hover:text-slate-200"
+    >
+      <span className="flex items-center gap-2"><span aria-hidden="true">⌕</span> Buscar</span>
+      <kbd className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-500">Ctrl K</kbd>
+    </button>
+  )
 
   const incognitoToggle = (
     <button
@@ -75,7 +100,8 @@ export default function AppLayout() {
         {navItems.map(({ to, label, icon }) => <NavLink key={to} to={to} end={to === '/'} onClick={() => setMenuOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive ? 'bg-teal-950 text-teal-200 ring-1 ring-teal-900' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>{icon}{label}</NavLink>)}
       </nav>
       <div className="px-4 pb-3">
-        {incognitoToggle}
+        {searchTrigger}
+        <div className="mt-2">{incognitoToggle}</div>
         <p className="mt-1.5 px-1 text-[10px] leading-snug text-slate-500">Con el modo activo, los importes se muestran como «▓#%§ €».</p>
       </div>
       <div className="border-t border-slate-800 px-4 py-3 text-[10px] leading-relaxed text-slate-500">
@@ -110,10 +136,14 @@ export default function AppLayout() {
       {menuOpen && <div className="fixed inset-0 z-50 md:hidden"><button aria-label="Cerrar menú" className="absolute inset-0 bg-black/70" onClick={() => setMenuOpen(false)} /> <div className="relative h-full w-72 max-w-[85vw]">{sidebar}</div></div>}
       <main className="flex-1 overflow-y-auto min-w-0">
         <header className="md:hidden sticky top-0 z-30 flex items-center gap-3 px-4 py-3 bg-slate-900/95 border-b border-slate-800 backdrop-blur">
-          <button onClick={() => setMenuOpen(true)} aria-label="Abrir menú" className="p-2 rounded-lg hover:bg-slate-800"><span className="text-xl">☰</span></button><span className="font-semibold">{navItems.find((item) => item.to === '/' ? location.pathname === '/' : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))?.label ?? 'Legacy Manager'}</span>
+          <button onClick={() => setMenuOpen(true)} aria-label="Abrir menú" className="p-2 rounded-lg hover:bg-slate-800"><span className="text-xl">☰</span></button>
+          <span className="min-w-0 flex-1 truncate font-semibold">{navItems.find((item) => item.to === '/' ? location.pathname === '/' : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))?.label ?? 'Legacy Manager'}</span>
+          <button onClick={() => setSearchOpen(true)} aria-label="Buscar" className="p-2 rounded-lg hover:bg-slate-800"><span className="text-lg">⌕</span></button>
         </header>
         <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8"><Outlet /></div>
       </main>
+
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   )
 }

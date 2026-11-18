@@ -13,6 +13,8 @@
 ## Directory Structure & Features
 - src/features/auth: Authentication logic (login, private routes).
 - src/features/home: Panel de inicio (lobby) en `/`: resumen de inmuebles y bienes.
+- src/features/search: Búsqueda global (Ctrl+K) de inmuebles, inquilinos y bienes.
+- src/features/backup: Copia de seguridad JSON y exportaciones CSV (fiscal, inventario).
 - src/features/collections: Management of assets (photos, tags, categories).
 - src/features/properties: Property management, rent rates, expenses.
 - src/features/properties/contracts: Contract management, PDF handling, and addenda.
@@ -31,6 +33,7 @@
     - Max Size: 2MB.
     - Format: Auto-compressed to WebP or JPEG before upload.
 - **CORS & Permissions:** Configured for https://axgaldo.github.io, http://localhost:5173, and http://127.0.0.1:5173.
+- **UX conventions (obligatorio):** dark slate theme everywhere — no light `bg-white` cards; user feedback goes through `useToast()` (never `alert()`); money figures always through `useMoney()`.
 - **Modo incógnito (obligatorio):** every money figure in the app is formatted through `useMoney()` (`src/features/privacy/money.ts`), never a local `Intl.NumberFormat`. The sidebar toggle (`PrivacyProvider`) masks amounts as `▓#%§ €` — 3–4 random symbols followed by the currency symbol of the figure (`€`, `ptas`, `$`…), Trade Republic style — on every page at once. Editing forms keep showing real numbers. The preference persists in `localStorage` (`legacy-manager:modo-incognito`).
 - **Firebase Rules (important):**
     - The GitHub Pages workflow deploys only the frontend. `firestore.rules` and `storage.rules` are **never** deployed automatically.
@@ -110,6 +113,7 @@
     - **1.11.0:** **Modo incógnito** en la barra lateral (estilo Trade Republic): todas las cifras de dinero de la app se formatean con `useMoney()` (`src/features/privacy/money.ts`) y quedan enmascaradas como «€ ▓#%$&» con caracteres aleatorios al activarlo; se recuerda en `localStorage`. Unifica los 8 formateadores de euros duplicados en uno solo; los formularios de edición siguen mostrando los importes reales; los importes originales con divisa muestran el símbolo (ptas, $…) en vez del código. También: `eslint.config.js` nuevo (ESLint 9 flat config) para que `npm run lint` funcione, y README reescrito en español (módulos, despliegue, reglas y CORS).
     - **1.12.0:** **Panel de inicio en `/`** (antes redirigía a `/inmuebles`): tarjetas resumen de Inmuebles y Bienes; calendario del mes en curso con marcas por día (verde = cobros registrados con `paidAt`, rojo = gastos sin pagar, puntuales y periódicos); anotaciones de alquileres cobrados/pendientes, gastos sin pagar, facturas y atrasos de meses anteriores; gráfica de barras cobros vs gastos por mes del año (CSS, sin dependencias); últimos 8 bienes añadidos (foto + nombre, abren su ficha) y valoración por colección. «Inicio» en la barra lateral con `NavLink end`. Todo consciente del modo incógnito: cifras enmascaradas y gráficas/barras de valor ocultas.
     - **1.12.1:** Máscara del modo incógnito más corta y coherente con el formato real: 3–4 caracteres aleatorios seguidos del símbolo de la divisa («▓#%§ €», «▓#%§ ptas», «▓#%§ $»), en vez de 5–7 caracteres con el € delante.
+    - **1.13.0:** Ronda de mejoras: **toasts** (`ToastProvider`, `useToast`) que sustituyen los `alert()` y avisan de guardados/eliminaciones/exportaciones; **tema oscuro unificado** (Inmuebles ya no mezcla tarjetas blancas: PropertiesPage, PropertyDetailPage, PropertyModal, PropertyTenantsPanel y ConfirmModal convertidos a slate); **lightbox de fotos** a pantalla completa en las fichas (`PhotoLightbox`, flechas y Esc); **«⧉ Duplicar»** en la ficha de un bien (`duplicateAsset` copia datos sin fotos ni `import_key`, nombre con «(copia)», y abre la copia para editarla); **copia de seguridad y exportaciones** en el panel (`src/features/backup`: JSON completo de 11 colecciones, CSV fiscal anual por inmueble y CSV de inventario; se generan en el dispositivo con lecturas puntuales); y **búsqueda global Ctrl+K** (`GlobalSearch`) con inmuebles, inquilinos y bienes, listeners solo mientras está abierta y botones en la barra lateral y el header móvil. ESLint: `ignoreRestSiblings` para el patrón `const { id, ...rest }`.
 
 ---
 

@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
+import PhotoLightbox from '@/components/ui/PhotoLightbox'
 import { useMoney } from '@/features/privacy/money'
 import { getCategoryInfo } from './assetCategories'
 import {
@@ -44,6 +45,7 @@ export default function AssetDetailModal({
   onClose,
   onEdit,
   onDelete,
+  onDuplicate,
   suspended = false,
   index,
   total,
@@ -54,6 +56,7 @@ export default function AssetDetailModal({
   onClose: () => void
   onEdit: (asset: AssetItem) => void
   onDelete: (asset: AssetItem) => void
+  onDuplicate?: (asset: AssetItem) => void
   suspended?: boolean
   index?: number
   total?: number
@@ -61,10 +64,11 @@ export default function AssetDetailModal({
   onNext?: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const money = useMoney()
 
   useEffect(() => {
-    if (!asset || suspended) return
+    if (!asset || suspended || lightboxIndex !== null) return
     const handler = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
       if (event.key === 'ArrowLeft' && onPrevious) onPrevious()
@@ -72,7 +76,7 @@ export default function AssetDetailModal({
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [asset, onClose, suspended, onPrevious, onNext])
+  }, [asset, onClose, suspended, lightboxIndex, onPrevious, onNext])
 
   useEffect(() => {
     setCopied(false)
@@ -196,6 +200,16 @@ export default function AssetDetailModal({
             >
               {copied ? '✓ Copiado' : '🔗 Copiar enlace'}
             </button>
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={() => onDuplicate(asset)}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+                title="Crear una copia editable de esta ficha"
+              >
+                ⧉ Duplicar
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onEdit(asset)}
@@ -334,16 +348,20 @@ export default function AssetDetailModal({
                 {photos.map((photo, index) => (
                   <div
                     key={`${photo}-${index}`}
-                    className="group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-950"
-                    title="Imagen de la ficha"
+                    className="group relative flex aspect-square cursor-zoom-in items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-950 transition hover:border-teal-700"
+                    title="Ampliar foto"
+                    onClick={() => setLightboxIndex(index)}
                   >
                     <PrivateStorageImage
                       source={photo}
                       alt={`${asset.name} ${index + 1}`}
                       className="h-full w-full object-contain transition group-hover:scale-[1.02]"
                     />
+                    <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded bg-slate-950/80 px-1.5 py-0.5 text-[9px] text-slate-300 opacity-0 transition group-hover:opacity-100">
+                      🔍 Ampliar
+                    </span>
                     {asset.photoSizesBytes?.[index] ? (
-                      <span className="absolute bottom-1 right-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[9px] text-slate-400">
+                      <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-slate-950/80 px-1.5 py-0.5 text-[9px] text-slate-400">
                         {(asset.photoSizesBytes[index] / 1024).toFixed(0)} KB
                       </span>
                     ) : null}
@@ -354,6 +372,16 @@ export default function AssetDetailModal({
           </aside>
         </div>
       </div>
+
+      {lightboxIndex !== null && photos[lightboxIndex] && (
+        <PhotoLightbox
+          photos={photos}
+          index={lightboxIndex}
+          title={asset.name}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </div>
   )
 }
