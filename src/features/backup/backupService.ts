@@ -1,7 +1,8 @@
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { AssetItem, Expense, Property } from '@/types'
+import { AssetItem, Expense, Property, RecurringExpenseOccurrence, RecurringExpenseSchedule } from '@/types'
 import { isRentApplicableForMonth } from '@/features/properties/rentRates'
+import { isScheduleDueInMonth, occurrenceIdFor } from '@/features/properties/recurringExpensesLogic'
 import { assetValue, locationLabel, yearLabel } from '@/features/collections/numismaticaUi'
 import { getCategoryInfo } from '@/features/collections/assetCategories'
 
@@ -76,15 +77,19 @@ export async function downloadFullBackup(): Promise<{ documents: number }> {
  * categoría (IRPF, rendimiento de capital inmobiliario).
  */
 export async function downloadFiscalYearCsv(year: number): Promise<{ properties: number }> {
-  const [propertiesSnap, paymentsSnap, expensesSnap] = await Promise.all([
+  const [propertiesSnap, paymentsSnap, expensesSnap, schedulesSnap, occurrencesSnap] = await Promise.all([
     getDocs(collection(db, 'properties')),
     getDocs(query(collection(db, 'rentPayments'), where('year', '==', year))),
     getDocs(query(collection(db, 'expenses'), where('year', '==', year))),
+    getDocs(collection(db, 'recurringExpenseSchedules')),
+    getDocs(query(collection(db, 'recurringExpenseOccurrences'), where('year', '==', year))),
   ])
 
   const properties = propertiesSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Partial<Property>) }))
   const payments = paymentsSnap.docs.map((doc) => doc.data())
   const expenses = expensesSnap.docs.map((doc) => doc.data() as Partial<Expense>)
+  const schedules = schedulesSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Partial<RecurringExpenseSchedule>) }))
+  const occurrenceById = new Map(occurrencesSnap.docs.map((doc) => [doc.id, doc.data() as Partial<RecurringExpenseOccurrence>]))
 
   const CATEGORIES = ['comunidad', 'ibi', 'seguro', 'reparacion', 'suministros', 'administracion'] as const
 
@@ -95,12 +100,28 @@ export async function downloadFiscalYearCsv(year: number): Promise<{ properties:
       .filter((payment) => payment.propertyId === property.id && isRentApplicableForMonth(property as Property, year, Number(payment.month)))
       .reduce((total, payment) => total + (payment.receivedAmount ?? (payment.isPaid ? payment.amount : 0)), 0)
     const byCategory = new Map<string, number>()
+
+    // Gastos puntuales deducibles
     expenses
       .filter((expense) => expense.propertyId === property.id && expense.isDeductible)
       .forEach((expense) => {
         const category = CATEGORIES.includes(expense.category as typeof CATEGORIES[number]) ? expense.category! : 'otros'
         byCategory.set(category, (byCategory.get(category) ?? 0) + (expense.amount || 0))
       })
+
+    // Gastos periódicos deducibles: cada vencimiento del año con su
+    // ocurrencia real (si existe) o el importe previsto del calendario.
+    schedules
+      .filter((schedule) => schedule.propertyId === property.id && schedule.isDeductible)
+      .forEach((schedule) => {
+        for (let month = 1; month <= 12; month++) {
+          if (!isScheduleDueInMonth(schedule as RecurringExpenseSchedule, year, month)) continue
+          const occurrence = occurrenceById.get(occurrenceIdFor(schedule.id!, year, month))
+          const category = CATEGORIES.includes(schedule.category as typeof CATEGORIES[number]) ? schedule.category! : 'otros'
+          byCategory.set(category, (byCategory.get(category) ?? 0) + (occurrence?.amount ?? schedule.amount ?? 0))
+        }
+      })
+
     const deductible = [...byCategory.values()].reduce((total, value) => total + value, 0)
 
     return [

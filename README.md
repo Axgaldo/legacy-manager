@@ -16,7 +16,7 @@ La portada `/` resume todo el patrimonio: calendario del mes con cobros registra
 ### 🏠 Inmuebles
 - **Propiedades**: fichas con dirección, referencia catastral, inquilinos vinculados, fianza y valor estimado.
 - **Alquileres**: control mensual de cobros por inmueble y año, con estados automáticos (cobrado, parcial, atraso, exceso), colores manuales y cambios de renta con histórico.
-- **Gastos**: vista transversal de gastos puntuales y periódicos con calendario por mes, facturas y resumen fiscal (IRPF).
+- **Gastos**: vista transversal con calendario por mes y filtro de tipo (todos, solo periódicos o solo puntuales), facturas y resumen fiscal (IRPF) que suma puntuales y periódicos deducibles.
 - **Inquilinos**: directorio independiente con documentos (DNI, contratos, nóminas…) y vinculación bidireccional con inmuebles.
 - **Contratos y adendas**: PDF hasta 100 MiB por versión, en Firebase Cloud Storage; activar/deshactivar contratos sin perder el archivo.
 

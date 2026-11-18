@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Property, PropertyStatus, AssetItem, RentPayment, Tenant } from '@/types'
+import { Property, PropertyStatus, AssetItem, RentPayment, RecurringExpenseSchedule, Tenant } from '@/types'
 import { subscribeToProperties, deleteProperty } from './propertiesService'
 import { subscribeToTenants } from '@/features/tenants/tenantsService'
 import { subscribeToAssets } from '@/features/collections/assetsService'
 import { subscribeToPaymentsThroughYear } from './paymentsService'
+import { subscribeToAllRecurringExpenseSchedules } from './recurringExpensesService'
+import { recurringMonthlyAverage, recurringMonthlyAverageForProperty } from './recurringExpensesLogic'
 import PropertyModal from './PropertyModal'
 import PropertyExpensesOverview from './PropertyExpensesOverview'
 import RentPaymentsOverview from './RentPaymentsOverview'
@@ -21,7 +23,7 @@ export type PropertiesTab = 'properties' | 'rentals' | 'expenses' | 'tenants'
 const OVERVIEW_TABS: Array<{ value: PropertiesTab; label: string; to: string }> = [
   { value: 'properties', label: 'Inmuebles', to: '/inmuebles' },
   { value: 'rentals', label: 'Alquileres', to: '/inmuebles/alquileres' },
-  { value: 'expenses', label: 'Gastos generales', to: '/inmuebles/gastos' },
+  { value: 'expenses', label: 'Gastos', to: '/inmuebles/gastos' },
   { value: 'tenants', label: 'Inquilinos', to: '/inmuebles/inquilinos' },
 ]
 
@@ -53,6 +55,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
   const [today, setToday] = useState(() => new Date())
   const [loading, setLoading] = useState(true)
   const [firestoreError, setFirestoreError] = useState<string | null>(null)
+  const [recurringSchedules, setRecurringSchedules] = useState<RecurringExpenseSchedule[]>([])
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -84,6 +87,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
 
   useEffect(() => subscribeToAssets(setAssets, (error) => console.error('No se pudieron cargar los propietarios de bienes:', error)), [])
   useEffect(() => subscribeToTenants(setTenants, (error) => console.error('No se pudieron cargar los inquilinos:', error)), [])
+  useEffect(() => subscribeToAllRecurringExpenseSchedules(setRecurringSchedules, (error) => console.error('No se pudieron cargar los gastos periódicos:', error)), [])
 
   const ownerOptions = useMemo(() => getOwnerOptions(properties, assets), [properties, assets])
   const defaultOwner = useMemo(() => getDefaultOwner(properties, assets), [properties, assets])
@@ -139,7 +143,6 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
   // KPI Calculations
   const metrics = useMemo(() => {
     let totalMonthlyRent = 0
-    let totalMonthlyExpenses = 0
     let rentedCount = 0
     let vacantCount = 0
     let totalValue = 0
@@ -151,10 +154,12 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
       } else if (p.status === 'vacant') {
         vacantCount += 1
       }
-      totalMonthlyExpenses += p.fixedExpensesMonthly || 0
       totalValue += p.currentValue || 0
     })
 
+    // Gastos fijos reales: media mensual de los gastos periódicos activos
+    // (comunidad al mes, IBI anual / 12…). Los puntuales no son fijos.
+    const totalMonthlyExpenses = recurringMonthlyAverage(recurringSchedules, today)
     const netMonthly = totalMonthlyRent - totalMonthlyExpenses
 
     return {
@@ -166,7 +171,16 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
       netMonthly,
       totalValue,
     }
-  }, [properties, currentYear, currentMonth])
+  }, [properties, recurringSchedules, today, currentYear, currentMonth])
+
+  /** Media mensual de gastos periódicos por inmueble, para las tarjetas. */
+  const recurringAverageByProperty = useMemo(() => {
+    const result = new Map<string, number>()
+    properties.forEach((property) => {
+      result.set(property.id, recurringMonthlyAverageForProperty(recurringSchedules, property.id, today))
+    })
+    return result
+  }, [properties, recurringSchedules, today])
 
   // Filtered properties
   const tenantNamesFor = (property: Property): string[] => {
@@ -300,11 +314,12 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
         {/* Gastos Mensuales */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-xs">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Gastos Fijos / Mes
+            Gastos Periódicos / Mes
           </p>
           <p className="text-2xl font-bold text-slate-300 mt-2">
             {money.formatEuro(metrics.totalMonthlyExpenses)}
           </p>
+          <p className="mt-1 text-[10px] text-slate-500">Media mensual de las obligaciones periódicas activas</p>
         </div>
 
         {/* Rendimiento Neto Mensual */}
@@ -552,11 +567,11 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                   </div>
                 )}
 
-                {prop.fixedExpensesMonthly !== undefined && prop.fixedExpensesMonthly > 0 && (
+                {(recurringAverageByProperty.get(prop.id) ?? 0) > 0 && (
                   <div className="flex items-baseline justify-between text-xs">
-                    <span className="text-slate-500">Gastos fijos:</span>
+                    <span className="text-slate-500">Gastos periódicos:</span>
                     <span className="font-medium text-slate-400">
-                      {money.formatEuro(prop.fixedExpensesMonthly)}/mes
+                      {money.formatEuro(recurringAverageByProperty.get(prop.id) ?? 0)}/mes
                     </span>
                   </div>
                 )}

@@ -3,6 +3,7 @@ import { ExpenseCategory, RecurringExpenseOccurrence, RecurringExpenseSchedule }
 import { EXPENSE_CATEGORIES } from './expenseCategories'
 import { useMoney } from '@/features/privacy/money'
 import { addRecurringExpenseSchedule, createRecurringExpenseScheduleVersion, endRecurringExpensesFromMonth, subscribeToRecurringExpenseOccurrences, subscribeToRecurringExpenseSchedules, updateRecurringExpenseSchedule, updateRecurringOccurrence } from './recurringExpensesService'
+import { isScheduleDueInMonth, occurrenceIdFor } from './recurringExpensesLogic'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const today = () => new Date().toLocaleDateString('sv-SE')
@@ -32,13 +33,6 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
   useEffect(() => subscribeToRecurringExpenseOccurrences(propertyId, setOccurrences, (e) => setError(e.message)), [propertyId])
 
   const occurrenceById = useMemo(() => new Map(occurrences.map((item) => [item.id, item])), [occurrences])
-  const scheduledFor = (schedule: RecurringExpenseSchedule, month: number) => {
-    const [startYear, startMonth] = schedule.startDate.slice(0, 7).split('-').map(Number)
-    const monthDelta = (year - startYear) * 12 + month - startMonth
-    const [endYear, endMonth] = (schedule.endDate ?? '9999-12').slice(0, 7).split('-').map(Number)
-    const endDelta = (endYear - year) * 12 + endMonth - month
-    return monthDelta >= 0 && endDelta >= 0 && monthDelta % Math.max(1, schedule.intervalMonths) === 0
-  }
   const money = useMoney()
   const formatEuro = (value: number) => money.formatEuro(value, 2)
 
@@ -148,10 +142,19 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
       ...(autoPay ? { isPaid: true, paidAt: occurrence?.paidAt || today() } : {}),
     })
   }
-  const changePayment = (schedule: RecurringExpenseSchedule, month: number, occurrence?: RecurringExpenseOccurrence) => updateRecurringOccurrence(schedule, year, month, {
-    isPaid: !occurrence?.isPaid,
-    paidAt: !occurrence?.isPaid ? (occurrence?.paidAt || today()) : '',
-  })
+  const changePayment = (schedule: RecurringExpenseSchedule, month: number, occurrence?: RecurringExpenseOccurrence) => {
+    const paid = !occurrence?.isPaid
+    // Si el propietario ya ha pagado, la factura del proveedor se da por
+    // recibida (cuando el gasto la requiere y aún no estaba marcada).
+    const autoInvoice = paid && schedule.requiresInvoice && !occurrence?.invoiceReceived
+    return updateRecurringOccurrence(schedule, year, month, {
+      isPaid: paid,
+      paidAt: paid ? (occurrence?.paidAt || today()) : '',
+      ...(autoInvoice
+        ? { invoiceReceived: true, invoiceReceivedDate: occurrence?.invoiceReceivedDate || today() }
+        : {}),
+    })
+  }
   const changeTenantInvoice = (schedule: RecurringExpenseSchedule, month: number, occurrence?: RecurringExpenseOccurrence) => updateRecurringOccurrence(schedule, year, month, {
     tenantInvoiceIssued: !occurrence?.tenantInvoiceIssued,
     tenantInvoiceIssuedDate: !occurrence?.tenantInvoiceIssued ? (occurrence?.tenantInvoiceIssuedDate || today()) : '',
@@ -179,11 +182,11 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     {error && <p className="rounded-xl border border-red-900 bg-red-950/40 p-3 text-sm text-red-200">{error}</p>}
     <div className="space-y-4">{MONTHS.map((monthName, index) => {
       const month = index + 1
-      const due = schedules.filter((schedule) => scheduledFor(schedule, month))
+      const due = schedules.filter((schedule) => isScheduleDueInMonth(schedule, year, month))
       if (!due.length) return null
       return <section key={month} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900"><header className="flex items-center justify-between border-b border-slate-800 px-4 py-3"><h3><span className="rounded-lg border border-emerald-800 bg-emerald-950/60 px-2.5 py-1 text-sm font-semibold capitalize text-emerald-200">{monthName} {year}</span></h3><span className="text-xs text-slate-400">{formatEuro(due.reduce((sum, item) => sum + item.amount, 0))} previsto</span></header><div className="divide-y divide-slate-800">{due.map((schedule) => {
-        const occurrence = occurrenceById.get(`${schedule.id}_${year}-${String(month).padStart(2, '0')}`)
-        const occurrenceKey = `${schedule.id}_${year}-${String(month).padStart(2, '0')}`
+        const occurrence = occurrenceById.get(occurrenceIdFor(schedule.id, year, month))
+        const occurrenceKey = occurrenceIdFor(schedule.id, year, month)
         return <article key={schedule.id} className="grid gap-4 p-4 lg:grid-cols-[minmax(180px,1fr)_minmax(0,2fr)] lg:items-start">
           <div className="min-w-0"><p className="font-semibold text-slate-100">{EXPENSE_CATEGORIES.find((item) => item.value === schedule.category)?.label ?? schedule.category}</p><p className="mt-1 text-xs text-slate-400">{schedule.intervalMonths === 1 ? 'Mensual' : `Cada ${schedule.intervalMonths} meses`} · {formatEuro(occurrence?.amount ?? schedule.amount)}</p></div>
           <div className="grid gap-3 sm:grid-cols-2">

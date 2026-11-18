@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument } from '@/types'
+import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument, RecurringExpenseOccurrence, RecurringExpenseSchedule } from '@/types'
 import { subscribeToProperties } from './propertiesService'
 import { subscribeToYearPayments, toggleInvoiceIssued, updateRentNotes, recordRentReceipt, updateRentPaymentMeta } from './paymentsService'
 import { subscribeToPropertyExpenses, addExpense, deleteExpense, updateExpenseStatus } from './expensesService'
+import { subscribeToRecurringExpenseOccurrences, subscribeToRecurringExpenseSchedules } from './recurringExpensesService'
+import { isScheduleDueInMonth, occurrenceIdFor, recurringMonthlyAverageForProperty } from './recurringExpensesLogic'
 import { subscribeToPropertyContracts } from './contractsService'
 import { isRentApplicableForMonth, normalizeRentHistory, rentAmountForMonth } from './rentRates'
 import { updateProperty } from './propertiesService'
@@ -91,6 +93,8 @@ export default function PropertyDetailPage() {
   const [contracts, setContracts] = useState<Contract[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [tenantDocuments, setTenantDocuments] = useState<TenantDocument[]>([])
+  const [recurringSchedules, setRecurringSchedules] = useState<RecurringExpenseSchedule[]>([])
+  const [recurringOccurrences, setRecurringOccurrences] = useState<RecurringExpenseOccurrence[]>([])
 
   // Modal states for new expense / contract
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
@@ -160,6 +164,17 @@ export default function PropertyDetailPage() {
       setContracts(items)
     })
     return () => unsub()
+  }, [property?.id])
+
+  // Subscribe to recurring expenses (hero y resumen fiscal)
+  useEffect(() => {
+    if (!property) return
+    const unsubSchedules = subscribeToRecurringExpenseSchedules(property.id, setRecurringSchedules, () => {})
+    const unsubOccurrences = subscribeToRecurringExpenseOccurrences(property.id, setRecurringOccurrences, () => {})
+    return () => {
+      unsubSchedules()
+      unsubOccurrences()
+    }
   }, [property?.id])
 
   // Tenant directory and document index (used by the tenants tab and hero badges)
@@ -242,21 +257,37 @@ export default function PropertyDetailPage() {
     let administracion = 0
     let otros = 0
 
+    const addDeductible = (category: string, amount: number) => {
+      switch (category) {
+        case 'comunidad': comunidad += amount; break
+        case 'ibi': ibi += amount; break
+        case 'seguro': seguro += amount; break
+        case 'reparacion': reparacion += amount; break
+        case 'suministros': suministros += amount; break
+        case 'administracion': administracion += amount; break
+        default: otros += amount; break
+      }
+    }
+
+    // Gastos puntuales deducibles
     yearExpenses.forEach((e) => {
       if (!e.isDeductible) return
-      const amt = e.amount || 0
-      switch (e.category) {
-        case 'comunidad': comunidad += amt; break
-        case 'ibi': ibi += amt; break
-        case 'seguro': seguro += amt; break
-        case 'reparacion': reparacion += amt; break
-        case 'suministros': suministros += amt; break
-        case 'administracion': administracion += amt; break
-        default: otros += amt; break
-      }
+      addDeductible(e.category, e.amount || 0)
     })
 
-    // If fixed monthly expenses are configured and no specific comunidad expenses logged
+    // Gastos periódicos deducibles: cada vencimiento del año con su
+    // ocurrencia real (si existe) o el importe previsto del calendario.
+    const recurringOccurrenceById = new Map(recurringOccurrences.map((occurrence) => [occurrence.id, occurrence]))
+    recurringSchedules
+      .filter((schedule) => schedule.isDeductible)
+      .forEach((schedule) => {
+        for (let month = 1; month <= 12; month++) {
+          if (!isScheduleDueInMonth(schedule, selectedYear, month)) continue
+          const occurrence = recurringOccurrenceById.get(occurrenceIdFor(schedule.id, selectedYear, month))
+          addDeductible(schedule.category, occurrence?.amount ?? schedule.amount)
+        }
+      })
+
     const totalDeductibleExpenses = comunidad + ibi + seguro + reparacion + suministros + administracion + otros
     const netReturn = totalIncome - totalDeductibleExpenses
     const reducedReturn50 = Math.max(0, netReturn * 0.5) // Reducción estándar del 50% por arrendamiento vivienda habitual en IRPF
@@ -274,7 +305,7 @@ export default function PropertyDetailPage() {
       netReturn,
       reducedReturn50,
     }
-  }, [paymentsSummary, yearExpenses])
+  }, [paymentsSummary, yearExpenses, recurringSchedules, recurringOccurrences, selectedYear])
 
   const handleReceivedSave = async (month: number, expected: number, received: number) => {
     if (!property) return
@@ -456,8 +487,12 @@ export default function PropertyDetailPage() {
           </div>
           <div className="w-px h-8 bg-slate-800" />
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-400">Gastos Fijos</p>
-            <p className="text-xl font-bold text-slate-300">{formatEuro(property.fixedExpensesMonthly)}/mes</p>
+            <p className="text-[10px] uppercase font-bold text-slate-400">Gastos Periódicos</p>
+            <p className="text-xl font-bold text-slate-300">
+              {recurringMonthlyAverageForProperty(recurringSchedules, property.id, today) > 0
+                ? `${formatEuro(recurringMonthlyAverageForProperty(recurringSchedules, property.id, today))}/mes`
+                : '—'}
+            </p>
           </div>
         </div>
       </div>
@@ -475,6 +510,16 @@ export default function PropertyDetailPage() {
           💳 Control Mensual de Cobros
         </button>
         <button
+          onClick={() => setActiveTab('recurring')}
+          className={`pb-3 px-3.5 border-b-2 transition ${
+            activeTab === 'recurring'
+              ? 'border-teal-700 text-teal-300'
+              : 'border-transparent text-slate-500 hover:text-slate-200'
+          }`}
+        >
+          🔁 Gastos periódicos
+        </button>
+        <button
           onClick={() => setActiveTab('expenses')}
           className={`pb-3 px-3.5 border-b-2 transition ${
             activeTab === 'expenses'
@@ -483,12 +528,6 @@ export default function PropertyDetailPage() {
           }`}
         >
           🧾 Gastos puntuales ({expenses.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('recurring')}
-          className={`pb-3 px-3.5 border-b-2 transition ${activeTab === 'recurring' ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-200'}`}
-        >
-          🔁 Gastos periódicos
         </button>
         <button
           onClick={() => setActiveTab('contracts')}
@@ -786,6 +825,7 @@ export default function PropertyDetailPage() {
               <h3 className="text-base font-bold text-slate-100">Resumen Fiscal de Rendimiento de Capital Inmobiliario</h3>
               <p className="text-xs text-slate-500">
                 Cálculo automático de Ingresos íntegros y Gastos deducibles según normativa del IRPF.
+                Incluye tanto los gastos puntuales como los periódicos marcados como deducibles.
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs">

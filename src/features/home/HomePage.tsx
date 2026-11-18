@@ -6,6 +6,7 @@ import { subscribeToAllYearPayments } from '@/features/properties/paymentsServic
 import { subscribeToYearExpenses } from '@/features/properties/expensesService'
 import { subscribeToAllRecurringExpenseOccurrences, subscribeToAllRecurringExpenseSchedules } from '@/features/properties/recurringExpensesService'
 import { isRentApplicableForMonth, rentAmountForMonth } from '@/features/properties/rentRates'
+import { isScheduleDueInMonth, occurrenceIdFor, recurringMonthlyAverage } from '@/features/properties/recurringExpensesLogic'
 import { subscribeToAssets } from '@/features/collections/assetsService'
 import { COLLECTIONS, categoryCollection, getCategoryInfo, matchesCollection } from '@/features/collections/assetCategories'
 import { assetValue } from '@/features/collections/numismaticaUi'
@@ -30,15 +31,6 @@ interface DayMark {
 
 function pad2(value: number): string {
   return String(value).padStart(2, '0')
-}
-
-/** Igual que la vista de gastos: ¿este gasto periódico vence en el mes? */
-function isScheduleDueInMonth(schedule: RecurringExpenseSchedule, year: number, month: number): boolean {
-  const [startYear, startMonth] = schedule.startDate.slice(0, 7).split('-').map(Number)
-  const monthDelta = (year - startYear) * 12 + month - startMonth
-  const [endYear, endMonth] = (schedule.endDate ?? '9999-12').slice(0, 7).split('-').map(Number)
-  const beforeEnd = (endYear - year) * 12 + endMonth - month >= 0
-  return monthDelta >= 0 && beforeEnd && monthDelta % Math.max(1, schedule.intervalMonths) === 0
 }
 
 export default function HomePage() {
@@ -126,7 +118,7 @@ export default function HomePage() {
   const monthRecurring = useMemo(() => schedules
     .filter((schedule) => isScheduleDueInMonth(schedule, year, month))
     .map((schedule) => {
-      const occurrence = occurrenceById.get(`${schedule.id}_${year}-${pad2(month)}`)
+      const occurrence = occurrenceById.get(occurrenceIdFor(schedule.id, year, month))
       return {
         schedule,
         amount: occurrence?.amount ?? schedule.amount,
@@ -180,7 +172,7 @@ export default function HomePage() {
       .reduce((total, expense) => total + expense.amount, 0)
     const recurring = schedules
       .filter((schedule) => isScheduleDueInMonth(schedule, year, chartMonth))
-      .reduce((total, schedule) => total + (occurrenceById.get(`${schedule.id}_${year}-${pad2(chartMonth)}`)?.amount ?? schedule.amount), 0)
+      .reduce((total, schedule) => total + (occurrenceById.get(occurrenceIdFor(schedule.id, year, chartMonth))?.amount ?? schedule.amount), 0)
     return { month: chartMonth, collected, expenses: oneOff + recurring }
   }), [payments, expenses, schedules, occurrenceById, year, month])
 
@@ -202,7 +194,8 @@ export default function HomePage() {
   const rentedCount = properties.filter((property) => property.status === 'rented').length
   const vacantCount = properties.filter((property) => property.status === 'vacant').length
   const ownerUseCount = properties.length - rentedCount - vacantCount
-  const fixedExpensesMonthly = properties.reduce((total, property) => total + (property.fixedExpensesMonthly ?? 0), 0)
+  // Gastos fijos reales: media mensual de los gastos periódicos activos.
+  const fixedExpensesMonthly = recurringMonthlyAverage(schedules, now)
   const netMonthly = totalExpected - fixedExpensesMonthly
 
   const openAsset = (asset: AssetItem) => {

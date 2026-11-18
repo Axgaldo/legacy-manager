@@ -51,7 +51,6 @@ export default function PropertyModal({
   const [rentStartMonth, setRentStartMonth] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
   const [avraReference, setAvraReference] = useState('')
-  const [fixedExpensesMonthly, setFixedExpensesMonthly] = useState('')
   const [currentValue, setCurrentValue] = useState('')
   const [notes, setNotes] = useState('')
 
@@ -74,9 +73,6 @@ export default function PropertyModal({
       setRentStartMonth(propertyToEdit.rentStartMonth || '')
       setDepositAmount(propertyToEdit.depositAmount ? String(propertyToEdit.depositAmount) : '')
       setAvraReference(propertyToEdit.avraReference || '')
-      setFixedExpensesMonthly(
-        propertyToEdit.fixedExpensesMonthly ? String(propertyToEdit.fixedExpensesMonthly) : '',
-      )
       setCurrentValue(propertyToEdit.currentValue ? String(propertyToEdit.currentValue) : '')
       setNotes(propertyToEdit.notes || '')
     } else {
@@ -94,7 +90,6 @@ export default function PropertyModal({
       setRentStartMonth(new Date().toLocaleDateString('sv-SE').slice(0, 7))
       setDepositAmount('')
       setAvraReference('')
-      setFixedExpensesMonthly('')
       setCurrentValue('')
       setNotes('')
     }
@@ -133,7 +128,6 @@ export default function PropertyModal({
         ...(propertyToEdit?.rentHistory ? { rentHistory: propertyToEdit.rentHistory } : {}),
         depositAmount: depositAmount ? parseFloat(depositAmount) : undefined,
         avraReference: avraReference.trim() || undefined,
-        fixedExpensesMonthly: fixedExpensesMonthly ? parseFloat(fixedExpensesMonthly) : undefined,
         currentValue: currentValue ? parseFloat(currentValue) : undefined,
         notes: notes.trim() || undefined,
       }
@@ -341,22 +335,15 @@ export default function PropertyModal({
               </section>}
           </div>
 
-          {/* Finanzas: Gastos fijos y Valor estimado */}
+          {/* Finanzas: gastos fijos (nota) y Valor estimado */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                Gastos fijos estimados al mes (€)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={fixedExpensesMonthly}
-                onChange={(e) => setFixedExpensesMonthly(e.target.value)}
-                placeholder="Ej. 65 (comunidad + IBI/12)"
-                className="w-full px-3.5 py-2.5 border border-slate-700 bg-slate-950 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 focus:outline-hidden"
-              />
-              <span className="text-[11px] text-slate-400">Comunidad, seguros, IBI prorrateado</span>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Gastos fijos</p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Se configuran en la pestaña <strong className="text-slate-200">«Gastos periódicos»</strong> de la ficha
+                (comunidad mensual, IBI anual, seguros…). La media mensual se calcula sola y alimenta los indicadores
+                y el resumen fiscal; no hace falta apuntarla a mano.
+              </p>
             </div>
 
             <div>
