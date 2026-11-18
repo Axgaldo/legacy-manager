@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AssetCategory, AssetItem, Property } from '@/types'
 import { subscribeToAssets, deleteAsset, migrateLegacyAssetPhotos } from './assetsService'
@@ -98,6 +98,9 @@ export default function CollectionsPage() {
   const [selectedEra, setSelectedEra] = useState('all')
   const [selectedNumismaticaType, setSelectedNumismaticaType] = useState('all')
   const [onlyReview, setOnlyReview] = useState(false)
+
+  const deferredSearchQuery = useDeferredValue(searchQuery)
+  const isSearchPending = deferredSearchQuery !== searchQuery
 
   const activeCollection: CollectionKey | undefined = isCollectionKey(collectionKey) ? collectionKey : undefined
   const isLanding = !activeCollection
@@ -246,7 +249,7 @@ export default function CollectionsPage() {
   )
 
   const filteredAssets = useMemo(() => {
-    const query = normalizeText(searchQuery.trim())
+    const query = normalizeText(deferredSearchQuery.trim())
     const filtered = scopedAssets.filter((asset) => {
       const matchesOwner = selectedOwner === 'all' || normalizeText(asset.owner || 'Gabriel') === normalizeText(selectedOwner)
       const matchesCategory = selectedCategory === 'all' || asset.category === selectedCategory
@@ -285,7 +288,7 @@ export default function CollectionsPage() {
     })
   }, [
     scopedAssets, selectedOwner, selectedCategory, selectedTags, selectedMaterial, selectedConservationState,
-    selectedEra, selectedNumismaticaType, onlyReview, searchQuery, sortBy,
+    selectedEra, selectedNumismaticaType, onlyReview, deferredSearchQuery, sortBy,
   ])
 
   const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
@@ -571,9 +574,12 @@ export default function CollectionsPage() {
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder={isNumismaticaCollection ? 'Buscar nombre, motivo, ceca, gobernante, material…' : 'Buscar nombre, autor, material, etiqueta…'}
-                  className={`${filterInputClass} pl-8`}
+                  className={`${filterInputClass} pl-8 pr-24`}
                 />
                 <span className="absolute left-2.5 top-2 text-slate-500">⌕</span>
+                {isSearchPending && (
+                  <span className="absolute right-3 top-2 text-[11px] text-slate-500">Buscando…</span>
+                )}
               </div>
               {!isNumismaticaCollection && (
                 <div className="relative sm:w-56">
