@@ -194,7 +194,16 @@ Orden aproximado por relación impacto/esfuerzo. No implementar sin necesidad: s
 **P3 — mantenibilidad**
 - Completado en 1.20.2, 1.21.0 y 1.22.0: CI con tests + lint + build en cada push/PR, `exhaustive-deps` corregidos de verdad, `fixedExpensesMonthly` eliminado, funciones de borrado sin uso retiradas, suscripciones unificadas en `subscribeToCollection`, conversión defensiva con `coerce` y *focus trap* en todos los diálogos. La purga de un bien borra sus `assetPhotoBackups` legacy.
 - **Trocear componentes grandes** (aplazado conscientemente en 1.22.0): `CollectionsPage` (~960 líneas), `PropertyDetailPage` (~900), `AssetModal` (673). Sin tests E2E, extraer bloques con tanta lógica local tiene más riesgo de regresión que beneficio inmediato; hacerlo al tocar esas pantallas por otro motivo.
-- **Pendientes menores**: llevar gastos puntuales y cobros a la papelera (descartado por decisión del usuario en 1.22.0) y actualizar dependencias con avisos que exigen *major*: React Router 7 (aviso de *open redirect* solo si se navega a una ruta controlada por terceros), Vitest 5 (afecta solo a desarrollo) y la cadena `@grpc/grpc-js` de Firebase (solo transporte Node; no entra en el bundle del navegador).
+- **Pendientes menores**: llevar gastos puntuales y cobros a la papelera (descartado por decisión del usuario en 1.22.0).
+
+**Actualizaciones de dependencias (aplazadas, sin riesgo actual)**
+
+Estado a 2026-11-18: `npm audit` deja 9 avisos, todos en dependencias de desarrollo o en código que no se ejecuta en el navegador. No usar `npm audit fix --force` sin analizar: bajaría Firebase a v9.
+
+- **React Router 6.30.6 → 7.x** (cambio mayor). Avisos: *open redirect* por barra invertida en `<Link>`/`useNavigate` (solo con destinos controlados por terceros; la app navega a rutas internas) e inyección en SSR (no se usa SSR). Antes de subir: probar navegación, deep links, atrás/adelante, `Ctrl+K`, rutas 404 y las redirecciones legacy (`/inquilinos`, `/bienes/importar`).
+- **Vitest 3.2.7 → 5.x** (cambio mayor, solo desarrollo). Avisos de Tinypool y `@vitest/mocker` que no afectan a producción. Adaptar la configuración si cambia y verificar los 80 tests y el workflow de CI.
+- **Firebase / `@grpc/grpc-js`** (aviso *high*): la cadena de gRPC solo se usa en el transporte Node; comprobado que **no entra en el bundle** del navegador. Esperar a que Firebase actualice la dependencia; no degradar de versión.
+- Revisar `npm audit` distinguiendo dependencias de desarrollo, indirectas y de servidor antes de actuar.
 
 **Ideas de producto (sin prioridad)**
 - Completado en 1.21.0: avisos de contrato/renta, comparativa anual por inmueble y PDF resumen anual para el gestor. No repetir estas propuestas.
