@@ -70,8 +70,9 @@
 - **Alcance**: inmuebles, bienes, inquilinos y documentos de inquilino. Los gastos puntuales y los cobros no tienen entrada propia en la papelera, pero **se ocultan en cascada** con su inmueble.
 - **Cascada de inmueble**: `softDeleteProperty` marca el inmueble y sus `expenses`, `rentPayments`, `recurringExpenseSchedules` y `recurringExpenseOccurrences` con **el mismo `deletedAt`**. Restaurar devuelve solo los hijos con esa marca exacta (no resucita algo borrado antes). Purgar borra todos los documentos de esas colecciones del inmueble.
 - **Inquilinos**: mover a la papelera guarda ficha y `tenantDocuments` y **conserva los vínculos** (`property.tenantIds`) para que restaurar sea exacto; al purgar se borran documentos, archivos `tenants/` y los vínculos de los inmuebles.
-- **Contratos**: no se tocan nunca (archivo histórico inmutable). Al purgar un inmueble, sus contratos y PDFs permanecen en Firestore/Storage; las reglas de Storage impiden borrar `contracts/`. Es intencionado.
-- **Purga**: se hace **desde la app**, nunca con Cloud Functions (sin plan Blaze): al abrir `/papelera` se eliminan los caducados y el resto espera a «Eliminar ya» o «Vaciar papelera». Si nadie abre la papelera, nada se borra solo.
+- **Contratos**: hoy no se borran (archivo histórico inmutable). Al purgar un inmueble, sus contratos y PDFs permanecen en Firestore/Storage porque las reglas de Storage impiden borrar `contracts/`. El borrado definitivo está pendiente de decisión (ver Backlog).
+- **PDFs legacy**: las versiones antiguas sin `storagePath` viven en Firestore `contractFileContents/{versionId}` (campo `pdf` en Bytes o subcolección `chunks`, a veces comprimidas con gzip). `getContractPdfBlob` entiende ambos formatos y `migrateContractPdfVersionToStorage` los copia a Storage **conservando** la copia de Firestore como respaldo. Por eso pueden seguir existiendo aunque todos los contratos actuales ya estén en Storage.
+- **Purga**: se hace **desde la app**, nunca con Cloud Functions (sin plan Blaze): al abrir `/papelera` se eliminan los elementos con **más de 30 días** y el resto espera a «Eliminar ya» o «Vaciar papelera». Si nadie abre la papelera, nada se borra solo.
 - **Lectura**: `loadTrash()` es una lectura puntual sin listeners (`where('deletedAt','>','')`, válido para los ISO que escribe la app y excluye documentos sin el campo); las listas normales filtran en el mapper, así que Inicio, fiscal, búsqueda y KPIs no cuentan lo borrado.
 - **Nueva colección hija de inmuebles**: añadirla a `PROPERTY_CHILD_COLLECTIONS` para que se oculte y se purgue con el inmueble.
 - **Restaurar/purgar**: siempre con `restoreTrashEntry` / `purgeTrashEntry`; no duplicar esa lógica en componentes.
@@ -92,7 +93,7 @@
 ## Tests (Vitest)
 
 - `npm test` (una pasada) y `npm run test:watch`. Vitest 3 usa `vite.config.ts` y el alias `@`, sin configuración extra.
-- Cubierto: `recurringExpensesLogic` (prorrateo IBI/12, vencimientos, media mensual), `rentRates` (tramos, meses sin alquiler), `numbers` (miles), `csv` (escapado, BOM, decimales), `money` (formato y máscaras del modo incógnito) y `zip` (cabeceras, CRC32, nombres seguros).
+- Cubierto: `recurringExpensesLogic` (prorrateo IBI/12, vencimientos, media mensual), `rentRates` (tramos, meses sin alquiler), `numbers` (miles), `csv` (escapado, BOM, decimales), `money` (formato y máscaras del modo incógnito), `zip` (cabeceras, CRC32, nombres seguros) y `backupReminder` (60 días, fecha inválida, reloj adelantado).
 - Son tests de **lógica pura**: no tocan Firebase, DOM ni red, y no hay E2E. No se ejecutan en el despliegue; hay que lanzarlos a mano antes de commitear cambios de dinero o cálculos.
 - Si un test falla tras un cambio de modelo, se actualiza junto con la lógica y se explica en el commit; nunca se borra el test para "arreglarlo".
 
@@ -154,6 +155,7 @@
     - **1.16.1:** Miniaturas de PDF todavía más discretas: la del contrato pasa a tamaño fijo pequeño (`w-32/36`, 3:4, columna `auto` que abraza la miniatura en vez de media tarjeta) y la de las **adendas aún más pequeña (`w-24/28`) y a la derecha** del bloque de controles (flex con `justify-between`). Panel de inicio: eliminados los «Abrir Inmuebles →» y «Abrir Bienes →» redundantes (la tarjeta entera ya es el botón).
     - **1.16.2:** Red de seguridad de navegación: ruta comodín que devuelve a Inicio en URLs desconocidas (antes quedaba la pantalla en blanco) y `ErrorBoundary` global + otro por pantalla dentro del layout (conserva la barra lateral) con mensaje de recuperación, «Recargar», «Volver al inicio» y detalles técnicos. Backlog priorizado guardado en AGENTS.md.
     - **1.17.0:** Ronda de robustez y archivo. **Papelera con borrado suave** (`deletedAt`, 30 días, `/papelera` en el pie de la barra lateral): inmuebles (con cascada de gastos, cobros y periódicos por marca de tiempo), bienes, inquilinos y documentos; restaurar y purgar desde la app, sin Cloud Functions. **ZIP de documentos** por inmueble (contratos, adendas y archivos de inquilinos) y de **fotos** por bien, con generador ZIP propio sin dependencias (`src/utils/zip.ts`, verificado con el descompresor de Windows) y `LEEME.txt`. **Cache-Control `immutable`** en Storage para subidas nuevas (las antiguas siguen `no-store` porque las reglas bloquean `update`). **Vitest** con 46 pruebas de lógica pura (gastos periódicos, tramos de renta, miles, CSV, importes/máscaras y ZIP) y scripts `npm test` / `npm run test:watch`. **PWA instalable**: manifest, iconos 192/512 e icono de app, y service worker network-first que cachea shell y assets con hash sin interceptar Firebase. **Accesibilidad**: `aria-label` en cierres de modales y avisos y `role="dialog"`/`aria-labelledby` en `ConfirmModal`. Textos de borrado actualizados a «Mover a papelera».
+    - **1.18.0:** **Recordatorio de copia de seguridad cada 60 días**: `downloadFullBackup()` guarda la fecha en `localStorage` (`src/features/backup/backupReminder.ts`), Inicio muestra el estado («última copia hace X días / próximo recordatorio en Y») y avisa con un toast una vez por sesión cuando toca. No escribe nada en Firebase; si se limpian los datos del sitio, el recordatorio se reinicia. Texto de la papelera con los **30 días explícitos** y fecha exacta de borrado por elemento. La **foto de Google** del usuario tiene *fallback* a iniciales si no carga (`referrerPolicy="no-referrer"` + `onError`). Tests nuevos de `backupStatus` (0, 59, 60, 180 días, fecha inválida y reloj adelantado).
 
 ---
 
@@ -161,8 +163,8 @@
 
 Orden aproximado por relación impacto/esfuerzo. No implementar sin necesidad: son mejoras, no deuda que bloquee.
 
-**P0 — baratas y de alto impacto**
-- **Recordatorio de copia de seguridad**: guardar la fecha del último `downloadFullBackup()` en `localStorage` y mostrar un aviso en Inicio (toast o tarjeta discreta) si han pasado más de 30 días. No sube nada a Firebase: solo recuerda descargar el JSON que ya existe.
+**P0 — decisiones pendientes**
+- **Borrado definitivo de contratos y sus PDFs** (alcance por aclarar): requiere `allow delete: if isAllowedUser()` en `storage.rules` para `contracts/` y publicarla a mano. Después, borrar en cascada `contracts`, `contractAddenda`, `contractFileVersions` (Storage `contracts/{propertyId}/*.pdf`) y los `contractFileContents` legacy (campo `pdf` o subcolección `chunks`). Falta decidir si los contratos tienen papelera individual o solo se purgan con el inmueble.
 
 **P1 — rendimiento y coste (cero coste)**
 - **Code splitting**: `React.lazy` por ruta + `manualChunks` (vendor react / firebase). Hoy el build es un único chunk de ~1,06 MB (~276 kB gzip).

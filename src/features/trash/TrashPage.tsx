@@ -138,7 +138,9 @@ export default function TrashPage() {
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 text-xs leading-relaxed text-slate-400">
         <p>
           La papelera se purga <strong className="text-slate-200">desde la aplicación</strong>: al abrir esta página se
-          eliminan los elementos caducados, y el resto se borra cuando lo pidas. Si nadie la abre, no se borra nada solo.
+          eliminan definitivamente los elementos que llevan <strong className="text-slate-200">más de {TRASH_RETENTION_DAYS} días</strong> en
+          la papelera, y el resto se borra cuando lo pidas con «Eliminar ya» o «Vaciar papelera». Si nadie la abre, no se
+          borra nada solo.
         </p>
         <p className="mt-1.5">
           Al purgar un inmueble se borran sus gastos, cobros y gastos periódicos, pero <strong className="text-slate-200">no
@@ -180,9 +182,9 @@ export default function TrashPage() {
                         <p className="truncate text-sm font-semibold text-slate-100">{entry.title}</p>
                         <p className="mt-0.5 truncate text-xs text-slate-400">{entry.subtitle}</p>
                         <p className="mt-1 text-[11px] text-slate-500">
-                          Eliminado el {formatTrashDate(entry.deletedAt)} ·{' '}
+                          Eliminado el {formatTrashDate(entry.deletedAt)} · se borra el {formatTrashDate(entry.expiresAt)} ·{' '}
                           {daysLeft === 0
-                            ? 'se elimina al recargar'
+                            ? 'se elimina al abrir la papelera'
                             : `quedan ${daysLeft} día${daysLeft === 1 ? '' : 's'}`}
                         </p>
                       </div>

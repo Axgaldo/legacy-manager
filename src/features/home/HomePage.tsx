@@ -16,6 +16,7 @@ import { useMoney } from '@/features/privacy/money'
 import { usePrivacy } from '@/features/privacy/PrivacyProvider'
 import { useToast } from '@/components/ui/ToastProvider'
 import { downloadAssetsCsv, downloadFiscalYearCsv, downloadFullBackup } from '@/features/backup/backupService'
+import { BACKUP_REMINDER_DAYS, backupStatus, readLastBackupAt } from '@/features/backup/backupReminder'
 
 const MONTHS_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const MONTHS_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -55,8 +56,27 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [backupBusy, setBackupBusy] = useState<'json' | 'fiscal' | 'assets' | null>(null)
   const [fiscalYear, setFiscalYear] = useState(year)
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(() => readLastBackupAt())
 
   const loading = !propertiesReady || !assetsReady
+  const backup = backupStatus(lastBackupAt, now)
+
+  // Aviso al entrar en Inicio, una vez por sesión del navegador.
+  useEffect(() => {
+    if (!backup.isDue) return
+    try {
+      if (window.sessionStorage.getItem('legacy-manager:aviso-copia') === '1') return
+      window.sessionStorage.setItem('legacy-manager:aviso-copia', '1')
+    } catch {
+      // Sin sessionStorage se avisa en cada visita a Inicio; no es grave.
+    }
+    toast.showToast(
+      backup.lastBackupAt
+        ? `Han pasado ${backup.daysSince} días desde tu última copia de seguridad. Conviene renovarla (cada ${BACKUP_REMINDER_DAYS} días).`
+        : `Aún no has descargado ninguna copia de seguridad. Hazlo desde el panel de Inicio; te avisaré cada ${BACKUP_REMINDER_DAYS} días.`,
+      { kind: 'info', duration: 9000 },
+    )
+  }, [backup.isDue, backup.daysSince, backup.lastBackupAt, toast])
 
   useEffect(() => subscribeToProperties(
     (items) => { setProperties(items); setPropertiesReady(true) },
@@ -212,6 +232,7 @@ export default function HomePage() {
       setBackupBusy(kind)
       if (kind === 'json') {
         const { documents } = await downloadFullBackup()
+        setLastBackupAt(readLastBackupAt())
         toast.showToast(`Copia de seguridad descargada: ${documents} documento(s) en JSON.`, { kind: 'success' })
       } else if (kind === 'fiscal') {
         const result = await downloadFiscalYearCsv(fiscalYear)
@@ -512,8 +533,16 @@ export default function HomePage() {
         <p className="mt-1 text-xs text-slate-400">
           Los archivos se generan en tu dispositivo con una lectura puntual de Firestore; no se suben a ningún servicio.
           Incluyen las cifras reales aunque el modo incógnito esté activo. El plan gratuito de Firebase no hace copias
-          automáticas: guarda la copia JSON de vez en cuando.
+          automáticas: guarda la copia JSON cada {BACKUP_REMINDER_DAYS} días.
         </p>
+
+        <div className={`mt-4 rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed ${backup.isDue ? 'border-amber-800 bg-amber-950/40 text-amber-200' : 'border-slate-800 bg-slate-950/60 text-slate-400'}`}>
+          {backup.lastBackupAt === null
+            ? 'Aún no has descargado ninguna copia completa en este navegador. Hazlo ahora y te recordaré renovarla cada 60 días.'
+            : backup.isDue
+              ? `Han pasado ${backup.daysSince} días desde tu última copia completa. Toca renovarla (recordatorio cada ${BACKUP_REMINDER_DAYS} días).`
+              : `Última copia completa: hace ${backup.daysSince} ${backup.daysSince === 1 ? 'día' : 'días'}. Próximo recordatorio en ${backup.daysUntilReminder} ${backup.daysUntilReminder === 1 ? 'día' : 'días'}.`}
+        </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <button

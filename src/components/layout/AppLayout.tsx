@@ -44,7 +44,14 @@ export default function AppLayout() {
   const { incognito, toggleIncognito } = usePrivacy()
   const [menuOpen, setMenuOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [photoFailed, setPhotoFailed] = useState(false)
   const location = useLocation()
+
+  // La foto de Google puede fallar (bloqueo de terceros, sin red, URL caducada):
+  // en ese caso se muestran las iniciales en lugar de un hueco roto.
+  useEffect(() => {
+    setPhotoFailed(false)
+  }, [user?.photoURL])
 
   // Ctrl+K / ⌘K abre la búsqueda global desde cualquier pantalla.
   useEffect(() => {
@@ -137,7 +144,7 @@ export default function AppLayout() {
         </p>
       </div>
       {user && <div className="p-4 border-t border-slate-700">
-        <div className="flex items-center gap-3">{user.photoURL ? <img src={user.photoURL} alt={user.displayName ?? 'Usuario'} className="w-9 h-9 rounded-full" /> : <div className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center">{user.displayName?.[0] ?? user.email?.[0] ?? 'U'}</div>}<div className="min-w-0"><p className="text-xs font-semibold truncate">{user.displayName ?? 'Usuario'}</p><p className="text-[11px] text-slate-400 truncate">{user.email}</p></div></div>
+        <div className="flex items-center gap-3">{user.photoURL && !photoFailed ? <img src={user.photoURL} alt={user.displayName ?? 'Usuario'} referrerPolicy="no-referrer" onError={() => setPhotoFailed(true)} className="w-9 h-9 rounded-full" /> : <div aria-hidden="true" className="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center">{user.displayName?.[0] ?? user.email?.[0] ?? 'U'}</div>}<div className="min-w-0"><p className="text-xs font-semibold truncate">{user.displayName ?? 'Usuario'}</p><p className="text-[11px] text-slate-400 truncate">{user.email}</p></div></div>
         <button onClick={signOutUser} className="mt-3 w-full py-2 rounded-lg text-xs text-slate-300 hover:bg-red-950 hover:text-red-300 border border-slate-700">Cerrar sesión</button>
       </div>}
     </aside>

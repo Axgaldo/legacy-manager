@@ -7,6 +7,7 @@ import { assetValue, locationLabel, yearLabel } from '@/features/collections/num
 import { getCategoryInfo } from '@/features/collections/assetCategories'
 import { slugify } from '@/utils/slugs'
 import { toCsv } from '@/utils/csv'
+import { markBackupDone } from './backupReminder'
 
 /**
  * Copias de seguridad y exportaciones: se generan en el dispositivo del
@@ -61,6 +62,8 @@ export async function downloadFullBackup(): Promise<{ documents: number }> {
     collections: data,
   }
   downloadFile(`legacy-manager-copia-${stamp()}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8')
+  // La copia completa cuenta para el recordatorio de 60 días (solo en este navegador).
+  markBackupDone()
   return { documents }
 }
 
