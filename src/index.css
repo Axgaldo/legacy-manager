@@ -54,9 +54,31 @@
   .text-red-600, .text-red-700, .text-red-800 { color: #fca5a5 !important; }
 }
 
+#asset-print-sheet { display: none; }
+
 @media print {
   body * { visibility: hidden; }
   #asset-detail-sheet, #asset-detail-sheet * { visibility: visible; }
+  #asset-print-sheet {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+  }
+  #asset-print-sheet, #asset-print-sheet * { visibility: visible; }
+  #asset-print-sheet * {
+    color: #111 !important;
+    background-color: transparent !important;
+    border-color: #9ca3af !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  #asset-print-sheet table { width: 100%; border-collapse: collapse; }
+  #asset-print-sheet th, #asset-print-sheet td { border: 1px solid #9ca3af !important; padding: 2px 4px; }
+  #asset-print-sheet thead { display: table-header-group; }
+  #asset-print-sheet tr { break-inside: avoid; }
   #asset-detail-overlay {
     position: absolute !important;
     top: 0 !important;

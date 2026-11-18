@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import {
@@ -40,19 +40,54 @@ function NumismaticaList({
   assets,
   onOpen,
   onDelete,
+  onPrintGroup,
   groupBy = 'location',
   sortBy = 'inventory',
 }: {
   assets: AssetItem[]
   onOpen: (asset: AssetItem) => void
   onDelete: (asset: AssetItem) => void
+  onPrintGroup?: (label: string, assets: AssetItem[]) => void
   groupBy?: NumismaticaGroupBy
   sortBy?: NumismaticaSortBy
 }) {
+  const PAGE_SIZE = 200
+  const [limit, setLimit] = useState(PAGE_SIZE)
   const groups = useMemo(
     () => groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy),
     [assets, groupBy, sortBy],
   )
+
+  useEffect(() => {
+    setLimit(PAGE_SIZE)
+  }, [assets, groupBy, sortBy])
+
+  const visibleGroups = useMemo(() => {
+    let remaining = limit
+    return groups
+      .map((group) => {
+        const allItems = group.items
+        const items = allItems.slice(0, Math.max(0, remaining))
+        remaining -= items.length
+        return { ...group, allItems, items, hidden: allItems.length - items.length }
+      })
+      .filter((group) => group.items.length > 0)
+  }, [groups, limit])
+
+  const hiddenCount = assets.length - visibleGroups.reduce((total, group) => total + group.items.length, 0)
+
+  const handleListKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    const row = (event.target as HTMLElement).closest<HTMLElement>('[data-coin-row]')
+    if (!row) return
+    const rows = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-coin-row]'))
+    const index = rows.indexOf(row)
+    const next = rows[index + (event.key === 'ArrowDown' ? 1 : -1)]
+    if (next) {
+      event.preventDefault()
+      next.focus()
+    }
+  }
 
   const renderRow = (asset: AssetItem) => {
     const photo = asset.photos?.[0]
@@ -74,6 +109,7 @@ function NumismaticaList({
         key={asset.id}
         role="button"
         tabIndex={0}
+        data-coin-row
         aria-label={`Ver ${asset.name}`}
         onClick={() => onOpen(asset)}
         onKeyDown={(event) => {
@@ -172,7 +208,7 @@ function NumismaticaList({
   const gridClass = 'grid grid-cols-[minmax(0,1fr)_28px_36px] items-center gap-2 px-3 lg:grid-cols-[minmax(0,2.1fr)_84px_88px_minmax(0,1fr)_116px_minmax(0,1.1fr)_92px_28px_36px]'
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900">
+    <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-900" onKeyDown={handleListKeyDown}>
       <div className={`${gridClass} hidden border-b border-slate-700 bg-slate-950/70 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 lg:grid`}>
         <span>Pieza</span>
         <span>Año</span>
@@ -185,22 +221,63 @@ function NumismaticaList({
         <span className="text-right">Foto</span>
       </div>
 
-      {groups.map((group) => (
+      {visibleGroups.map((group) => (
         <section key={group.label || 'all'}>
           {group.label && (
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-t border-slate-700 bg-slate-950/80 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 first:border-t-0">
               <span>📍 {group.label}</span>
               <span className="flex items-center gap-3">
-                <span>{group.items.length} pieza(s)</span>
-                <span className="text-emerald-400">{formatEuro(group.items.reduce((total, asset) => total + coinValue(asset), 0))}</span>
+                {onPrintGroup && (
+                  <button
+                    type="button"
+                    onClick={() => onPrintGroup(group.label, group.allItems)}
+                    className="text-slate-500 transition hover:text-slate-200"
+                    title={`Imprimir ${group.label}`}
+                    aria-label={`Imprimir ${group.label}`}
+                  >
+                    🖨
+                  </button>
+                )}
+                <span>{group.items.length + group.hidden} pieza(s)</span>
+                <span className="text-emerald-400">
+                  {formatEuro(group.items.reduce((total, asset) => total + coinValue(asset), 0))}
+                  {group.hidden > 0 ? ' (visibles)' : ''}
+                </span>
               </span>
             </div>
           )}
           <div className="divide-y divide-slate-800">
             {group.items.map(renderRow)}
           </div>
+          {group.hidden > 0 && (
+            <p className="border-t border-slate-800 px-4 py-1.5 text-[11px] text-slate-500">
+              … y {group.hidden} pieza(s) más en este grupo
+            </p>
+          )}
         </section>
       ))}
+
+      {hiddenCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-700 bg-slate-950/60 px-4 py-3 text-xs text-slate-400">
+          <span>Mostrando {assets.length - hiddenCount} de {assets.length}</span>
+          <span className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setLimit((value) => value + PAGE_SIZE)}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-200 transition hover:bg-slate-800"
+            >
+              Mostrar {PAGE_SIZE} más
+            </button>
+            <button
+              type="button"
+              onClick={() => setLimit(assets.length)}
+              className="font-semibold text-teal-300 transition hover:text-teal-200"
+            >
+              Mostrar todo
+            </button>
+          </span>
+        </div>
+      )}
     </div>
   )
 }

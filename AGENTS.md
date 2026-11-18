@@ -46,6 +46,9 @@
     - **Etiquetas en numismática:** defects, rarities, variants and sets use tags/comments (e.g. `RARA`, `AGUJERO`, `CANTO ESTRIADO`, `CONJUNTO`) instead of dedicated fields.
     - Documents without `numismatica_type` are treated as `moneda`; legacy `medals`/`medallas` categories normalize to `numismatica` and infer `medalla`. The list shows 🪙/🏅, the catalog code next to the name, and the filter row has a **Tipo** selector (todo / monedas / medallas).
     - **Lista y ficha:** agrupación por defecto por contenedor y orden por número del archivador, con selectores de agrupar/ordenar; cada fila muestra dos líneas (datos + anverso, reverso, notas y etiquetas) y el estado de conservación va coloreado (rojo → naranja → amarillo → verde → azul, de peor a mejor). Al pulsar una pieza se abre una ficha flotante con todos los datos e imágenes, navegación anterior/siguiente, impresión, botones de editar/borrar y URL propia `/bienes/categoria/:coleccion/:slug` para compartirla.
+    - **Preferencias y URL:** agrupar, ordenar y filtros se guardan por colección en `localStorage` y también viajan en la URL (`agrupar`, `orden`, `propietario`, `material`, `estado`, `epoca`, `tipo`, `etiquetas`, `revisar`), así que se puede compartir una vista filtrada.
+    - **Rendimiento:** la lista pinta 200 filas y ofrece «Mostrar 200 más» / «Mostrar todo»; las flechas ↑/↓ mueven el foco entre piezas; la búsqueda usa `useDeferredValue`.
+    - **Impresión de listas:** «Imprimir vista» y el icono 🖨 de cada grupo generan una tabla en blanco y negro (Nº, pieza, año, material, ceca, conservación, ubicación y valor), no una ficha por página.
 - **Relojes:** no dedicated form; the generic asset form plus photos is enough.
 - **Common fields:** name, owner, category, tags, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, mint_mark, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes. `location` was removed; coin location is `case_location`/`case_number` in advanced details.
 
@@ -94,6 +97,7 @@
     - **1.8.0:** Ficha de numismática con navegación anterior/siguiente (botones y flechas del teclado) siguiendo el orden visible de la lista, botón de imprimir con hoja limpia en blanco y negro, y escala de conservación corregida de peor a mejor: rojo, naranja, ámbar, amarillo, lima, verde y azul.
     - **1.8.1:** Rendimiento al abrir fichas: el slug se resolvía recorriendo toda la colección por cada moneda (O(n²), ~15 s con 2.085 fichas). Ahora se construye un índice de slugs una vez por carga (`buildAssetSlugIndex`) y la apertura baja a 2-4 ms. La lista de numismática está memoizada para no repintarse al abrir o cerrar la ficha.
     - **1.8.2:** Búsqueda con `useDeferredValue`: el campo responde al instante y el filtrado de la lista se hace en segundo plano, con aviso «Buscando…» mientras tanto.
+    - **1.9.0:** Preferencias de lista por colección (agrupar, ordenar y filtros) guardadas en `localStorage` y en la URL para compartir vistas filtradas; total de la vista visible («Mostrando X de Y · valor») con botón de limpiar filtros; pintado progresivo de 200 en 200; navegación con flechas ↑/↓ por la lista; e impresión de la vista o de un grupo como tabla compacta en blanco y negro.
     - **Medallas:** se descartan los dos archivos ingleses de 2014 por ser un subconjunto incompleto de 2012 (sin números nuevos). Las medallas inglesas de 2012 y las fichas 238-246 de «MEDALLAS VARIOS PAISES» se asignan a Elena Carter; el resto, a Gabriel Galdó.
 
 ---

@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AssetCategory, AssetItem, Property } from '@/types'
 import { subscribeToAssets, deleteAsset, migrateLegacyAssetPhotos } from './assetsService'
 import { subscribeToProperties } from '@/features/properties/propertiesService'
@@ -9,6 +9,14 @@ import { buildAssetSlugIndex } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
+import {
+  DEFAULT_LIST_PREFERENCES,
+  loadPreferences,
+  preferencesFromParams,
+  preferencesToParams,
+  savePreferences,
+  type ListPreferences,
+} from './listPreferences'
 import NumismaticaList from './NumismaticaList'
 import {
   NUMISMATICA_GROUP_OPTIONS,
@@ -18,6 +26,7 @@ import {
   type NumismaticaSortBy,
 } from './numismaticaUi'
 import AssetDetailModal from './AssetDetailModal'
+import AssetPrintTable from './AssetPrintTable'
 import { CONSERVATION_STATES, formatSignedYear } from './numismaticaMeta'
 import {
   ASSET_CATEGORIES,
@@ -82,6 +91,7 @@ export default function CollectionsPage() {
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [detailAsset, setDetailAsset] = useState<AssetItem | null>(null)
+  const [printJob, setPrintJob] = useState<{ title: string; assets: AssetItem[]; subtitle?: string } | null>(null)
 
   const [assetToDelete, setAssetToDelete] = useState<AssetItem | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -128,19 +138,77 @@ export default function CollectionsPage() {
   useEffect(() => subscribeToProperties(setProperties, (error) => console.error('No se pudieron cargar los propietarios de inmuebles:', error)), [])
   useEffect(() => subscribeToAppStorageUsage(setStorageUsage, (error) => setFirestoreError(`No se pudo leer el uso de Storage: ${error.message}`)), [])
 
+  const defaultPreferences = useMemo<ListPreferences>(() => (
+    activeCollection === 'numismatica'
+      ? { ...DEFAULT_LIST_PREFERENCES, sortBy: 'inventory' }
+      : DEFAULT_LIST_PREFERENCES
+  ), [activeCollection])
+
   useEffect(() => {
-    setSelectedOwner('all')
-    setSelectedCategory('all')
-    setSelectedTags([])
-    setSelectedMaterial('all')
-    setSelectedConservationState('all')
-    setSelectedEra('all')
-    setSelectedNumismaticaType('all')
-    setOnlyReview(false)
+    if (!collectionKey) {
+      setSearchQuery('')
+      return
+    }
+    const fromUrl = preferencesFromParams(new URLSearchParams(window.location.search), defaultPreferences)
+    const stored = fromUrl.hasParams ? null : loadPreferences(collectionKey, defaultPreferences)
+    const preferences = fromUrl.hasParams ? fromUrl.preferences : stored ?? defaultPreferences
+
+    setSelectedOwner(preferences.owner)
+    setSelectedCategory(preferences.category as 'all' | AssetCategory)
+    setSelectedTags(preferences.tags)
+    setSelectedMaterial(preferences.material)
+    setSelectedConservationState(preferences.conservation)
+    setSelectedEra(preferences.era)
+    setSelectedNumismaticaType(preferences.type)
+    setOnlyReview(preferences.onlyReview)
     setSearchQuery('')
-    setSortBy(activeCollection === 'numismatica' ? 'inventory' : 'name')
-    setGroupBy('location')
-  }, [collectionKey, activeCollection])
+    setSortBy(preferences.sortBy)
+    setGroupBy(preferences.groupBy)
+  }, [collectionKey, defaultPreferences])
+
+  const preferences = useMemo<ListPreferences>(() => ({
+    groupBy,
+    sortBy,
+    owner: selectedOwner,
+    category: selectedCategory,
+    tags: selectedTags,
+    material: selectedMaterial,
+    conservation: selectedConservationState,
+    era: selectedEra,
+    type: selectedNumismaticaType,
+    onlyReview,
+  }), [
+    groupBy, sortBy, selectedOwner, selectedCategory, selectedTags, selectedMaterial,
+    selectedConservationState, selectedEra, selectedNumismaticaType, onlyReview,
+  ])
+
+  const [, setSearchParams] = useSearchParams()
+  const listParamsString = useMemo(
+    () => (activeCollection ? preferencesToParams(preferences, defaultPreferences).toString() : ''),
+    [activeCollection, preferences, defaultPreferences],
+  )
+
+  useEffect(() => {
+    if (!collectionKey) return
+    savePreferences(collectionKey, preferences)
+    const current = window.location.search.replace(/^\?/, '')
+    if (listParamsString !== current) {
+      setSearchParams(listParamsString ? new URLSearchParams(listParamsString) : {}, { replace: true })
+    }
+  }, [collectionKey, preferences, listParamsString, setSearchParams])
+
+  const listQuerySuffix = listParamsString ? `?${listParamsString}` : ''
+
+  useEffect(() => {
+    if (!printJob) return
+    const clear = () => setPrintJob(null)
+    window.addEventListener('afterprint', clear)
+    const timer = window.setTimeout(() => window.print(), 150)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('afterprint', clear)
+    }
+  }, [printJob])
 
   const ownerOptions = useMemo(() => getOwnerOptions(properties, assets), [properties, assets])
   const defaultOwner = useMemo(() => getDefaultOwner(properties, assets), [properties, assets])
@@ -293,6 +361,32 @@ export default function CollectionsPage() {
 
   const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
 
+  const filteredValue = useMemo(
+    () => filteredAssets.reduce((total, asset) => total + assetValue(asset), 0),
+    [filteredAssets],
+  )
+  const hasActiveFilters = selectedOwner !== 'all'
+    || selectedCategory !== 'all'
+    || selectedTags.length > 0
+    || selectedMaterial !== 'all'
+    || selectedConservationState !== 'all'
+    || selectedEra !== 'all'
+    || selectedNumismaticaType !== 'all'
+    || onlyReview
+    || searchQuery.trim().length > 0
+
+  const clearFilters = () => {
+    setSelectedOwner('all')
+    setSelectedCategory('all')
+    setSelectedTags([])
+    setSelectedMaterial('all')
+    setSelectedConservationState('all')
+    setSelectedEra('all')
+    setSelectedNumismaticaType('all')
+    setOnlyReview(false)
+    setSearchQuery('')
+  }
+
   const displayOrder = useMemo(
     () => (isNumismaticaCollection ? orderNumismaticaAssets(filteredAssets, groupBy, sortBy) : filteredAssets),
     [isNumismaticaCollection, filteredAssets, groupBy, sortBy],
@@ -305,7 +399,7 @@ export default function CollectionsPage() {
     if (!target) return
     const slug = slugIndex.slugById.get(target.id)
     if (!slug) return
-    navigate(`/bienes/categoria/${categoryCollection(target.category)}/${slug}`, { replace: true })
+    navigate(`/bienes/categoria/${categoryCollection(target.category)}/${slug}${listQuerySuffix}`, { replace: true })
   }
 
   const handleOpenAddModal = () => {
@@ -316,14 +410,14 @@ export default function CollectionsPage() {
   const handleOpenDetail = useCallback((asset: AssetItem) => {
     const slug = slugIndex.slugById.get(asset.id)
     if (!slug) return
-    navigate(`/bienes/categoria/${categoryCollection(asset.category)}/${slug}`)
-  }, [navigate, slugIndex])
+    navigate(`/bienes/categoria/${categoryCollection(asset.category)}/${slug}${listQuerySuffix}`)
+  }, [navigate, slugIndex, listQuerySuffix])
 
   const handleCloseDetail = () => {
     setDetailAsset(null)
     if (routeAssetSlug) {
       const target = activeCollection ?? categoryCollection(detailAsset?.category)
-      navigate(`/bienes/categoria/${target}`, { replace: true })
+      navigate(`/bienes/categoria/${target}${listQuerySuffix}`, { replace: true })
     }
   }
 
@@ -341,7 +435,7 @@ export default function CollectionsPage() {
     setIsModalOpen(false)
     setEditingAsset(null)
     setDetailAsset(null)
-    navigate(`/bienes/categoria/${categoryCollection(category)}`, { replace: Boolean(routeAssetSlug) })
+    navigate(`/bienes/categoria/${categoryCollection(category)}${listQuerySuffix}`, { replace: Boolean(routeAssetSlug) })
   }
 
   const handleConfirmDelete = async () => {
@@ -657,6 +751,32 @@ export default function CollectionsPage() {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500">
+            <span>
+              Mostrando <strong className="text-slate-200">{filteredAssets.length}</strong> de {scopedAssets.length} pieza(s)
+              <span className="mx-1.5 text-slate-700">·</span>
+              <span className="font-semibold text-emerald-400">{formatEuro(filteredValue)}</span>
+            </span>
+            <span className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPrintJob({
+                  title: collectionInfo?.label ?? 'Bienes',
+                  assets: filteredAssets,
+                  subtitle: hasActiveFilters ? 'Vista filtrada' : undefined,
+                })}
+                className="font-semibold text-slate-300 transition hover:text-slate-100"
+              >
+                🖨 Imprimir vista
+              </button>
+              {hasActiveFilters && (
+                <button type="button" onClick={clearFilters} className="font-semibold text-teal-300 transition hover:text-teal-200">
+                  Limpiar filtros
+                </button>
+              )}
+            </span>
+          </div>
+
           {loading ? (
             <LoadingState />
           ) : filteredAssets.length === 0 ? (
@@ -667,7 +787,17 @@ export default function CollectionsPage() {
               addLabel={isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
             />
           ) : isNumismaticaCollection ? (
-            <NumismaticaList assets={filteredAssets} onOpen={handleOpenDetail} onDelete={setAssetToDelete} groupBy={groupBy} sortBy={sortBy} />
+            <NumismaticaList
+              assets={filteredAssets}
+              onOpen={handleOpenDetail}
+              onDelete={setAssetToDelete}
+              groupBy={groupBy}
+              sortBy={sortBy}
+              onPrintGroup={(label, items) => setPrintJob({
+                title: `${collectionInfo?.label ?? 'Bienes'} · ${label}`,
+                assets: items,
+              })}
+            />
           ) : (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {filteredAssets.map((asset) => (
@@ -676,6 +806,10 @@ export default function CollectionsPage() {
             </div>
           )}
         </>
+      )}
+
+      {printJob && (
+        <AssetPrintTable title={printJob.title} assets={printJob.assets} subtitle={printJob.subtitle} />
       )}
 
       <AssetDetailModal
