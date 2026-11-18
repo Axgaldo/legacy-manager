@@ -163,7 +163,7 @@ export default function AppLayout() {
         </header>
         <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
           {/* Keeps the sidebar alive if one screen fails; the global boundary is the last resort. */}
-          <ErrorBoundary compact key={location.pathname}>
+          <ErrorBoundary compact resetKey={location.pathname}>
             <Suspense fallback={<PageLoader compact />}>
               <Outlet />
             </Suspense>

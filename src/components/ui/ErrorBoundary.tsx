@@ -7,6 +7,12 @@ type Props = {
    * sustituye el contenido de la pantalla que ha fallado.
    */
   compact?: boolean
+  /**
+   * Al cambiar, el boundary se recupera solo sin desmontar a sus hijos (por
+   * ejemplo, al navegar a otra ruta). No usar `key`: eso remontaría la página
+   * entera y perdería su estado.
+   */
+  resetKey?: string
 }
 
 type State = { error: Error | null }
@@ -27,6 +33,12 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('Error no controlado en la interfaz:', error, info.componentStack)
+  }
+
+  componentDidUpdate(previousProps: Props) {
+    if (this.state.error && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ error: null })
+    }
   }
 
   private retry = () => this.setState({ error: null })
