@@ -107,8 +107,16 @@ export async function setActiveContract(propertyId: string, activeContractId: st
   await batch.commit()
 }
 
-// Hides the contract from the application while retaining all immutable PDF files and versions.
+/**
+ * Mueve el contrato a la papelera (30 días). Se guarda la fecha como ISO para
+ * que la purga pueda borrar después sus PDFs, adendas y versiones.
+ */
 export async function softDeleteContract(contractId: string) {
   const docRef = doc(db, COLLECTION_NAME, contractId)
-  return updateDoc(docRef, { isDeleted: true, isActive: false, deletedAt: serverTimestamp(), updatedAt: serverTimestamp() })
+  return updateDoc(docRef, {
+    isDeleted: true,
+    isActive: false,
+    deletedAt: new Date().toISOString(),
+    updatedAt: serverTimestamp(),
+  })
 }

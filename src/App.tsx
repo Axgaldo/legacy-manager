@@ -1,16 +1,21 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { AuthProvider } from '@/features/auth/AuthProvider'
 import PrivateRoute       from '@/features/auth/PrivateRoute'
-import LoginPage          from '@/features/auth/LoginPage'
 import AppLayout          from '@/components/layout/AppLayout'
-import PropertiesPage     from '@/features/properties/PropertiesPage'
-import PropertyDetailPage from '@/features/properties/PropertyDetailPage'
-import TenantDetailPage   from '@/features/tenants/TenantDetailPage'
-import CollectionsPage    from '@/features/collections/CollectionsPage'
-import HomePage           from '@/features/home/HomePage'
-import TrashPage          from '@/features/trash/TrashPage'
+import PageLoader         from '@/components/ui/PageLoader'
 import { PrivacyProvider } from '@/features/privacy/PrivacyProvider'
 import { ToastProvider } from '@/components/ui/ToastProvider'
+
+// Cada pantalla se descarga bajo demanda: el primer render solo necesita el
+// layout, la autenticación y la página que se abre.
+const LoginPage          = lazy(() => import('@/features/auth/LoginPage'))
+const PropertiesPage     = lazy(() => import('@/features/properties/PropertiesPage'))
+const PropertyDetailPage = lazy(() => import('@/features/properties/PropertyDetailPage'))
+const TenantDetailPage   = lazy(() => import('@/features/tenants/TenantDetailPage'))
+const CollectionsPage    = lazy(() => import('@/features/collections/CollectionsPage'))
+const HomePage           = lazy(() => import('@/features/home/HomePage'))
+const TrashPage          = lazy(() => import('@/features/trash/TrashPage'))
 
 /** Keeps old /inquilinos/:id links working after moving Inquilinos under Inmuebles. */
 function LegacyTenantRedirect() {
@@ -22,6 +27,7 @@ export default function App() {
   return (
     <BrowserRouter basename="/legacy-manager">
       <AuthProvider>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
@@ -63,6 +69,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   )

@@ -32,4 +32,17 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Las dependencias cambian poco: en un chunk aparte se cachean entre
+        // despliegues y el navegador solo descarga el código de la página.
+        manualChunks(id) {
+          if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) return 'firebase'
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-router')) return 'react'
+          return undefined
+        },
+      },
+    },
+  },
 })

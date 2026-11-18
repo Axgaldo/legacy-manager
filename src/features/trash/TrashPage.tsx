@@ -15,7 +15,7 @@ import {
   trashDaysLeft,
 } from './trashService'
 
-const KIND_ORDER: TrashKind[] = ['property', 'asset', 'tenant', 'tenantDocument']
+const KIND_ORDER: TrashKind[] = ['property', 'asset', 'contract', 'tenant', 'tenantDocument']
 
 /**
  * Papelera: lo que se ha borrado en los últimos 30 días. La purga real se hace
@@ -39,9 +39,15 @@ export default function TrashPage() {
       const loaded = await loadTrash()
       const expired = loaded.filter((entry) => isTrashEntryExpired(entry))
       if (expired.length) {
-        await purgeExpiredTrash(loaded)
+        const result = await purgeExpiredTrash(loaded)
         setEntries(await loadTrash())
-        showToast(`Se han eliminado definitivamente ${expired.length} elemento${expired.length === 1 ? '' : 's'} caducado${expired.length === 1 ? '' : 's'}.`, { kind: 'info' })
+        showToast(`Se han eliminado definitivamente ${result.purged} elemento${result.purged === 1 ? '' : 's'} con más de ${TRASH_RETENTION_DAYS} días.`, { kind: 'info' })
+        if (result.skippedFiles > 0) {
+          showToast(
+            `${result.skippedFiles} archivo${result.skippedFiles === 1 ? '' : 's'} de Storage no se pudo borrar. Comprueba que storage.rules esté publicada.`,
+            { kind: 'error', duration: 10000 },
+          )
+        }
       } else {
         setEntries(loaded)
       }
@@ -69,7 +75,12 @@ export default function TrashPage() {
     try {
       await restoreTrashEntry(entry)
       setEntries((current) => current.filter((item) => !(item.kind === entry.kind && item.id === entry.id)))
-      showToast(`«${entry.title}» restaurado.`, { kind: 'success' })
+      showToast(
+        entry.kind === 'contract'
+          ? `«${entry.title}» restaurado. Márcalo como vigente en el inmueble si corresponde.`
+          : `«${entry.title}» restaurado.`,
+        { kind: 'success' },
+      )
     } catch (err: any) {
       console.error(err)
       showToast(err?.message || 'No se pudo restaurar el elemento.', { kind: 'error' })
@@ -82,9 +93,15 @@ export default function TrashPage() {
     if (!purgeTarget) return
     setBusyId(purgeTarget.id)
     try {
-      await purgeTrashEntry(purgeTarget)
+      const result = await purgeTrashEntry(purgeTarget)
       setEntries((current) => current.filter((item) => !(item.kind === purgeTarget.kind && item.id === purgeTarget.id)))
       showToast(`«${purgeTarget.title}» se ha eliminado definitivamente.`, { kind: 'success' })
+      if (result.skippedFiles > 0) {
+        showToast(
+          `${result.skippedFiles} archivo${result.skippedFiles === 1 ? '' : 's'} de Storage no se pudo borrar. Comprueba que storage.rules esté publicada.`,
+          { kind: 'error', duration: 10000 },
+        )
+      }
       setPurgeTarget(null)
     } catch (err: any) {
       console.error(err)
@@ -97,14 +114,22 @@ export default function TrashPage() {
   const handleEmpty = async () => {
     setEmptying(true)
     let removed = 0
+    let skippedFiles = 0
     try {
       for (const entry of entries) {
-        await purgeTrashEntry(entry)
+        const result = await purgeTrashEntry(entry)
+        skippedFiles += result.skippedFiles
         removed++
       }
       setEntries([])
       setEmptyOpen(false)
       showToast(`Papelera vaciada: ${removed} elemento${removed === 1 ? '' : 's'} eliminado${removed === 1 ? '' : 's'}.`, { kind: 'success' })
+      if (skippedFiles > 0) {
+        showToast(
+          `${skippedFiles} archivo${skippedFiles === 1 ? '' : 's'} de Storage no se pudo borrar. Comprueba que storage.rules esté publicada.`,
+          { kind: 'error', duration: 10000 },
+        )
+      }
     } catch (err: any) {
       console.error(err)
       showToast(err?.message || 'No se pudo vaciar la papelera por completo.', { kind: 'error' })
@@ -143,8 +168,9 @@ export default function TrashPage() {
           borra nada solo.
         </p>
         <p className="mt-1.5">
-          Al purgar un inmueble se borran sus gastos, cobros y gastos periódicos, pero <strong className="text-slate-200">no
-          sus contratos ni los PDFs</strong>: son archivo histórico y las reglas de Storage no permiten borrarlos.
+          Al purgar un inmueble se borran también sus <strong className="text-slate-200">contratos, adendas y PDFs</strong>.
+          Los documentos de los inquilinos se borran al purgar el inquilino. Los PDFs de contratos nunca se sobrescriben,
+          solo se eliminan cuando la papelera los purga.
         </p>
       </div>
 

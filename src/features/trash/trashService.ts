@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { deletePrivateStorageFile, isStoragePath } from '@/lib/storageFiles'
-import { AssetItem, Tenant, TenantDocument } from '@/types'
+import { AssetItem, Contract, Tenant, TenantDocument } from '@/types'
 import { getCategoryInfo } from '@/features/collections/assetCategories'
 
 /**
@@ -23,9 +23,11 @@ import { getCategoryInfo } from '@/features/collections/assetCategories'
  * al abrir la papelera o al pulsar «Vaciar papelera», para no depender de Cloud
  * Functions (plan Blaze). Si nadie abre la papelera, nada se borra solo.
  *
- * Los hijos de un inmueble (gastos, cobros, gastos periódicos y ocurrencias) se
- * marcan con **el mismo `deletedAt`**; al restaurar solo vuelven los que
- * comparten esa marca exacta, así no se resucita algo borrado antes.
+ * Los hijos de un inmueble (gastos, cobros, gastos periódicos, ocurrencias y
+ * contratos) se marcan con **el mismo `deletedAt`**; al restaurar solo vuelven
+ * los que comparten esa marca exacta. Al purgar se borran también los PDFs de
+ * contratos y adendas (Storage `contracts/`), para lo que las reglas de Storage
+ * permiten `delete` a usuarios autorizados.
  */
 
 export const TRASH_RETENTION_DAYS = 30
@@ -39,6 +41,9 @@ const COLLECTIONS = {
   rentPayments: 'rentPayments',
   schedules: 'recurringExpenseSchedules',
   occurrences: 'recurringExpenseOccurrences',
+  contracts: 'contracts',
+  addenda: 'contractAddenda',
+  contractVersions: 'contractFileVersions',
 } as const
 
 /** Colecciones que cuelgan de un inmueble y se ocultan con él. */
@@ -49,7 +54,7 @@ const PROPERTY_CHILD_COLLECTIONS = [
   COLLECTIONS.occurrences,
 ] as const
 
-export type TrashKind = 'property' | 'asset' | 'tenant' | 'tenantDocument'
+export type TrashKind = 'property' | 'asset' | 'contract' | 'tenant' | 'tenantDocument'
 
 export interface TrashEntry {
   kind: TrashKind
@@ -64,9 +69,15 @@ export interface TrashEntry {
   tenantId?: string
 }
 
+export interface PurgeResult {
+  /** Archivos de Storage que no se pudieron borrar (por ejemplo, reglas sin publicar). */
+  skippedFiles: number
+}
+
 export const TRASH_KIND_META: Record<TrashKind, { label: string; icon: string }> = {
   property: { label: 'Inmuebles', icon: '🏠' },
   asset: { label: 'Bienes', icon: '📦' },
+  contract: { label: 'Contratos', icon: '📝' },
   tenant: { label: 'Inquilinos', icon: '👤' },
   tenantDocument: { label: 'Documentos', icon: '📄' },
 }
@@ -120,6 +131,21 @@ async function deleteMany(collectionName: string, documents: Array<{ id: string 
   }
 }
 
+/** Borra archivos de Storage y devuelve cuántos no se pudieron eliminar. */
+async function deleteStorageFiles(paths: string[]): Promise<number> {
+  let skipped = 0
+  await Promise.all(Array.from(new Set(paths)).map(async (path) => {
+    try {
+      await deletePrivateStorageFile(path)
+    } catch (error) {
+      const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''
+      // Un archivo que ya no existe no es un fallo.
+      if (code !== 'storage/object-not-found') skipped++
+    }
+  }))
+  return skipped
+}
+
 async function propertyChildDocs(propertyId: string) {
   const result: Array<{ collectionName: string; docs: Array<{ id: string; deletedAt: string }> }> = []
   for (const collectionName of PROPERTY_CHILD_COLLECTIONS) {
@@ -132,14 +158,47 @@ async function propertyChildDocs(propertyId: string) {
   return result
 }
 
-/** Marca el inmueble y sus hijos con la misma fecha de borrado. */
+async function contractDocsForProperty(propertyId: string) {
+  const snapshot = await getDocs(query(collection(db, COLLECTIONS.contracts), where('propertyId', '==', propertyId)))
+  return snapshot.docs.map((item) => ({
+    id: item.id,
+    deletedAt: toIso(item.data().deletedAt),
+    isDeleted: Boolean(item.data().isDeleted),
+  }))
+}
+
+/** Borra un contrato: sus versiones PDF, las adendas y el documento. */
+async function purgeContract(contractId: string): Promise<number> {
+  const versions = await getDocs(query(collection(db, COLLECTIONS.contractVersions), where('contractId', '==', contractId)))
+  const paths = versions.docs
+    .map((item) => item.data().storagePath)
+    .filter((path: unknown): path is string => typeof path === 'string' && isStoragePath(path))
+  const skippedFiles = await deleteStorageFiles(paths)
+  await deleteMany(COLLECTIONS.contractVersions, versions.docs.map((item) => ({ id: item.id })))
+
+  const addenda = await getDocs(query(collection(db, COLLECTIONS.addenda), where('contractId', '==', contractId)))
+  await deleteMany(COLLECTIONS.addenda, addenda.docs.map((item) => ({ id: item.id })))
+
+  await deleteDoc(doc(db, COLLECTIONS.contracts, contractId))
+  return skippedFiles
+}
+
+/** Marca el inmueble, sus hijos y sus contratos con la misma fecha de borrado. */
 export async function softDeleteProperty(propertyId: string): Promise<string> {
   const deletedAt = new Date().toISOString()
   await updateDoc(doc(db, COLLECTIONS.properties, propertyId), { deletedAt, updatedAt: serverTimestamp() })
+
   const children = await propertyChildDocs(propertyId)
   for (const { collectionName, docs } of children) {
     await updateMany(collectionName, docs, { deletedAt, updatedAt: serverTimestamp() })
   }
+
+  const contracts = await contractDocsForProperty(propertyId)
+  await updateMany(
+    COLLECTIONS.contracts,
+    contracts.filter((contract) => !contract.isDeleted).map((contract) => ({ id: contract.id })),
+    { deletedAt, isDeleted: true, isActive: false, updatedAt: serverTimestamp() },
+  )
   return deletedAt
 }
 
@@ -180,6 +239,14 @@ export async function restoreTrashEntry(entry: TrashEntry): Promise<void> {
     for (const { collectionName, docs } of children) {
       await updateMany(collectionName, docs.filter((item) => item.deletedAt === entry.deletedAt), restored)
     }
+    const contracts = await contractDocsForProperty(entry.id)
+    await updateMany(
+      COLLECTIONS.contracts,
+      contracts
+        .filter((contract) => contract.isDeleted && contract.deletedAt === entry.deletedAt)
+        .map((contract) => ({ id: contract.id })),
+      { ...restored, isDeleted: false },
+    )
   }
 
   if (entry.kind === 'tenant') {
@@ -191,6 +258,11 @@ export async function restoreTrashEntry(entry: TrashEntry): Promise<void> {
         .map((item) => ({ id: item.id })),
       restored,
     )
+  }
+
+  if (entry.kind === 'contract') {
+    await updateDoc(doc(db, COLLECTIONS.contracts, entry.id), { ...restored, isDeleted: false })
+    return
   }
 
   const collectionName = entry.kind === 'property'
@@ -208,43 +280,49 @@ export async function restoreTrashEntry(entry: TrashEntry): Promise<void> {
  * Borra definitivamente un elemento de la papelera: documentos de Firestore y,
  * cuando las reglas lo permiten, sus archivos de Storage.
  */
-export async function purgeTrashEntry(entry: TrashEntry): Promise<void> {
+export async function purgeTrashEntry(entry: TrashEntry): Promise<PurgeResult> {
   if (entry.kind === 'property') {
     const children = await propertyChildDocs(entry.id)
     for (const { collectionName, docs } of children) {
       await deleteMany(collectionName, docs)
     }
+    const contracts = await contractDocsForProperty(entry.id)
+    let skippedFiles = 0
+    for (const contract of contracts) {
+      skippedFiles += await purgeContract(contract.id)
+    }
     await deleteDoc(doc(db, COLLECTIONS.properties, entry.id))
-    // Los contratos y sus PDFs son archivo histórico inmutable: no se tocan.
-    return
+    return { skippedFiles }
+  }
+
+  if (entry.kind === 'contract') {
+    return { skippedFiles: await purgeContract(entry.id) }
   }
 
   if (entry.kind === 'asset') {
-    await Promise.allSettled(
-      (entry.photos ?? []).filter(isStoragePath).map((path) => deletePrivateStorageFile(path)),
-    )
+    const skippedFiles = await deleteStorageFiles((entry.photos ?? []).filter(isStoragePath))
     await deleteDoc(doc(db, COLLECTIONS.assets, entry.id))
-    return
+    return { skippedFiles }
   }
 
   if (entry.kind === 'tenant') {
     const documents = await getDocs(query(collection(db, COLLECTIONS.tenantDocuments), where('tenantId', '==', entry.id)))
-    await Promise.allSettled(
+    const skippedFiles = await deleteStorageFiles(
       documents.docs
         .map((item) => item.data().storagePath)
-        .filter((path: unknown): path is string => typeof path === 'string' && isStoragePath(path))
-        .map((path) => deletePrivateStorageFile(path)),
+        .filter((path: unknown): path is string => typeof path === 'string' && isStoragePath(path)),
     )
     await deleteMany(COLLECTIONS.tenantDocuments, documents.docs.map((item) => ({ id: item.id })))
     await unlinkTenantFromEveryProperty(entry.id)
     await deleteDoc(doc(db, COLLECTIONS.tenants, entry.id))
-    return
+    return { skippedFiles }
   }
 
-  if (entry.storagePath && isStoragePath(entry.storagePath)) {
-    await Promise.allSettled([deletePrivateStorageFile(entry.storagePath)])
-  }
+  const skippedFiles = entry.storagePath && isStoragePath(entry.storagePath)
+    ? await deleteStorageFiles([entry.storagePath])
+    : 0
   await deleteDoc(doc(db, COLLECTIONS.tenantDocuments, entry.id))
+  return { skippedFiles }
 }
 
 async function unlinkTenantFromEveryProperty(tenantId: string) {
@@ -256,17 +334,27 @@ async function unlinkTenantFromEveryProperty(tenantId: string) {
 
 /** Carga la papelera completa. No deja listeners abiertos: es una lectura puntual. */
 export async function loadTrash(): Promise<TrashEntry[]> {
-  const [properties, assets, tenants, documents] = await Promise.all([
-    getDocs(query(collection(db, COLLECTIONS.properties), where('deletedAt', '>', ''))),
+  const [properties, assets, tenants, documents, contracts] = await Promise.all([
+    getDocs(collection(db, COLLECTIONS.properties)),
     getDocs(query(collection(db, COLLECTIONS.assets), where('deletedAt', '>', ''))),
-    getDocs(query(collection(db, COLLECTIONS.tenants), where('deletedAt', '>', ''))),
+    getDocs(collection(db, COLLECTIONS.tenants)),
     getDocs(query(collection(db, COLLECTIONS.tenantDocuments), where('deletedAt', '>', ''))),
+    getDocs(collection(db, COLLECTIONS.contracts)),
   ])
 
+  const propertyNames = new Map<string, string>()
+  const deletedPropertyIds = new Set<string>()
+  properties.docs.forEach((item) => {
+    propertyNames.set(item.id, String(item.data().name ?? 'Inmueble'))
+    if (item.data().deletedAt) deletedPropertyIds.add(item.id)
+  })
+
   const tenantNames = new Map<string, string>()
-  const allTenants = await getDocs(collection(db, COLLECTIONS.tenants))
-  allTenants.docs.forEach((item) => tenantNames.set(item.id, String(item.data().name ?? 'Inquilino')))
-  const deletedTenantIds = new Set(tenants.docs.map((item) => item.id))
+  const deletedTenantIds = new Set<string>()
+  tenants.docs.forEach((item) => {
+    tenantNames.set(item.id, String(item.data().name ?? 'Inquilino'))
+    if (item.data().deletedAt) deletedTenantIds.add(item.id)
+  })
 
   const entries: TrashEntry[] = []
 
@@ -277,6 +365,7 @@ export async function loadTrash(): Promise<TrashEntry[]> {
 
   properties.docs.forEach((item) => {
     const data = item.data()
+    if (!data.deletedAt) return
     push({
       kind: 'property',
       id: item.id,
@@ -298,8 +387,23 @@ export async function loadTrash(): Promise<TrashEntry[]> {
     })
   })
 
+  contracts.docs.forEach((item) => {
+    const data = item.data() as Partial<Contract>
+    if (!data.isDeleted || !data.deletedAt) return
+    // Los contratos de un inmueble en la papelera se purgan con él.
+    if (data.propertyId && deletedPropertyIds.has(data.propertyId)) return
+    push({
+      kind: 'contract',
+      id: item.id,
+      title: data.tenantName || 'Contrato de alquiler',
+      subtitle: `Contrato de ${data.propertyId ? propertyNames.get(data.propertyId) ?? 'inmueble' : 'inmueble'}${data.startDate ? ` · desde ${data.startDate}` : ''}`,
+      deletedAt: toIso(data.deletedAt),
+    })
+  })
+
   tenants.docs.forEach((item) => {
     const data = item.data() as Partial<Tenant>
+    if (!data.deletedAt) return
     push({
       kind: 'tenant',
       id: item.id,
@@ -327,13 +431,15 @@ export async function loadTrash(): Promise<TrashEntry[]> {
   return entries.sort((a, b) => b.deletedAt.localeCompare(a.deletedAt))
 }
 
-/** Purga los elementos que ya han superado los 30 días. Devuelve cuántos borró. */
-export async function purgeExpiredTrash(entries: TrashEntry[], now = new Date()): Promise<number> {
+/** Purga los elementos que ya han superado los 30 días. */
+export async function purgeExpiredTrash(entries: TrashEntry[], now = new Date()): Promise<{ purged: number; skippedFiles: number }> {
   const expired = entries.filter((entry) => isTrashEntryExpired(entry, now))
+  let skippedFiles = 0
   for (const entry of expired) {
-    await purgeTrashEntry(entry)
+    const result = await purgeTrashEntry(entry)
+    skippedFiles += result.skippedFiles
   }
-  return expired.length
+  return { purged: expired.length, skippedFiles }
 }
 
 /** Fecha legible para la ficha de la papelera. */
@@ -341,4 +447,3 @@ export function formatTrashDate(value: string): string {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
-

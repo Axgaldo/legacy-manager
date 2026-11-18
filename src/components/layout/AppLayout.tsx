@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { usePrivacy } from '@/features/privacy/PrivacyProvider'
 import GlobalSearch from '@/features/search/GlobalSearch'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
+import PageLoader from '@/components/ui/PageLoader'
 
 const BUILD_DATE = new Date(__APP_BUILD_DATE__)
 const BUILD_DATE_LABEL = BUILD_DATE.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -163,7 +164,9 @@ export default function AppLayout() {
         <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
           {/* Keeps the sidebar alive if one screen fails; the global boundary is the last resort. */}
           <ErrorBoundary compact key={location.pathname}>
-            <Outlet />
+            <Suspense fallback={<PageLoader compact />}>
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </div>
       </main>

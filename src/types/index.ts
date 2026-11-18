@@ -119,6 +119,8 @@ export interface Contract extends TimestampedDoc {
   avraReference?: string
   isActive: boolean
   isDeleted?: boolean
+  /** ISO date set when the contract is moved to the trash (soft delete). */
+  deletedAt?: string
   notes?: string
 }
 

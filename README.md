@@ -19,7 +19,7 @@ La portada `/` resume todo el patrimonio: calendario del mes con cobros registra
 - **Gastos**: vista transversal con calendario por mes y filtro de tipo (todos, solo periódicos o solo puntuales) y facturas.
 - **Fiscal**: resumen IRPF de alquileres en la sección general (`/inmuebles/fiscal`): filtros por propietario, provincia y año; ingresos íntegros, gastos deducibles (puntuales y periódicos), rendimiento neto con reducción del 50% y CSV descargable.
 - **Inquilinos**: directorio independiente con documentos (DNI, contratos, nóminas…) y vinculación bidireccional con inmuebles.
-- **Contratos y adendas**: PDF hasta 100 MiB por versión, en Firebase Cloud Storage; activar/deshactivar contratos sin perder el archivo.
+- **Contratos y adendas**: PDF hasta 100 MiB por versión, en Firebase Cloud Storage; activar/deshactivar contratos sin perder el archivo. Los PDFs nunca se sobrescriben y se pueden borrar con la papelera (30 días).
 
 ### 🪙 Bienes y Activos
 - Portada con las colecciones: **Todos**, Numismática, Arte y cuadros, Relojes, Electrónica y electrodomésticos y Objetos diversos.
@@ -30,6 +30,12 @@ La portada `/` resume todo el patrimonio: calendario del mes con cobros registra
 
 ### 🙈 Modo incógnito
 Un interruptor en la barra lateral oculta **todas las cifras de dinero** de la app (rentas, gastos, valoraciones, totales…) sustituyéndolas por caracteres especiales aleatorios, al estilo de las apps de banca. El resto de la app sigue funcionando con normalidad; la preferencia se recuerda entre sesiones.
+
+### Papelera
+Inmuebles, bienes, contratos, inquilinos y sus documentos no se borran al instante: se guardan **30 días** en `/papelera` y se pueden restaurar. La purga definitiva se hace desde la app (al abrir la papelera o con «Eliminar ya» / «Vaciar papelera»), sin Cloud Functions. Al purgar un inmueble se borran también sus gastos, cobros, contratos, adendas y PDFs.
+
+### PWA y sin conexión
+La app se puede instalar desde el navegador (manifest + service worker). El *shell* y los archivos estáticos quedan cacheados y Firestore usa caché persistente, así que la segunda apertura es instantánea y se puede consultar con mala cobertura; los cambios hechos sin red se sincronizan al volver la conexión.
 
 ## Stack
 
@@ -73,11 +79,11 @@ El workflow de GitHub Pages despliega **solo el frontend**; las reglas **nunca**
 
 | Ruta | Uso | Máx. | Contenido permitido | Borrar |
 |---|---|---|---|---|
-| `contracts/{propertyId}/{fileName}` | PDF de contratos/adendas | 100 MiB | PDF | No (archival) |
+| `contracts/{propertyId}/{fileName}` | PDF de contratos/adendas | 100 MiB | PDF | Sí (nunca se sobrescribe) |
 | `assets/{assetId}/{fileName}` | Fotos de bienes | 2 MiB | webp, jpeg, png | Sí |
 | `tenants/{tenantId}/{fileName}` | Documentos de inquilinos | 25 MiB | PDF, imágenes, Word/Excel/ODT, TXT, ZIP/RAR | Sí |
 
-Sin el bloque `tenants/`, subir cualquier documento de inquilino falla con `storage/unauthorized`. El bloque actual está en `storage.rules`; la validación cliente equivalente vive en `src/features/tenants/tenantsService.ts` y `src/lib/storageFiles.ts` (mantenlas sincronizadas con los límites).
+Los PDFs de contratos **nunca se sobrescriben** (`update: false`), pero sí se pueden borrar: la app los guarda 30 días en la papelera antes de purgarlos, y solo al vaciar un inmueble o un contrato. Sin el bloque `tenants/`, subir cualquier documento de inquilino falla con `storage/unauthorized`. El bloque actual está en `storage.rules`; la validación cliente equivalente vive en `src/features/tenants/tenantsService.ts` y `src/lib/storageFiles.ts` (mantenlas sincronizadas con los límites).
 
 ### Publicación de reglas y CORS
 
