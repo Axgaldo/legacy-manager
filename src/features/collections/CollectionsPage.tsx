@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { AssetCategory, AssetItem, Property } from '@/types'
 import { subscribeToAssets, deleteAsset, migrateLegacyAssetPhotos } from './assetsService'
 import { subscribeToProperties } from '@/features/properties/propertiesService'
 import AssetModal from './AssetModal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
-import { assetSlug } from '@/utils/slugs'
+import { buildAssetSlugIndex } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
@@ -141,9 +141,10 @@ export default function CollectionsPage() {
 
   const ownerOptions = useMemo(() => getOwnerOptions(properties, assets), [properties, assets])
   const defaultOwner = useMemo(() => getDefaultOwner(properties, assets), [properties, assets])
+  const slugIndex = useMemo(() => buildAssetSlugIndex(assets), [assets])
   const routedAsset = useMemo(
-    () => (routeAssetSlug ? assets.find((asset) => assetSlug(asset, assets) === routeAssetSlug) : undefined),
-    [assets, routeAssetSlug],
+    () => (routeAssetSlug ? slugIndex.bySlug.get(routeAssetSlug) : undefined),
+    [routeAssetSlug, slugIndex],
   )
 
   useEffect(() => {
@@ -299,7 +300,9 @@ export default function CollectionsPage() {
     if (detailIndex < 0) return
     const target = displayOrder[detailIndex + offset]
     if (!target) return
-    navigate(`/bienes/categoria/${categoryCollection(target.category)}/${assetSlug(target, assets)}`, { replace: true })
+    const slug = slugIndex.slugById.get(target.id)
+    if (!slug) return
+    navigate(`/bienes/categoria/${categoryCollection(target.category)}/${slug}`, { replace: true })
   }
 
   const handleOpenAddModal = () => {
@@ -307,9 +310,11 @@ export default function CollectionsPage() {
     setIsModalOpen(true)
   }
 
-  const handleOpenDetail = (asset: AssetItem) => {
-    navigate(`/bienes/categoria/${categoryCollection(asset.category)}/${assetSlug(asset, assets)}`)
-  }
+  const handleOpenDetail = useCallback((asset: AssetItem) => {
+    const slug = slugIndex.slugById.get(asset.id)
+    if (!slug) return
+    navigate(`/bienes/categoria/${categoryCollection(asset.category)}/${slug}`)
+  }, [navigate, slugIndex])
 
   const handleCloseDetail = () => {
     setDetailAsset(null)

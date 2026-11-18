@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import {
@@ -36,7 +36,7 @@ function Tag({ tag }: { tag: string }) {
   )
 }
 
-export default function NumismaticaList({
+function NumismaticaList({
   assets,
   onOpen,
   onDelete,
@@ -204,3 +204,5 @@ export default function NumismaticaList({
     </div>
   )
 }
+
+export default memo(NumismaticaList)
