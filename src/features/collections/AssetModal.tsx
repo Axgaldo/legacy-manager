@@ -223,6 +223,7 @@ export default function AssetModal({
   const [category, setCategory] = useState<AssetCategory>(defaultCategory)
   const [year, setYear] = useState('')
   const [placeOfOrigin, setPlaceOfOrigin] = useState('')
+  const [brandOrAuthor, setBrandOrAuthor] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [currentValue, setCurrentValue] = useState('')
@@ -271,6 +272,7 @@ export default function AssetModal({
       setCategory(defaultCategory)
       setYear('')
       setPlaceOfOrigin('')
+      setBrandOrAuthor('')
       setTags([])
       setCurrentValue('')
       setAcquisitionPrice('')
@@ -280,9 +282,11 @@ export default function AssetModal({
       return
     }
 
+    // Los campos genéricos que antes se volcaban como etiquetas ahora tienen
+    // campo propio; el resto se mantiene para no perder datos antiguos.
     const legacyTags = assetToEdit.category === 'numismatica'
       ? []
-      : [assetToEdit.brandOrAuthor, assetToEdit.material, assetToEdit.historicalEra, assetToEdit.country, assetToEdit.ruler, assetToEdit.mint, assetToEdit.denomination, assetToEdit.conservationState]
+      : [assetToEdit.material, assetToEdit.historicalEra, assetToEdit.country, assetToEdit.ruler, assetToEdit.mint, assetToEdit.denomination, assetToEdit.conservationState]
         .filter((tag): tag is string => Boolean(tag?.trim()))
 
     setName(assetToEdit.name)
@@ -290,6 +294,7 @@ export default function AssetModal({
     setCategory(assetToEdit.category || defaultCategory)
     setYear(toInputValue(assetToEdit.year))
     setPlaceOfOrigin(assetToEdit.placeOfOrigin || assetToEdit.country || '')
+    setBrandOrAuthor(assetToEdit.brandOrAuthor || '')
     setTags(Array.from(new Set([...(assetToEdit.tags ?? []), ...legacyTags])))
     setCurrentValue(toInputValue(assetToEdit.currentValue))
     setAcquisitionPrice(toInputValue(assetToEdit.acquisitionPrice))
@@ -446,7 +451,7 @@ export default function AssetModal({
       category: isNumismatica ? 'numismatica' : category,
       tags: tagsList,
       description: assetToEdit?.description ?? '',
-      brandOrAuthor: assetToEdit?.brandOrAuthor ?? '',
+      brandOrAuthor: isNumismatica ? (assetToEdit?.brandOrAuthor ?? '') : brandOrAuthor.trim(),
       year: isNumismatica ? (isMedalAsset ? medalYear : coinPrimaryYear) : yearNumber,
       historicalEra,
       country: isNumismatica ? numismaticaCountry : (genericOrigin || assetToEdit?.country || ''),
@@ -535,7 +540,7 @@ export default function AssetModal({
                 ? (isMedal
                   ? 'Ficha simplificada de medalla: motivo, año, material, tamaño, anverso/reverso y adquisición.'
                   : 'Ficha especial de numismática: los datos genéricos del bien se rellenan solos.')
-                : 'Una ficha común para arte y objetos diversos; usa etiquetas y campos reutilizables para sus características.'}
+                : 'Una ficha común para arte, relojes, electrónica y objetos diversos; usa etiquetas y campos reutilizables para sus características.'}
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white">✕</button>
@@ -554,7 +559,7 @@ export default function AssetModal({
 
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Categoría</label>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="flex flex-wrap gap-2">
                 {ASSET_CATEGORIES.map((item) => (
                   <button
                     key={item.value}
@@ -577,6 +582,11 @@ export default function AssetModal({
 
             {!isNumismatica && (
               <>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Marca / modelo / autor</label>
+                  <input value={brandOrAuthor} onChange={(event) => setBrandOrAuthor(event.target.value)} placeholder="Ej. Omega Seamaster, Sony, autor de la obra…" className={inputClass} />
+                </div>
+
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Año</label>

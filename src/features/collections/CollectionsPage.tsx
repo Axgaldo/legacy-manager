@@ -16,12 +16,13 @@ import {
   preferencesToParams,
   savePreferences,
   type ListPreferences,
+  type ListView,
 } from './listPreferences'
-import NumismaticaList from './NumismaticaList'
+import AssetList from './AssetList'
 import {
-  NUMISMATICA_GROUP_OPTIONS,
-  NUMISMATICA_SORT_OPTIONS,
+  groupOptionsForCollection,
   orderNumismaticaAssets,
+  sortOptionsForCollection,
   type NumismaticaGroupBy,
   type NumismaticaSortBy,
 } from './numismaticaUi'
@@ -30,8 +31,9 @@ import AssetPrintTable from './AssetPrintTable'
 import { CONSERVATION_STATES, formatSignedYear } from './numismaticaMeta'
 import {
   ASSET_CATEGORIES,
+  COLLECTIONS,
+  COLLECTION_MAP,
   type CollectionKey,
-  PRIMARY_COLLECTIONS,
   categoryCollection,
   getCategoryInfo,
   isCollectionKey,
@@ -101,7 +103,8 @@ export default function CollectionsPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [tagFilterOpen, setTagFilterOpen] = useState(false)
   const [sortBy, setSortBy] = useState<NumismaticaSortBy>('name')
-  const [groupBy, setGroupBy] = useState<NumismaticaGroupBy>('location')
+  const [groupBy, setGroupBy] = useState<NumismaticaGroupBy>('none')
+  const [view, setView] = useState<ListView>('list')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedMaterial, setSelectedMaterial] = useState('all')
   const [selectedConservationState, setSelectedConservationState] = useState('all')
@@ -140,9 +143,20 @@ export default function CollectionsPage() {
 
   const defaultPreferences = useMemo<ListPreferences>(() => (
     activeCollection === 'numismatica'
-      ? { ...DEFAULT_LIST_PREFERENCES, sortBy: 'inventory' }
-      : DEFAULT_LIST_PREFERENCES
+      ? { ...DEFAULT_LIST_PREFERENCES, groupBy: 'location', sortBy: 'inventory' }
+      : activeCollection === 'todos'
+        ? { ...DEFAULT_LIST_PREFERENCES, groupBy: 'category', sortBy: 'name' }
+        : { ...DEFAULT_LIST_PREFERENCES, groupBy: 'none', sortBy: 'name' }
   ), [activeCollection])
+
+  const groupOptions = useMemo(
+    () => groupOptionsForCollection(activeCollection ?? 'objetos'),
+    [activeCollection],
+  )
+  const sortOptions = useMemo(
+    () => sortOptionsForCollection(activeCollection ?? 'objetos'),
+    [activeCollection],
+  )
 
   useEffect(() => {
     if (!collectionKey) {
@@ -151,20 +165,25 @@ export default function CollectionsPage() {
     }
     const fromUrl = preferencesFromParams(new URLSearchParams(window.location.search), defaultPreferences)
     const stored = fromUrl.hasParams ? null : loadPreferences(collectionKey, defaultPreferences)
-    const preferences = fromUrl.hasParams ? fromUrl.preferences : stored ?? defaultPreferences
+    const loaded = fromUrl.hasParams ? fromUrl.preferences : stored ?? defaultPreferences
 
-    setSelectedOwner(preferences.owner)
-    setSelectedCategory(preferences.category as 'all' | AssetCategory)
-    setSelectedTags(preferences.tags)
-    setSelectedMaterial(preferences.material)
-    setSelectedConservationState(preferences.conservation)
-    setSelectedEra(preferences.era)
-    setSelectedNumismaticaType(preferences.type)
-    setOnlyReview(preferences.onlyReview)
+    // Un valor guardado que no encaja con esta colección vuelve al por defecto.
+    const safeGroupBy = groupOptions.some((option) => option.value === loaded.groupBy) ? loaded.groupBy : defaultPreferences.groupBy
+    const safeSortBy = sortOptions.some((option) => option.value === loaded.sortBy) ? loaded.sortBy : defaultPreferences.sortBy
+
+    setSelectedOwner(loaded.owner)
+    setSelectedCategory(loaded.category as 'all' | AssetCategory)
+    setSelectedTags(loaded.tags)
+    setSelectedMaterial(loaded.material)
+    setSelectedConservationState(loaded.conservation)
+    setSelectedEra(loaded.era)
+    setSelectedNumismaticaType(loaded.type)
+    setOnlyReview(loaded.onlyReview)
     setSearchQuery('')
-    setSortBy(preferences.sortBy)
-    setGroupBy(preferences.groupBy)
-  }, [collectionKey, defaultPreferences])
+    setGroupBy(safeGroupBy)
+    setSortBy(safeSortBy)
+    setView(loaded.view)
+  }, [collectionKey, defaultPreferences, groupOptions, sortOptions])
 
   const preferences = useMemo<ListPreferences>(() => ({
     groupBy,
@@ -177,9 +196,10 @@ export default function CollectionsPage() {
     era: selectedEra,
     type: selectedNumismaticaType,
     onlyReview,
+    view,
   }), [
     groupBy, sortBy, selectedOwner, selectedCategory, selectedTags, selectedMaterial,
-    selectedConservationState, selectedEra, selectedNumismaticaType, onlyReview,
+    selectedConservationState, selectedEra, selectedNumismaticaType, onlyReview, view,
   ])
 
   const [, setSearchParams] = useSearchParams()
@@ -231,7 +251,7 @@ export default function CollectionsPage() {
     [activeCollection, assets],
   )
 
-  const collectionStats = useMemo(() => PRIMARY_COLLECTIONS.map((collection) => {
+  const collectionStats = useMemo(() => COLLECTIONS.map((collection) => {
     const items = assets.filter((asset) => matchesCollection(asset.category, collection.key))
     return {
       ...collection,
@@ -240,14 +260,10 @@ export default function CollectionsPage() {
     }
   }), [assets])
 
-  const metrics = useMemo(() => {
-    const source = activeCollection ? scopedAssets : assets
-    return {
-      totalCount: source.length,
-      totalValue: source.reduce((total, asset) => total + assetValue(asset), 0),
-      coinsCount: assets.filter((asset) => matchesCollection(asset.category, 'numismatica')).length,
-    }
-  }, [activeCollection, assets, scopedAssets])
+  const metrics = useMemo(() => ({
+    totalCount: scopedAssets.length,
+    totalValue: scopedAssets.reduce((total, asset) => total + assetValue(asset), 0),
+  }), [scopedAssets])
 
   const existingTags = useMemo(() => uniqueValues(assets.flatMap((asset) => [
     ...(asset.tags ?? []),
@@ -359,8 +375,6 @@ export default function CollectionsPage() {
     selectedEra, selectedNumismaticaType, onlyReview, deferredSearchQuery, sortBy,
   ])
 
-  const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
-
   const filteredValue = useMemo(
     () => filteredAssets.reduce((total, asset) => total + assetValue(asset), 0),
     [filteredAssets],
@@ -387,9 +401,10 @@ export default function CollectionsPage() {
     setSearchQuery('')
   }
 
+  // Orden exacto en pantalla: la lista sigue los grupos, la cuadrícula es plana.
   const displayOrder = useMemo(
-    () => (isNumismaticaCollection ? orderNumismaticaAssets(filteredAssets, groupBy, sortBy) : filteredAssets),
-    [isNumismaticaCollection, filteredAssets, groupBy, sortBy],
+    () => (view === 'grid' ? filteredAssets : orderNumismaticaAssets(filteredAssets, groupBy, sortBy)),
+    [view, filteredAssets, groupBy, sortBy],
   )
   const detailIndex = detailAsset ? displayOrder.findIndex((item) => item.id === detailAsset.id) : -1
 
@@ -399,7 +414,8 @@ export default function CollectionsPage() {
     if (!target) return
     const slug = slugIndex.slugById.get(target.id)
     if (!slug) return
-    navigate(`/bienes/categoria/${categoryCollection(target.category)}/${slug}${listQuerySuffix}`, { replace: true })
+    const targetCollection = activeCollection ?? categoryCollection(target.category)
+    navigate(`/bienes/categoria/${targetCollection}/${slug}${listQuerySuffix}`, { replace: true })
   }
 
   const handleOpenAddModal = () => {
@@ -410,8 +426,9 @@ export default function CollectionsPage() {
   const handleOpenDetail = useCallback((asset: AssetItem) => {
     const slug = slugIndex.slugById.get(asset.id)
     if (!slug) return
-    navigate(`/bienes/categoria/${categoryCollection(asset.category)}/${slug}${listQuerySuffix}`)
-  }, [navigate, slugIndex, listQuerySuffix])
+    const targetCollection = activeCollection ?? categoryCollection(asset.category)
+    navigate(`/bienes/categoria/${targetCollection}/${slug}${listQuerySuffix}`)
+  }, [navigate, slugIndex, listQuerySuffix, activeCollection])
 
   const handleCloseDetail = () => {
     setDetailAsset(null)
@@ -435,7 +452,8 @@ export default function CollectionsPage() {
     setIsModalOpen(false)
     setEditingAsset(null)
     setDetailAsset(null)
-    navigate(`/bienes/categoria/${categoryCollection(category)}${listQuerySuffix}`, { replace: Boolean(routeAssetSlug) })
+    const target = activeCollection ?? categoryCollection(category)
+    navigate(`/bienes/categoria/${target}${listQuerySuffix}`, { replace: Boolean(routeAssetSlug) })
   }
 
   const handleConfirmDelete = async () => {
@@ -466,8 +484,8 @@ export default function CollectionsPage() {
     }
   }
 
-  const defaultCategory: AssetCategory = activeCollection === 'numismatica' ? 'numismatica' : activeCollection === 'arte' ? 'arte' : 'objetos'
-  const collectionInfo = activeCollection ? PRIMARY_COLLECTIONS.find((collection) => collection.key === activeCollection) : undefined
+  const defaultCategory: AssetCategory = activeCollection && activeCollection !== 'todos' ? activeCollection : 'objetos'
+  const collectionInfo = activeCollection ? COLLECTION_MAP.get(activeCollection) : undefined
 
   return (
     <div className="space-y-7">
@@ -534,62 +552,44 @@ export default function CollectionsPage() {
       {routeAssetSlug && !loading && !routedAsset && (
         <div role="alert" className="rounded-xl border border-amber-800 bg-amber-950/50 p-4 text-sm text-amber-200">
           No se encontró el bien «{routeAssetSlug}». Puede que haya cambiado de nombre o se haya eliminado.
-          <button onClick={() => navigate('/bienes', { replace: true })} className="ml-3 underline">Volver al catálogo</button>
+          <button
+            onClick={() => navigate(activeCollection ? `/bienes/categoria/${activeCollection}` : '/bienes', { replace: true })}
+            className="ml-3 underline"
+          >
+            Volver al catálogo
+          </button>
         </div>
       )}
 
       {isLanding ? (
-        <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard title="Total bienes" value={String(metrics.totalCount)} />
-            <StatCard title="Valoración total" value={formatEuro(metrics.totalValue)} valueClass="text-emerald-600" />
-            <StatCard title="Numismática" value={`${metrics.coinsCount} piezas`} valueClass="text-amber-700" />
-            <StatCard title="Otros bienes" value={`${assets.length - metrics.coinsCount} piezas`} valueClass="text-teal-700" />
-          </div>
-
-          <section className="space-y-3">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Colecciones</h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              {collectionStats.map((collection) => (
-                <button
-                  key={collection.key}
-                  type="button"
-                  onClick={() => navigate(`/bienes/categoria/${collection.key}`)}
-                  className="group rounded-2xl border border-slate-700 bg-slate-900 p-5 text-left transition hover:border-teal-500 hover:bg-slate-900/80"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <span className="text-3xl">{collection.icon}</span>
-                      <h4 className="mt-3 text-lg font-bold text-slate-100">{collection.label}</h4>
-                      <p className="mt-1 text-xs text-slate-400">{collection.description}</p>
-                    </div>
-                    <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-teal-200">{collection.count}</span>
+        <section className="space-y-3">
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Colecciones</h3>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {collectionStats.map((collection) => (
+              <button
+                key={collection.key}
+                type="button"
+                onClick={() => navigate(`/bienes/categoria/${collection.key}`)}
+                className={`group rounded-2xl border p-5 text-left transition hover:bg-slate-900/80 ${
+                  collection.key === 'todos'
+                    ? 'border-teal-800 bg-teal-950/30 hover:border-teal-500'
+                    : 'border-slate-700 bg-slate-900 hover:border-teal-500'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span className="text-3xl">{collection.icon}</span>
+                    <h4 className="mt-3 text-lg font-bold text-slate-100">{collection.label}</h4>
+                    <p className="mt-1 text-xs text-slate-400">{collection.description}</p>
                   </div>
-                  <p className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-400">Valoración: <span className="font-semibold text-emerald-400">{formatEuro(collection.value)}</span></p>
-                  <p className="mt-1 text-xs font-semibold text-teal-300 group-hover:text-teal-200">Ver colección →</p>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-400">Últimos bienes</h3>
-              {assets.length > 0 && <span className="text-xs text-slate-500">{assets.length} en total</span>}
-            </div>
-            {loading ? (
-              <LoadingState />
-            ) : recentAssets.length === 0 ? (
-              <EmptyState title="No hay bienes registrados aún" description="Empieza registrando una moneda, una obra de arte o cualquier objeto de la familia." onAdd={handleOpenAddModal} />
-            ) : (
-              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {recentAssets.map((asset) => (
-                  <AssetCard key={asset.id} asset={asset} onOpen={handleOpenDetail} onDelete={setAssetToDelete} />
-                ))}
-              </div>
-            )}
-          </section>
-        </>
+                  <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-teal-200">{collection.count}</span>
+                </div>
+                <p className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-400">Valoración: <span className="font-semibold text-emerald-400">{formatEuro(collection.value)}</span></p>
+                <p className="mt-1 text-xs font-semibold text-teal-300 group-hover:text-teal-200">Ver colección →</p>
+              </button>
+            ))}
+          </div>
+        </section>
       ) : (
         <>
           <div className="space-y-3.5 rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
@@ -667,7 +667,7 @@ export default function CollectionsPage() {
                   type="text"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder={isNumismaticaCollection ? 'Buscar nombre, motivo, ceca, gobernante, material…' : 'Buscar nombre, autor, material, etiqueta…'}
+                  placeholder={isNumismaticaCollection ? 'Buscar nombre, motivo, ceca, gobernante, material…' : 'Buscar nombre, marca, material, etiqueta…'}
                   className={`${filterInputClass} pl-8 pr-24`}
                 />
                 <span className="absolute left-2.5 top-2 text-slate-500">⌕</span>
@@ -716,38 +716,45 @@ export default function CollectionsPage() {
                   ⚠️ Solo REVISAR ({reviewCount})
                 </button>
               )}
-              {isNumismaticaCollection ? (
-                <>
-                  <select
-                    value={groupBy}
-                    onChange={(event) => setGroupBy(event.target.value as NumismaticaGroupBy)}
-                    className={`${filterInputClass} sm:w-52`}
-                    aria-label="Agrupar por"
-                  >
-                    <option value="none">Agrupar: sin agrupar</option>
-                    {NUMISMATICA_GROUP_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>Agrupar: {option.label}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={sortBy}
-                    onChange={(event) => setSortBy(event.target.value as NumismaticaSortBy)}
-                    className={`${filterInputClass} sm:w-56`}
-                    aria-label="Ordenar por"
-                  >
-                    {NUMISMATICA_SORT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>Ordenar: {option.label}</option>
-                    ))}
-                  </select>
-                </>
-              ) : (
-                <select value={sortBy} onChange={(event) => setSortBy(event.target.value as NumismaticaSortBy)} className={`${filterInputClass} sm:w-52`}>
-                  <option value="name">Ordenar: nombre</option>
-                  <option value="year-asc">Año: más antiguo</option>
-                  <option value="value-desc">Valor: mayor a menor</option>
-                  <option value="material">Material</option>
-                </select>
-              )}
+              <select
+                value={groupBy}
+                onChange={(event) => setGroupBy(event.target.value as NumismaticaGroupBy)}
+                className={`${filterInputClass} sm:w-52`}
+                aria-label="Agrupar por"
+              >
+                <option value="none">Agrupar: sin agrupar</option>
+                {groupOptions.map((option) => (
+                  <option key={option.value} value={option.value}>Agrupar: {option.label}</option>
+                ))}
+              </select>
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as NumismaticaSortBy)}
+                className={`${filterInputClass} sm:w-56`}
+                aria-label="Ordenar por"
+              >
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>Ordenar: {option.label}</option>
+                ))}
+              </select>
+              <div className="flex shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-950" role="group" aria-label="Vista de la lista">
+                <button
+                  type="button"
+                  onClick={() => setView('list')}
+                  aria-pressed={view === 'list'}
+                  className={`px-3 py-2 font-semibold transition ${view === 'list' ? 'bg-teal-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+                >
+                  ☰ Lista
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView('grid')}
+                  aria-pressed={view === 'grid'}
+                  className={`px-3 py-2 font-semibold transition ${view === 'grid' ? 'bg-teal-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+                >
+                  ▦ Cuadrícula
+                </button>
+              </div>
             </div>
           </div>
 
@@ -786,24 +793,21 @@ export default function CollectionsPage() {
               onAdd={scopedAssets.length === 0 ? handleOpenAddModal : undefined}
               addLabel={isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
             />
-          ) : isNumismaticaCollection ? (
-            <NumismaticaList
+          ) : view === 'grid' ? (
+            <AssetGrid assets={filteredAssets} onOpen={handleOpenDetail} onDelete={setAssetToDelete} />
+          ) : (
+            <AssetList
               assets={filteredAssets}
               onOpen={handleOpenDetail}
               onDelete={setAssetToDelete}
               groupBy={groupBy}
               sortBy={sortBy}
+              collection={activeCollection}
               onPrintGroup={(label, items) => setPrintJob({
                 title: `${collectionInfo?.label ?? 'Bienes'} · ${label}`,
                 assets: items,
               })}
             />
-          ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredAssets.map((asset) => (
-                <AssetCard key={asset.id} asset={asset} onOpen={handleOpenDetail} onDelete={setAssetToDelete} />
-              ))}
-            </div>
           )}
         </>
       )}
@@ -855,15 +859,6 @@ export default function CollectionsPage() {
 
 const filterInputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-teal-500 focus:outline-none'
 
-function StatCard({ title, value, valueClass = 'text-slate-900' }: { title: string; value: string; valueClass?: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-800 bg-white p-5 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</p>
-      <p className={`mt-2 text-2xl font-bold ${valueClass}`}>{value}</p>
-    </div>
-  )
-}
-
 function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
   const category = getCategoryInfo(asset.category)
   const mainPhoto = asset.photos?.[0]
@@ -908,8 +903,8 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
             {(asset.placeOfOrigin || asset.country) ? ` · ${asset.placeOfOrigin || asset.country}` : ''}
             {(asset.era || asset.historicalEra) ? ` · ${asset.era || asset.historicalEra}` : ''}
           </p>
-          {(asset.denomination || asset.mint) && (
-            <p className="mt-1 text-xs text-slate-500">{[asset.denomination, asset.mint].filter(Boolean).join(' · ')}</p>
+          {asset.brandOrAuthor && (
+            <p className="mt-1 text-xs text-slate-500">{asset.brandOrAuthor}</p>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {tags.map((tag) => (
@@ -933,7 +928,7 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/60 p-3 px-4">
-        <button onClick={(event) => { event.stopPropagation(); onOpen(asset) }} className="text-xs font-semibold text-teal-300 transition hover:text-teal-200">Ver detalles / Editar</button>
+        <button onClick={(event) => { event.stopPropagation(); onOpen(asset) }} className="text-xs font-semibold text-teal-300 transition hover:text-teal-200">Ver detalles</button>
         <button
           onClick={(event) => { event.stopPropagation(); onDelete(asset) }}
           className="rounded-md p-1 text-slate-400 transition hover:bg-red-950/50 hover:text-red-400"
@@ -945,6 +940,50 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
           </svg>
         </button>
       </div>
+    </div>
+  )
+}
+
+/** Vista de cuadrícula: tarjetas con foto grande y pintado progresivo. */
+function AssetGrid({ assets, onOpen, onDelete }: { assets: AssetItem[]; onOpen: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
+  const PAGE_SIZE = 60
+  const [limit, setLimit] = useState(PAGE_SIZE)
+
+  useEffect(() => {
+    setLimit(PAGE_SIZE)
+  }, [assets])
+
+  const visible = assets.slice(0, limit)
+  const hidden = assets.length - visible.length
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {visible.map((asset) => (
+          <AssetCard key={asset.id} asset={asset} onOpen={onOpen} onDelete={onDelete} />
+        ))}
+      </div>
+      {hidden > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-3 text-xs text-slate-400">
+          <span>Mostrando {visible.length} de {assets.length}</span>
+          <span className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setLimit((value) => value + PAGE_SIZE)}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-200 transition hover:bg-slate-800"
+            >
+              Mostrar {PAGE_SIZE} más
+            </button>
+            <button
+              type="button"
+              onClick={() => setLimit(assets.length)}
+              className="font-semibold text-teal-300 transition hover:text-teal-200"
+            >
+              Mostrar todo
+            </button>
+          </span>
+        </div>
+      )}
     </div>
   )
 }

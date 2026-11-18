@@ -42,7 +42,7 @@ export default function AssetPrintTable({
         </colgroup>
         <thead>
           <tr>
-            {['Nº', 'Pieza', 'Año', 'Material', 'Ceca / Tamaño', 'Conservación', 'Ubicación', 'Valor'].map((label) => (
+            {['Nº', 'Pieza', 'Año', 'Material', 'Marca / Ceca', 'Conservación', 'Ubicación', 'Valor'].map((label) => (
               <th key={label} className="border border-slate-400 px-1.5 py-1 text-left font-bold uppercase tracking-wide">
                 {label}
               </th>

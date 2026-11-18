@@ -1,7 +1,10 @@
 import { memo, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
+import type { CollectionKey } from './assetCategories'
 import {
+  assetIcon,
+  assetIconTitle,
   coinValue,
   conservationTone,
   detailLabel,
@@ -36,13 +39,19 @@ function Tag({ tag }: { tag: string }) {
   )
 }
 
-function NumismaticaList({
+/**
+ * Compact row list used by every collection (numismática and the rest).
+ * Rows adapt per asset: coins show ceca/anverso/reverso, other assets show
+ * marca/autor and origen. Clicking a row opens its detail sheet.
+ */
+function AssetList({
   assets,
   onOpen,
   onDelete,
   onPrintGroup,
-  groupBy = 'location',
-  sortBy = 'inventory',
+  groupBy = 'none',
+  sortBy = 'name',
+  collection = 'objetos',
 }: {
   assets: AssetItem[]
   onOpen: (asset: AssetItem) => void
@@ -50,9 +59,11 @@ function NumismaticaList({
   onPrintGroup?: (label: string, assets: AssetItem[]) => void
   groupBy?: NumismaticaGroupBy
   sortBy?: NumismaticaSortBy
+  collection?: CollectionKey
 }) {
   const PAGE_SIZE = 200
   const [limit, setLimit] = useState(PAGE_SIZE)
+  const isNumismaticaView = collection === 'numismatica'
   const groups = useMemo(
     () => groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy),
     [assets, groupBy, sortBy],
@@ -92,6 +103,8 @@ function NumismaticaList({
   const renderRow = (asset: AssetItem) => {
     const photo = asset.photos?.[0]
     const medal = isMedal(asset)
+    const icon = assetIcon(asset)
+    const iconTitle = assetIconTitle(asset)
     const value = coinValue(asset)
     const year = yearLabel(asset)
     const detail = detailLabel(asset)
@@ -102,7 +115,7 @@ function NumismaticaList({
     const obverse = asset.obverse_info?.trim()
     const reverse = asset.reverse_info?.trim()
     const notes = asset.notes?.trim()
-    const extra = medal ? [asset.medal_motive, asset.description].filter(Boolean).join(' · ') : ''
+    const extra = medal ? [asset.medal_motive, asset.description].filter(Boolean).join(' · ') : asset.description?.trim() ?? ''
 
     return (
       <div
@@ -123,7 +136,7 @@ function NumismaticaList({
         <div className="grid grid-cols-[minmax(0,1fr)_28px_36px] items-center gap-2 lg:grid-cols-[minmax(0,2.1fr)_84px_88px_minmax(0,1fr)_116px_minmax(0,1.1fr)_92px_28px_36px]">
           <div className="min-w-0">
             <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-100" title={asset.name}>
-              <span className="shrink-0 text-xs" title={medal ? 'Medalla' : 'Moneda'}>{medal ? '🏅' : '🪙'}</span>
+              <span className="shrink-0 text-xs" title={iconTitle}>{icon}</span>
               {inventory && (
                 <span className="shrink-0 font-mono text-[11px] font-normal text-slate-500">#{inventory}</span>
               )}
@@ -172,7 +185,7 @@ function NumismaticaList({
           <div className="h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
             {photo
               ? <PrivateStorageImage source={photo} alt={asset.name} className="h-full w-full object-cover" />
-              : <div className="flex h-full w-full items-center justify-center text-sm text-slate-700">{medal ? '🏅' : '🪙'}</div>}
+              : <div className="flex h-full w-full items-center justify-center text-sm text-slate-700">{icon}</div>}
           </div>
         </div>
 
@@ -213,9 +226,9 @@ function NumismaticaList({
         <span>Pieza</span>
         <span>Año</span>
         <span>Material</span>
-        <span>Ceca / Tamaño</span>
+        <span>{isNumismaticaView ? 'Ceca / Tamaño' : 'Marca / ceca'}</span>
         <span>Conservación</span>
-        <span>Ubicación</span>
+        <span>{isNumismaticaView ? 'Ubicación' : 'Ubicación / origen'}</span>
         <span className="text-right">Valor</span>
         <span aria-hidden="true" />
         <span className="text-right">Foto</span>
@@ -282,4 +295,4 @@ function NumismaticaList({
   )
 }
 
-export default memo(NumismaticaList)
+export default memo(AssetList)

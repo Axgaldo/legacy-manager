@@ -1,5 +1,6 @@
 import { AssetItem } from '@/types'
 import { CONSERVATION_STATES, formatSignedYear } from './numismaticaMeta'
+import { ASSET_CATEGORIES, getCategoryInfo, type CollectionKey } from './assetCategories'
 
 const euroFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 
@@ -10,6 +11,7 @@ export type NumismaticaGroupBy =
   | 'conservation'
   | 'era'
   | 'type'
+  | 'category'
   | 'none'
 
 export type NumismaticaSortBy =
@@ -19,6 +21,7 @@ export type NumismaticaSortBy =
   | 'year-asc'
   | 'material'
   | 'conservation'
+  | 'category'
 
 const GROUP_LABELS: Record<Exclude<NumismaticaGroupBy, 'none'>, string> = {
   location: 'Ubicación',
@@ -27,6 +30,7 @@ const GROUP_LABELS: Record<Exclude<NumismaticaGroupBy, 'none'>, string> = {
   conservation: 'Conservación',
   era: 'Época',
   type: 'Tipo',
+  category: 'Categoría',
 }
 
 export const NUMISMATICA_GROUP_OPTIONS = (Object.keys(GROUP_LABELS) as Array<Exclude<NumismaticaGroupBy, 'none'>>).map((value) => ({
@@ -42,6 +46,38 @@ export const NUMISMATICA_SORT_OPTIONS: Array<{ value: NumismaticaSortBy; label: 
   { value: 'material', label: 'Material' },
   { value: 'conservation', label: 'Conservación' },
 ]
+
+/**
+ * Grouping options that make sense for each collection. Numismática keeps its
+ * own set; "Todos" can group by category and by object type; the rest group
+ * by their common attributes.
+ */
+export function groupOptionsForCollection(collection: CollectionKey): Array<{ value: NumismaticaGroupBy; label: string }> {
+  if (collection === 'numismatica') {
+    return (['location', 'owner', 'material', 'conservation', 'era', 'type'] as const)
+      .map((value) => ({ value, label: GROUP_LABELS[value] }))
+  }
+  if (collection === 'todos') {
+    return (['category', 'type', 'owner', 'material', 'conservation', 'era'] as const)
+      .map((value) => ({ value, label: GROUP_LABELS[value] }))
+  }
+  return (['owner', 'material', 'conservation', 'era'] as const)
+    .map((value) => ({ value, label: GROUP_LABELS[value] }))
+}
+
+/** Sorting options available in each collection. */
+export function sortOptionsForCollection(collection: CollectionKey): Array<{ value: NumismaticaSortBy; label: string }> {
+  if (collection === 'numismatica') return NUMISMATICA_SORT_OPTIONS
+  const base: Array<{ value: NumismaticaSortBy; label: string }> = [
+    { value: 'name', label: 'Nombre' },
+    { value: 'value-desc', label: 'Valor: mayor a menor' },
+    { value: 'year-asc', label: 'Año: más antiguo' },
+    { value: 'material', label: 'Material' },
+    { value: 'conservation', label: 'Conservación' },
+  ]
+  if (collection === 'todos') base.splice(1, 0, { value: 'category', label: 'Categoría' })
+  return base
+}
 
 export type ConservationTone = {
   chip: string
@@ -123,6 +159,22 @@ export function isMedal(asset: AssetItem): boolean {
   return asset.numismatica_type === 'medalla'
 }
 
+function isNumismaticaAsset(asset: AssetItem): boolean {
+  return normalizeUiText(asset.category) === 'numismatica'
+}
+
+/** Icon that identifies the asset in lists and fallback photos. */
+export function assetIcon(asset: AssetItem): string {
+  if (isNumismaticaAsset(asset)) return isMedal(asset) ? '🏅' : '🪙'
+  return getCategoryInfo(asset.category).icon
+}
+
+/** Tooltip for the list icon. */
+export function assetIconTitle(asset: AssetItem): string {
+  if (isNumismaticaAsset(asset)) return isMedal(asset) ? 'Medalla' : 'Moneda'
+  return getCategoryInfo(asset.category).label
+}
+
 export function yearLabel(asset: AssetItem): string {
   if (asset.creation_year_range?.trim()) return asset.creation_year_range.trim()
   if (asset.year !== undefined) return formatSignedYear(asset.year)
@@ -135,20 +187,25 @@ export function sizeLabel(value?: string): string {
   return /[a-zA-Z]/.test(text) ? text : `${text} mm`
 }
 
+/** Fourth list column: ceca/tamaño for coins, marca/autor for the rest. */
 export function detailLabel(asset: AssetItem): string {
   if (isMedal(asset)) return sizeLabel(asset.medal_size_mm) || '—'
+  if (!isNumismaticaAsset(asset)) return asset.brandOrAuthor?.trim() || '—'
   const parts = [asset.mint, asset.mint_mark ? `(${asset.mint_mark})` : '']
   return parts.filter(Boolean).join(' · ') || '—'
 }
 
+/** Sixth list column: contenedor for coins, origen for the rest. */
 export function locationLabel(asset: AssetItem): string {
   if (isMedal(asset)) return asset.medal_location || '—'
+  if (!isNumismaticaAsset(asset)) return asset.placeOfOrigin?.trim() || '—'
   const storage = [asset.case_location, asset.case_number].filter((part): part is string => Boolean(part?.trim())).join(' · ')
   return storage || '—'
 }
 
 export function containerLabel(asset: AssetItem): string {
   if (isMedal(asset)) return asset.medal_location?.trim() || 'Sin ubicación'
+  if (!isNumismaticaAsset(asset)) return asset.placeOfOrigin?.trim() || 'Sin origen'
   return asset.case_location?.trim() || 'Sin contenedor'
 }
 
@@ -160,6 +217,13 @@ export function inventoryNumber(asset: AssetItem): string {
 export function inventorySortValue(asset: AssetItem): number {
   const match = inventoryNumber(asset).match(/\d+/)
   return match ? Number.parseInt(match[0], 10) : Number.POSITIVE_INFINITY
+}
+
+/** Position of the category in the canonical list, used to sort by category. */
+function categoryRank(value: string | undefined | null): number {
+  const normalized = normalizeUiText(value)
+  const index = ASSET_CATEGORIES.findIndex((category) => normalizeUiText(category.value) === normalized)
+  return index === -1 ? ASSET_CATEGORIES.length : index
 }
 
 function groupLabelFor(asset: AssetItem, groupBy: Exclude<NumismaticaGroupBy, 'none'>): string {
@@ -175,7 +239,10 @@ function groupLabelFor(asset: AssetItem, groupBy: Exclude<NumismaticaGroupBy, 'n
     case 'era':
       return asset.era?.trim() || asset.historicalEra?.trim() || 'Sin época'
     case 'type':
-      return isMedal(asset) ? 'Medallas' : 'Monedas'
+      // Tipo de objeto: moneda/medalla dentro de numismática, categoría fuera.
+      return isNumismaticaAsset(asset) ? (isMedal(asset) ? 'Medallas' : 'Monedas') : getCategoryInfo(asset.category).label
+    case 'category':
+      return getCategoryInfo(asset.category).label
   }
 }
 
@@ -203,6 +270,9 @@ export function sortNumismaticaAssets(assets: AssetItem[], sortBy: NumismaticaSo
       case 'conservation':
         return conservationRank(a.conservationState) - conservationRank(b.conservationState)
           || a.name.localeCompare(b.name, 'es')
+      case 'category':
+        return categoryRank(a.category) - categoryRank(b.category)
+          || a.name.localeCompare(b.name, 'es', { numeric: true })
       default:
         return a.name.localeCompare(b.name, 'es', { numeric: true })
     }
@@ -227,6 +297,9 @@ export function groupNumismaticaAssets(
   groups.sort((a, b) => {
     if (groupBy === 'conservation') {
       return conservationRank(a.label) - conservationRank(b.label) || compareOptionalText(a.label, b.label)
+    }
+    if (groupBy === 'category') {
+      return categoryRank(a.items[0]?.category) - categoryRank(b.items[0]?.category) || compareOptionalText(a.label, b.label)
     }
     return compareOptionalText(a.label, b.label)
   })

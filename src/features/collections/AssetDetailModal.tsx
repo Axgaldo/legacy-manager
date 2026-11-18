@@ -233,7 +233,13 @@ export default function AssetDetailModal({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <SummaryTile label="Año" value={yearLabel(asset)} />
               <SummaryTile label="Material" value={asset.material || '—'} />
-              <SummaryTile label={medal ? 'Tamaño' : 'Ceca'} value={medal ? sizeLabel(asset.medal_size_mm) || '—' : asset.mint || '—'} />
+              {medal ? (
+                <SummaryTile label="Tamaño" value={sizeLabel(asset.medal_size_mm) || '—'} />
+              ) : isNumismatica ? (
+                <SummaryTile label="Ceca" value={asset.mint || '—'} />
+              ) : (
+                <SummaryTile label="Marca / autor" value={asset.brandOrAuthor || '—'} />
+              )}
               <SummaryTile
                 label="Valor"
                 value={hasValue(asset) ? formatEuro(value) : '—'}

@@ -1,5 +1,7 @@
 import type { NumismaticaGroupBy, NumismaticaSortBy } from './numismaticaUi'
 
+export type ListView = 'list' | 'grid'
+
 export type ListPreferences = {
   groupBy: NumismaticaGroupBy
   sortBy: NumismaticaSortBy
@@ -11,6 +13,7 @@ export type ListPreferences = {
   era: string
   type: string
   onlyReview: boolean
+  view: ListView
 }
 
 export const DEFAULT_LIST_PREFERENCES: ListPreferences = {
@@ -24,11 +27,13 @@ export const DEFAULT_LIST_PREFERENCES: ListPreferences = {
   era: 'all',
   type: 'all',
   onlyReview: false,
+  view: 'list',
 }
 
-const GROUP_VALUES: NumismaticaGroupBy[] = ['location', 'owner', 'material', 'conservation', 'era', 'type', 'none']
-const SORT_VALUES: NumismaticaSortBy[] = ['inventory', 'name', 'value-desc', 'year-asc', 'material', 'conservation']
+const GROUP_VALUES: NumismaticaGroupBy[] = ['location', 'owner', 'material', 'conservation', 'era', 'type', 'category', 'none']
+const SORT_VALUES: NumismaticaSortBy[] = ['inventory', 'name', 'value-desc', 'year-asc', 'material', 'conservation', 'category']
 const TYPE_VALUES = ['all', 'moneda', 'medalla']
+const VIEW_VALUES: ListView[] = ['list', 'grid']
 
 const PARAM = {
   group: 'agrupar',
@@ -41,6 +46,7 @@ const PARAM = {
   era: 'epoca',
   type: 'tipo',
   review: 'revisar',
+  view: 'vista',
 } as const
 
 function isGroup(value: string): value is NumismaticaGroupBy {
@@ -49,6 +55,10 @@ function isGroup(value: string): value is NumismaticaGroupBy {
 
 function isSort(value: string): value is NumismaticaSortBy {
   return SORT_VALUES.includes(value as NumismaticaSortBy)
+}
+
+function isView(value: string): value is ListView {
+  return VIEW_VALUES.includes(value as ListView)
 }
 
 /** Lee la lista de preferencias de la URL; `hasParams` indica si había algo guardado. */
@@ -109,6 +119,11 @@ export function preferencesFromParams(
     preferences.onlyReview = true
     hasParams = true
   }
+  const view = params.get(PARAM.view)
+  if (view && isView(view)) {
+    preferences.view = view
+    hasParams = true
+  }
 
   return { preferences, hasParams }
 }
@@ -128,6 +143,7 @@ export function preferencesToParams(preferences: ListPreferences, defaults: List
     params.set(PARAM.tags, preferences.tags.join(','))
   }
   if (preferences.onlyReview !== defaults.onlyReview) params.set(PARAM.review, '1')
+  if (preferences.view !== defaults.view) params.set(PARAM.view, preferences.view)
   return params
 }
 
@@ -143,6 +159,7 @@ export function loadPreferences(collectionKey: string, defaults: ListPreferences
       ...parsed,
       groupBy: parsed.groupBy && isGroup(parsed.groupBy) ? parsed.groupBy : defaults.groupBy,
       sortBy: parsed.sortBy && isSort(parsed.sortBy) ? parsed.sortBy : defaults.sortBy,
+      view: parsed.view && isView(parsed.view) ? parsed.view : defaults.view,
       tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === 'string') : [],
     }
   } catch {

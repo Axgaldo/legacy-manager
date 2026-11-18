@@ -228,7 +228,7 @@ export interface RecurringExpenseOccurrence extends TimestampedDoc {
 }
 
 // General Assets module (Bienes y Activos)
-export type AssetCategory = 'numismatica' | 'arte' | 'objetos'
+export type AssetCategory = 'numismatica' | 'arte' | 'relojes' | 'electronica' | 'objetos'
 
 export interface AssetItem extends TimestampedDoc {
   name: string
