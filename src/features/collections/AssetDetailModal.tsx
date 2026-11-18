@@ -51,12 +51,20 @@ export default function AssetDetailModal({
   onEdit,
   onDelete,
   suspended = false,
+  index,
+  total,
+  onPrevious,
+  onNext,
 }: {
   asset: AssetItem | null
   onClose: () => void
   onEdit: (asset: AssetItem) => void
   onDelete: (asset: AssetItem) => void
   suspended?: boolean
+  index?: number
+  total?: number
+  onPrevious?: () => void
+  onNext?: () => void
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -64,10 +72,12 @@ export default function AssetDetailModal({
     if (!asset || suspended) return
     const handler = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
+      if (event.key === 'ArrowLeft' && onPrevious) onPrevious()
+      if (event.key === 'ArrowRight' && onNext) onNext()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [asset, onClose, suspended])
+  }, [asset, onClose, suspended, onPrevious, onNext])
 
   useEffect(() => {
     setCopied(false)
@@ -96,6 +106,7 @@ export default function AssetDetailModal({
   return (
     <div
       className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+      id="asset-detail-overlay"
       role="dialog"
       aria-modal="true"
       aria-label={`Ficha de ${asset.name}`}
@@ -103,6 +114,7 @@ export default function AssetDetailModal({
     >
       <div
         className="my-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl"
+        id="asset-detail-sheet"
         onClick={(event) => event.stopPropagation()}
       >
         <header className="sticky top-0 z-10 flex flex-wrap items-start justify-between gap-3 border-b border-slate-700 bg-slate-900/95 px-5 py-4 backdrop-blur">
@@ -141,7 +153,46 @@ export default function AssetDetailModal({
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="print-hidden flex shrink-0 flex-wrap items-center gap-2">
+            {(onPrevious || onNext) && (
+              <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-950/60 px-1 py-0.5">
+                <button
+                  type="button"
+                  onClick={onPrevious}
+                  disabled={!onPrevious}
+                  aria-label="Pieza anterior"
+                  title="Anterior (←)"
+                  className="rounded-md p-1 text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="min-w-12 text-center text-[10px] font-semibold text-slate-400">
+                  {index && total ? `${index} / ${total}` : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={onNext}
+                  disabled={!onNext}
+                  aria-label="Pieza siguiente"
+                  title="Siguiente (→)"
+                  className="rounded-md p-1 text-slate-300 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              title="Imprimir esta ficha"
+            >
+              🖨 Imprimir
+            </button>
             <button
               type="button"
               onClick={copyLink}

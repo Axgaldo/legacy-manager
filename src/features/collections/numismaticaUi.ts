@@ -51,34 +51,34 @@ export type ConservationTone = {
 
 const CONSERVATION_TONES: Record<string, ConservationTone> = {
   excelente: {
-    chip: 'border-emerald-700 bg-emerald-950/70 text-emerald-200',
-    dot: 'bg-emerald-400',
-    text: 'text-emerald-300',
-  },
-  muybuena: {
-    chip: 'border-teal-700 bg-teal-950/70 text-teal-200',
-    dot: 'bg-teal-400',
-    text: 'text-teal-300',
-  },
-  buenestado: {
     chip: 'border-sky-700 bg-sky-950/70 text-sky-200',
     dot: 'bg-sky-400',
     text: 'text-sky-300',
   },
+  muybuena: {
+    chip: 'border-emerald-700 bg-emerald-950/70 text-emerald-200',
+    dot: 'bg-emerald-400',
+    text: 'text-emerald-300',
+  },
+  buenestado: {
+    chip: 'border-lime-700 bg-lime-950/70 text-lime-200',
+    dot: 'bg-lime-400',
+    text: 'text-lime-300',
+  },
   regular: {
+    chip: 'border-yellow-700 bg-yellow-950/70 text-yellow-200',
+    dot: 'bg-yellow-400',
+    text: 'text-yellow-300',
+  },
+  desgastado: {
     chip: 'border-amber-700 bg-amber-950/70 text-amber-200',
     dot: 'bg-amber-400',
     text: 'text-amber-300',
   },
-  desgastado: {
+  muydesgastado: {
     chip: 'border-orange-700 bg-orange-950/70 text-orange-200',
     dot: 'bg-orange-400',
     text: 'text-orange-300',
-  },
-  muydesgastado: {
-    chip: 'border-rose-700 bg-rose-950/70 text-rose-200',
-    dot: 'bg-rose-400',
-    text: 'text-rose-300',
   },
   dañado: {
     chip: 'border-red-700 bg-red-950/70 text-red-200',
@@ -160,4 +160,84 @@ export function inventoryNumber(asset: AssetItem): string {
 export function inventorySortValue(asset: AssetItem): number {
   const match = inventoryNumber(asset).match(/\d+/)
   return match ? Number.parseInt(match[0], 10) : Number.POSITIVE_INFINITY
+}
+
+function groupLabelFor(asset: AssetItem, groupBy: Exclude<NumismaticaGroupBy, 'none'>): string {
+  switch (groupBy) {
+    case 'location':
+      return containerLabel(asset)
+    case 'owner':
+      return asset.owner?.trim() || 'Sin propietario'
+    case 'material':
+      return asset.material?.trim() || 'Sin material'
+    case 'conservation':
+      return asset.conservationState?.trim() || 'Sin estado'
+    case 'era':
+      return asset.era?.trim() || asset.historicalEra?.trim() || 'Sin época'
+    case 'type':
+      return isMedal(asset) ? 'Medallas' : 'Monedas'
+  }
+}
+
+function compareOptionalText(a: string, b: string): number {
+  const aEmpty = a.startsWith('Sin ') || a === '—'
+  const bEmpty = b.startsWith('Sin ') || b === '—'
+  if (aEmpty !== bEmpty) return aEmpty ? 1 : -1
+  return a.localeCompare(b, 'es', { numeric: true })
+}
+
+export function sortNumismaticaAssets(assets: AssetItem[], sortBy: NumismaticaSortBy): AssetItem[] {
+  return [...assets].sort((a, b) => {
+    switch (sortBy) {
+      case 'inventory':
+        return inventorySortValue(a) - inventorySortValue(b)
+          || a.name.localeCompare(b.name, 'es', { numeric: true })
+      case 'value-desc':
+        return coinValue(b) - coinValue(a) || a.name.localeCompare(b.name, 'es')
+      case 'year-asc':
+        return (a.year ?? Number.POSITIVE_INFINITY) - (b.year ?? Number.POSITIVE_INFINITY)
+          || a.name.localeCompare(b.name, 'es')
+      case 'material':
+        return (a.material ?? '').localeCompare(b.material ?? '', 'es')
+          || a.name.localeCompare(b.name, 'es')
+      case 'conservation':
+        return conservationRank(a.conservationState) - conservationRank(b.conservationState)
+          || a.name.localeCompare(b.name, 'es')
+      default:
+        return a.name.localeCompare(b.name, 'es', { numeric: true })
+    }
+  })
+}
+
+export function groupNumismaticaAssets(
+  assets: AssetItem[],
+  groupBy: NumismaticaGroupBy,
+): Array<{ label: string; items: AssetItem[] }> {
+  if (groupBy === 'none') return [{ label: '', items: assets }]
+
+  const map = new Map<string, AssetItem[]>()
+  assets.forEach((asset) => {
+    const label = groupLabelFor(asset, groupBy)
+    const list = map.get(label) ?? []
+    list.push(asset)
+    map.set(label, list)
+  })
+
+  const groups = Array.from(map.entries()).map(([label, items]) => ({ label, items }))
+  groups.sort((a, b) => {
+    if (groupBy === 'conservation') {
+      return conservationRank(a.label) - conservationRank(b.label) || compareOptionalText(a.label, b.label)
+    }
+    return compareOptionalText(a.label, b.label)
+  })
+  return groups
+}
+
+/** Orden exacto en que la lista muestra las piezas (grupos incluidos). */
+export function orderNumismaticaAssets(
+  assets: AssetItem[],
+  groupBy: NumismaticaGroupBy,
+  sortBy: NumismaticaSortBy,
+): AssetItem[] {
+  return groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy).flatMap((group) => group.items)
 }

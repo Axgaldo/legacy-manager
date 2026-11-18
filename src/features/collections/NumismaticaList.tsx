@@ -3,89 +3,20 @@ import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import {
   coinValue,
-  conservationRank,
   conservationTone,
-  containerLabel,
   detailLabel,
   formatEuro,
+  groupNumismaticaAssets,
   hasValue,
   inventoryNumber,
-  inventorySortValue,
   isMedal,
   locationLabel,
   normalizeUiText,
+  sortNumismaticaAssets,
   type NumismaticaGroupBy,
   type NumismaticaSortBy,
   yearLabel,
 } from './numismaticaUi'
-
-function groupLabel(asset: AssetItem, groupBy: Exclude<NumismaticaGroupBy, 'none'>): string {
-  switch (groupBy) {
-    case 'location':
-      return containerLabel(asset)
-    case 'owner':
-      return asset.owner?.trim() || 'Sin propietario'
-    case 'material':
-      return asset.material?.trim() || 'Sin material'
-    case 'conservation':
-      return asset.conservationState?.trim() || 'Sin estado'
-    case 'era':
-      return asset.era?.trim() || asset.historicalEra?.trim() || 'Sin época'
-    case 'type':
-      return isMedal(asset) ? 'Medallas' : 'Monedas'
-  }
-}
-
-function compareOptionalText(a: string, b: string): number {
-  const aEmpty = a.startsWith('Sin ') || a === '—'
-  const bEmpty = b.startsWith('Sin ') || b === '—'
-  if (aEmpty !== bEmpty) return aEmpty ? 1 : -1
-  return a.localeCompare(b, 'es', { numeric: true })
-}
-
-function sortAssets(assets: AssetItem[], sortBy: NumismaticaSortBy): AssetItem[] {
-  return [...assets].sort((a, b) => {
-    switch (sortBy) {
-      case 'inventory':
-        return inventorySortValue(a) - inventorySortValue(b)
-          || a.name.localeCompare(b.name, 'es', { numeric: true })
-      case 'value-desc':
-        return coinValue(b) - coinValue(a) || a.name.localeCompare(b.name, 'es')
-      case 'year-asc':
-        return (a.year ?? Number.POSITIVE_INFINITY) - (b.year ?? Number.POSITIVE_INFINITY)
-          || a.name.localeCompare(b.name, 'es')
-      case 'material':
-        return (a.material ?? '').localeCompare(b.material ?? '', 'es')
-          || a.name.localeCompare(b.name, 'es')
-      case 'conservation':
-        return conservationRank(a.conservationState) - conservationRank(b.conservationState)
-          || a.name.localeCompare(b.name, 'es')
-      default:
-        return a.name.localeCompare(b.name, 'es', { numeric: true })
-    }
-  })
-}
-
-function groupAssets(assets: AssetItem[], groupBy: NumismaticaGroupBy): Array<{ label: string; items: AssetItem[] }> {
-  if (groupBy === 'none') return [{ label: '', items: assets }]
-
-  const map = new Map<string, AssetItem[]>()
-  assets.forEach((asset) => {
-    const label = groupLabel(asset, groupBy)
-    const list = map.get(label) ?? []
-    list.push(asset)
-    map.set(label, list)
-  })
-
-  const groups = Array.from(map.entries()).map(([label, items]) => ({ label, items }))
-  groups.sort((a, b) => {
-    if (groupBy === 'conservation') {
-      return conservationRank(a.label) - conservationRank(b.label) || compareOptionalText(a.label, b.label)
-    }
-    return compareOptionalText(a.label, b.label)
-  })
-  return groups
-}
 
 function Tag({ tag }: { tag: string }) {
   const isReview = normalizeUiText(tag) === 'revisar'
@@ -118,7 +49,10 @@ export default function NumismaticaList({
   groupBy?: NumismaticaGroupBy
   sortBy?: NumismaticaSortBy
 }) {
-  const groups = useMemo(() => groupAssets(sortAssets(assets, sortBy), groupBy), [assets, groupBy, sortBy])
+  const groups = useMemo(
+    () => groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy),
+    [assets, groupBy, sortBy],
+  )
 
   const renderRow = (asset: AssetItem) => {
     const photo = asset.photos?.[0]

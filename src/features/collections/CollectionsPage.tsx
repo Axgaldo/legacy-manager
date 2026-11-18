@@ -13,6 +13,7 @@ import NumismaticaList from './NumismaticaList'
 import {
   NUMISMATICA_GROUP_OPTIONS,
   NUMISMATICA_SORT_OPTIONS,
+  orderNumismaticaAssets,
   type NumismaticaGroupBy,
   type NumismaticaSortBy,
 } from './numismaticaUi'
@@ -287,6 +288,19 @@ export default function CollectionsPage() {
   ])
 
   const recentAssets = useMemo(() => assets.slice(0, 8), [assets])
+
+  const displayOrder = useMemo(
+    () => (isNumismaticaCollection ? orderNumismaticaAssets(filteredAssets, groupBy, sortBy) : filteredAssets),
+    [isNumismaticaCollection, filteredAssets, groupBy, sortBy],
+  )
+  const detailIndex = detailAsset ? displayOrder.findIndex((item) => item.id === detailAsset.id) : -1
+
+  const goToSibling = (offset: number) => {
+    if (detailIndex < 0) return
+    const target = displayOrder[detailIndex + offset]
+    if (!target) return
+    navigate(`/bienes/categoria/${categoryCollection(target.category)}/${assetSlug(target, assets)}`, { replace: true })
+  }
 
   const handleOpenAddModal = () => {
     setEditingAsset(null)
@@ -656,6 +670,10 @@ export default function CollectionsPage() {
       <AssetDetailModal
         asset={detailAsset}
         suspended={isModalOpen}
+        index={detailIndex >= 0 ? detailIndex + 1 : undefined}
+        total={displayOrder.length}
+        onPrevious={detailIndex > 0 ? () => goToSibling(-1) : undefined}
+        onNext={detailIndex >= 0 && detailIndex < displayOrder.length - 1 ? () => goToSibling(1) : undefined}
         onClose={handleCloseDetail}
         onEdit={handleEditFromDetail}
         onDelete={setAssetToDelete}
