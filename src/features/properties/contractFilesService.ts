@@ -1,15 +1,11 @@
 import {
-  Bytes,
   collection,
   doc,
   getDoc,
-  getDocs,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   setDoc,
-  updateDoc,
   Unsubscribe,
   where,
   addDoc,
@@ -17,11 +13,10 @@ import {
 import { db } from '@/lib/firebase'
 import { ContractAddendum, ContractFileKind, ContractFileVersion } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
-import { getPrivateStorageBlob, getPrivateStorageFileSize, isStoragePath, MAX_CONTRACT_PDF_BYTES, uploadPrivateStorageBlob } from '@/lib/storageFiles'
+import { getPrivateStorageBlob, isStoragePath, MAX_CONTRACT_PDF_BYTES, uploadPrivateStorageBlob } from '@/lib/storageFiles'
 
 const ADDENDA_COLLECTION = 'contractAddenda'
 const VERSIONS_COLLECTION = 'contractFileVersions'
-const CONTENT_COLLECTION = 'contractFileContents'
 
 export { MAX_CONTRACT_PDF_BYTES }
 export type ContractPdfUploadResult = { id: string; originalBytes: number; storedBytes: number }
@@ -58,7 +53,11 @@ export function subscribeToPropertyContractFiles(
   onError?: (error: Error) => void,
 ): Unsubscribe {
   return onSnapshot(query(collection(db, VERSIONS_COLLECTION), where('propertyId', '==', propertyId)), (snapshot) => {
-    const items = snapshot.docs.map((snapshotDoc) => mapFileVersion(snapshotDoc.id, snapshotDoc.data()))
+    // Los PDF antiguos guardados en Firestore ya no se soportan: solo se listan
+    // las versiones que tienen su archivo en Storage.
+    const items = snapshot.docs
+      .filter((snapshotDoc) => Boolean(snapshotDoc.data().storagePath))
+      .map((snapshotDoc) => mapFileVersion(snapshotDoc.id, snapshotDoc.data()))
     items.sort((a, b) => timestampValue(a.createdAt) - timestampValue(b.createdAt))
     onSuccess(items)
   }, onError)
@@ -134,59 +133,10 @@ export async function addContractPdfVersion(args: {
 export async function getContractPdfBlob(versionId: string): Promise<Blob> {
   const versionSnapshot = await getDoc(doc(db, VERSIONS_COLLECTION, versionId))
   const storagePath = versionSnapshot.data()?.storagePath
-  if (typeof storagePath === 'string' && isStoragePath(storagePath)) return getPrivateStorageBlob(storagePath)
-
-  const contentRef = doc(db, CONTENT_COLLECTION, versionId)
-  const snapshot = await getDoc(contentRef)
-  if (!snapshot.exists()) throw new Error('No se encontró el contenido de este PDF.')
-  const metadata = snapshot.data()
-
-  // Legacy versions used either one Firestore Bytes field or chunk subdocuments.
-  if (metadata.pdf instanceof Bytes) return new Blob([metadata.pdf.toUint8Array().slice().buffer as ArrayBuffer], { type: 'application/pdf' })
-
-  const chunkCount = Number(metadata.chunkCount) || 0
-  if (!chunkCount) throw new Error('El contenido guardado no es un PDF válido.')
-  const chunksSnapshot = await getDocs(query(collection(db, CONTENT_COLLECTION, versionId, 'chunks'), orderBy('index')))
-  if (chunksSnapshot.size !== chunkCount) throw new Error('Faltan partes del PDF guardado. No se ha podido reconstruir el archivo.')
-
-  const chunks = chunksSnapshot.docs.map((chunkDoc) => {
-    const bytes = chunkDoc.data().bytes
-    if (!(bytes instanceof Bytes)) throw new Error('Una parte del PDF guardado no es válida.')
-    return bytes.toUint8Array()
-  })
-  const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-  const stored = new Uint8Array(length)
-  let offset = 0
-  chunks.forEach((chunk) => { stored.set(chunk, offset); offset += chunk.length })
-
-  let pdfBytes = stored
-  if (metadata.encoding === 'gzip') {
-    if (typeof DecompressionStream === 'undefined') throw new Error('Este navegador no puede descomprimir el PDF. Ábrelo con una versión reciente de Chrome, Edge, Firefox o Safari.')
-    pdfBytes = new Uint8Array(await new Response(new Blob([toArrayBuffer(stored)]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer())
+  if (typeof storagePath === 'string' && isStoragePath(storagePath)) {
+    return getPrivateStorageBlob(storagePath)
   }
-  return new Blob([toArrayBuffer(pdfBytes)], { type: 'application/pdf' })
-}
-
-export async function migrateContractPdfVersionToStorage(version: ContractFileVersion): Promise<number> {
-  if (version.storagePath) return 0
-  const path = `contracts/${version.propertyId}/${version.id}.pdf`
-  let storedBytes = await getPrivateStorageFileSize(path)
-  if (storedBytes === null) {
-    const blob = await getContractPdfBlob(version.id)
-    storedBytes = await uploadPrivateStorageBlob(path, blob, 'application/pdf')
-  }
-  await updateDoc(doc(db, VERSIONS_COLLECTION, version.id), {
-    storagePath: path,
-    storedSizeBytes: storedBytes,
-    migratedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  })
-  // The Firestore copy is deliberately retained as a recoverable backup.
-  return storedBytes
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  throw new Error('Este PDF antiguo ya no está disponible. Vuelve a subirlo como nueva versión.')
 }
 
 function timestampValue(value: any): number {
