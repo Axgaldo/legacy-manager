@@ -5,65 +5,54 @@ import {
   getDocs,
   setDoc,
   updateDoc,
-  onSnapshot,
-  query,
   orderBy,
   serverTimestamp,
   Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { subscribeToCollection } from '@/lib/firestoreSubscriptions'
 import { AssetItem } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
+import { asNumber, asNumberArray, asString, asStringArray } from '@/utils/coerce'
 import { deletePrivateStorageFile, isStoragePath, MAX_ASSET_IMAGE_BYTES, uploadPrivateStorageBlob } from '@/lib/storageFiles'
 import { normalizeAssetCategory } from './assetCategories'
 
 const COLLECTION_NAME = 'assets'
 
-function optionalNumber(value: unknown): number | undefined {
-  if (value === undefined || value === null || value === '') return undefined
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : undefined
-}
-
-function optionalString(value: unknown): string {
-  return typeof value === 'string' ? value : ''
-}
-
 export function subscribeToAssets(
   onSuccess: (assets: AssetItem[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'))
-
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      // Assets in the trash (soft deleted) never reach the collection lists.
-      const items: AssetItem[] = snapshot.docs.filter((docSnap) => !docSnap.data().deletedAt).map((docSnap) => {
-        const data = docSnap.data()
-        return {
-          id: docSnap.id,
-          name: data.name ?? '',
-          owner: data.owner ?? 'Gabriel',
+  return subscribeToCollection<AssetItem>({
+    name: COLLECTION_NAME,
+    constraints: [orderBy('createdAt', 'desc')],
+    // Los bienes en la papelera (soft delete) no llegan a las listas.
+    filter: (data) => !data.deletedAt,
+    map: (id, data) => ({
+      id,
+      name: asString(data.name),
+      owner: asString(data.owner, 'Gabriel'),
           category: normalizeAssetCategory(data.category),
-          tags: Array.isArray(data.tags) ? data.tags : [data.brandOrAuthor, data.material, data.historicalEra, data.country, data.ruler, data.mint, data.denomination, data.conservationState].filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0),
-          description: optionalString(data.description),
-          year: optionalNumber(data.year),
-          historicalEra: optionalString(data.historicalEra),
-          country: optionalString(data.country),
-          placeOfOrigin: optionalString(data.placeOfOrigin) || optionalString(data.country),
-          brandOrAuthor: optionalString(data.brandOrAuthor),
-          ruler: optionalString(data.ruler),
-          mint: optionalString(data.mint),
-          denomination: optionalString(data.denomination),
-          conservationState: optionalString(data.conservationState),
-          material: optionalString(data.material),
-          acquisitionYear: optionalNumber(data.acquisitionYear),
-          acquisitionPrice: optionalNumber(data.acquisitionPrice),
-          currentValue: optionalNumber(data.currentValue),
-          notes: optionalString(data.notes),
-          photos: Array.isArray(data.photos) ? data.photos : [],
-          photoSizesBytes: Array.isArray(data.photoSizesBytes) ? data.photoSizesBytes.map((size: unknown) => Number(size) || 0) : [],
+          tags: Array.isArray(data.tags)
+            ? asStringArray(data.tags)
+            : asStringArray([data.brandOrAuthor, data.material, data.historicalEra, data.country, data.ruler, data.mint, data.denomination, data.conservationState]).filter((tag) => tag.trim().length > 0),
+          description: asString(data.description),
+          year: asNumber(data.year),
+          historicalEra: asString(data.historicalEra),
+          country: asString(data.country),
+          placeOfOrigin: asString(data.placeOfOrigin) || asString(data.country),
+          brandOrAuthor: asString(data.brandOrAuthor),
+          ruler: asString(data.ruler),
+          mint: asString(data.mint),
+          denomination: asString(data.denomination),
+          conservationState: asString(data.conservationState),
+          material: asString(data.material),
+          acquisitionYear: asNumber(data.acquisitionYear),
+          acquisitionPrice: asNumber(data.acquisitionPrice),
+          currentValue: asNumber(data.currentValue),
+          notes: asString(data.notes),
+          photos: asStringArray(data.photos),
+          photoSizesBytes: asNumberArray(data.photoSizesBytes),
           deletedAt: data.deletedAt || undefined,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
@@ -74,49 +63,44 @@ export function subscribeToAssets(
             : data.numismatica_type === 'moneda'
               ? 'moneda'
               : (data.category === 'medals' || data.category === 'medallas' ? 'medalla' : undefined),
-          medal_motive: optionalString(data.medal_motive),
-          medal_size_mm: optionalString(data.medal_size_mm),
-          acquisition_operation: optionalString(data.acquisition_operation),
-          acquisition_source: optionalString(data.acquisition_source),
-          medal_location: optionalString(data.medal_location),
-          value: optionalNumber(data.value),
-          market_value: optionalNumber(data.market_value),
-          value_source: optionalString(data.value_source),
-          purchase_price: optionalNumber(data.purchase_price),
-          purchase_price_original: optionalNumber(data.purchase_price_original),
-          purchase_currency: optionalString(data.purchase_currency),
-          purchase_year: optionalNumber(data.purchase_year),
-          obverse_info: optionalString(data.obverse_info),
-          reverse_info: optionalString(data.reverse_info),
-          era: optionalString(data.era),
-          creation_year_range: optionalString(data.creation_year_range),
-          reference_book: optionalString(data.reference_book),
-          reference_book_value: optionalNumber(data.reference_book_value),
-          reference_book_value_original: optionalNumber(data.reference_book_value_original),
-          reference_book_currency: optionalString(data.reference_book_currency),
-          empire_reign: optionalString(data.empire_reign),
-          manufacturing_place: optionalString(data.manufacturing_place),
-          mint_mark: optionalString(data.mint_mark),
-          weight_grams: optionalString(data.weight_grams),
-          diameter_mm: optionalString(data.diameter_mm),
-          inventory_number: optionalString(data.inventory_number),
-          catalog_reference: optionalString(data.catalog_reference),
-          case_location: optionalString(data.case_location),
-          case_number: optionalString(data.case_number),
-          added_date: optionalString(data.added_date),
-          import_key: optionalString(data.import_key),
-          import_batch: optionalString(data.import_batch),
-          import_source: optionalString(data.import_source),
-          import_row: optionalNumber(data.import_row),
-        }
-      })
-      onSuccess(items)
-    },
-    (err) => {
-      console.error('Error fetching assets from Firestore:', err)
-      if (onError) onError(err)
-    },
-  )
+          medal_motive: asString(data.medal_motive),
+          medal_size_mm: asString(data.medal_size_mm),
+          acquisition_operation: asString(data.acquisition_operation),
+          acquisition_source: asString(data.acquisition_source),
+          medal_location: asString(data.medal_location),
+          value: asNumber(data.value),
+          market_value: asNumber(data.market_value),
+          value_source: asString(data.value_source),
+          purchase_price: asNumber(data.purchase_price),
+          purchase_price_original: asNumber(data.purchase_price_original),
+          purchase_currency: asString(data.purchase_currency),
+          purchase_year: asNumber(data.purchase_year),
+          obverse_info: asString(data.obverse_info),
+          reverse_info: asString(data.reverse_info),
+          era: asString(data.era),
+          creation_year_range: asString(data.creation_year_range),
+          reference_book: asString(data.reference_book),
+          reference_book_value: asNumber(data.reference_book_value),
+          reference_book_value_original: asNumber(data.reference_book_value_original),
+          reference_book_currency: asString(data.reference_book_currency),
+          empire_reign: asString(data.empire_reign),
+          manufacturing_place: asString(data.manufacturing_place),
+          mint_mark: asString(data.mint_mark),
+          weight_grams: asString(data.weight_grams),
+          diameter_mm: asString(data.diameter_mm),
+          inventory_number: asString(data.inventory_number),
+          catalog_reference: asString(data.catalog_reference),
+          case_location: asString(data.case_location),
+          case_number: asString(data.case_number),
+          added_date: asString(data.added_date),
+          import_key: asString(data.import_key),
+          import_batch: asString(data.import_batch),
+          import_source: asString(data.import_source),
+          import_row: asNumber(data.import_row),
+    }),
+    onSuccess,
+    onError,
+  })
 }
 
 export async function createAsset(

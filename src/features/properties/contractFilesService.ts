@@ -2,8 +2,6 @@ import {
   collection,
   doc,
   getDoc,
-  onSnapshot,
-  query,
   serverTimestamp,
   setDoc,
   Unsubscribe,
@@ -11,8 +9,10 @@ import {
   addDoc,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { subscribeToCollection } from '@/lib/firestoreSubscriptions'
 import { ContractAddendum, ContractFileKind, ContractFileVersion } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
+import { asNumber, asNumberOr, asString } from '@/utils/coerce'
 import { getPrivateStorageBlob, isStoragePath, MAX_CONTRACT_PDF_BYTES, uploadPrivateStorageBlob } from '@/lib/storageFiles'
 
 const ADDENDA_COLLECTION = 'contractAddenda'
@@ -24,14 +24,14 @@ export type ContractPdfUploadResult = { id: string; originalBytes: number; store
 function mapFileVersion(id: string, data: Record<string, any>): ContractFileVersion {
   return {
     id,
-    propertyId: data.propertyId,
-    contractId: data.contractId,
+    propertyId: asString(data.propertyId),
+    contractId: asString(data.contractId),
     documentKind: data.documentKind === 'addendum' ? 'addendum' : 'contract',
-    addendumId: data.addendumId,
-    fileName: data.fileName || 'contrato.pdf',
-    sizeBytes: Number(data.sizeBytes) || 0,
-    storedSizeBytes: Number(data.storedSizeBytes ?? data.sizeBytes) || 0,
-    storagePath: data.storagePath,
+    addendumId: asString(data.addendumId) || undefined,
+    fileName: asString(data.fileName, 'contrato.pdf'),
+    sizeBytes: asNumberOr(data.sizeBytes, 0),
+    storedSizeBytes: asNumberOr(data.storedSizeBytes ?? data.sizeBytes, 0),
+    storagePath: asString(data.storagePath) || undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -52,15 +52,16 @@ export function subscribeToPropertyContractFiles(
   onSuccess: (versions: ContractFileVersion[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onSnapshot(query(collection(db, VERSIONS_COLLECTION), where('propertyId', '==', propertyId)), (snapshot) => {
-    // Los PDF antiguos guardados en Firestore ya no se soportan: solo se listan
-    // las versiones que tienen su archivo en Storage.
-    const items = snapshot.docs
-      .filter((snapshotDoc) => Boolean(snapshotDoc.data().storagePath))
-      .map((snapshotDoc) => mapFileVersion(snapshotDoc.id, snapshotDoc.data()))
-    items.sort((a, b) => timestampValue(a.createdAt) - timestampValue(b.createdAt))
-    onSuccess(items)
-  }, onError)
+  return subscribeToCollection<ContractFileVersion>({
+    name: VERSIONS_COLLECTION,
+    constraints: [where('propertyId', '==', propertyId)],
+    // Los PDF antiguos de Firestore ya no se soportan: solo versiones en Storage.
+    filter: (data) => Boolean(data.storagePath),
+    map: mapFileVersion,
+    sort: (a, b) => timestampValue(a.createdAt) - timestampValue(b.createdAt),
+    onSuccess,
+    onError,
+  })
 }
 
 export function subscribeToPropertyAddenda(
@@ -68,25 +69,25 @@ export function subscribeToPropertyAddenda(
   onSuccess: (addenda: ContractAddendum[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onSnapshot(query(collection(db, ADDENDA_COLLECTION), where('propertyId', '==', propertyId)), (snapshot) => {
-    const items = snapshot.docs.map((snapshotDoc) => {
-      const data = snapshotDoc.data()
-      return {
-        id: snapshotDoc.id,
-        propertyId: data.propertyId,
-        contractId: data.contractId,
-        title: data.title || 'Adenda',
-        date: data.date || '',
-        notes: data.notes || '',
-        rentChange: data.rentChange === undefined ? undefined : Number(data.rentChange),
-        rentEffectiveFrom: data.rentEffectiveFrom || undefined,
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt,
-      }
-    })
-    items.sort((a, b) => b.date.localeCompare(a.date))
-    onSuccess(items)
-  }, onError)
+  return subscribeToCollection<ContractAddendum>({
+    name: ADDENDA_COLLECTION,
+    constraints: [where('propertyId', '==', propertyId)],
+    map: (id, data) => ({
+      id,
+      propertyId: asString(data.propertyId),
+      contractId: asString(data.contractId),
+      title: asString(data.title, 'Adenda'),
+      date: asString(data.date),
+      notes: asString(data.notes),
+      rentChange: asNumber(data.rentChange),
+      rentEffectiveFrom: asString(data.rentEffectiveFrom) || undefined,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    }),
+    sort: (a, b) => b.date.localeCompare(a.date),
+    onSuccess,
+    onError,
+  })
 }
 
 export async function addContractAddendum(addendum: Omit<ContractAddendum, 'id' | 'createdAt' | 'updatedAt'>) {

@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
@@ -15,37 +14,86 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { subscribeToCollection } from '@/lib/firestoreSubscriptions'
 import { ExpenseCategory, RecurringExpenseOccurrence, RecurringExpenseSchedule } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
+import { asBoolean, asNumberOr, asString } from '@/utils/coerce'
 
 const SCHEDULES = 'recurringExpenseSchedules'
 const OCCURRENCES = 'recurringExpenseOccurrences'
 
 function mapSchedule(id: string, data: Record<string, any>): RecurringExpenseSchedule {
   const utilityCategory = ['agua', 'luz', 'gas', 'suministros'].includes(data.category)
-  return { id, ...data, amount: Number(data.amount) || 0, intervalMonths: Math.max(1, Number(data.intervalMonths) || 1), isActive: data.isActive !== false, requiresInvoice: data.requiresInvoice !== false, autoPayOnInvoiceReceived: data.autoPayOnInvoiceReceived ?? utilityCategory, isDeductible: data.isDeductible !== false } as RecurringExpenseSchedule
+  return {
+    ...data,
+    id,
+    propertyId: asString(data.propertyId),
+    description: asString(data.description),
+    amount: asNumberOr(data.amount, 0),
+    intervalMonths: Math.max(1, asNumberOr(data.intervalMonths, 1)),
+    isActive: data.isActive !== false,
+    requiresInvoice: data.requiresInvoice !== false,
+    autoPayOnInvoiceReceived: asBoolean(data.autoPayOnInvoiceReceived, utilityCategory),
+    isDeductible: data.isDeductible !== false,
+  } as RecurringExpenseSchedule
 }
 
 function mapOccurrence(id: string, data: Record<string, any>): RecurringExpenseOccurrence {
-  return { id, ...data, amount: Number(data.amount) || 0, invoiceReceived: Boolean(data.invoiceReceived), isPaid: Boolean(data.isPaid) } as RecurringExpenseOccurrence
+  return {
+    ...data,
+    id,
+    scheduleId: asString(data.scheduleId),
+    propertyId: asString(data.propertyId),
+    year: asNumberOr(data.year, 0),
+    month: asNumberOr(data.month, 0),
+    amount: asNumberOr(data.amount, 0),
+    invoiceReceived: asBoolean(data.invoiceReceived),
+    isPaid: asBoolean(data.isPaid),
+  } as RecurringExpenseOccurrence
 }
 
 export function subscribeToRecurringExpenseSchedules(propertyId: string, onSuccess: (items: RecurringExpenseSchedule[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(query(collection(db, SCHEDULES), where('propertyId', '==', propertyId)), (snapshot) => {
-    onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapSchedule(item.id, item.data())).sort((a, b) => a.description.localeCompare(b.description)))
-  }, (error) => onError?.(error))
+  return subscribeToCollection<RecurringExpenseSchedule>({
+    name: SCHEDULES,
+    constraints: [where('propertyId', '==', propertyId)],
+    filter: (data) => !data.deletedAt,
+    map: mapSchedule,
+    sort: (a, b) => a.description.localeCompare(b.description),
+    onSuccess,
+    onError,
+  })
 }
 
 export function subscribeToAllRecurringExpenseSchedules(onSuccess: (items: RecurringExpenseSchedule[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(collection(db, SCHEDULES), (snapshot) => onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapSchedule(item.id, item.data()))), (error) => onError?.(error))
+  return subscribeToCollection<RecurringExpenseSchedule>({
+    name: SCHEDULES,
+    filter: (data) => !data.deletedAt,
+    map: mapSchedule,
+    onSuccess,
+    onError,
+  })
 }
 
 export function subscribeToRecurringExpenseOccurrences(propertyId: string, onSuccess: (items: RecurringExpenseOccurrence[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(query(collection(db, OCCURRENCES), where('propertyId', '==', propertyId)), (snapshot) => onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapOccurrence(item.id, item.data()))), (error) => onError?.(error))
+  return subscribeToCollection<RecurringExpenseOccurrence>({
+    name: OCCURRENCES,
+    constraints: [where('propertyId', '==', propertyId)],
+    filter: (data) => !data.deletedAt,
+    map: mapOccurrence,
+    onSuccess,
+    onError,
+  })
 }
 
 export function subscribeToAllRecurringExpenseOccurrences(year: number, onSuccess: (items: RecurringExpenseOccurrence[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(query(collection(db, OCCURRENCES), where('year', '==', year)), (snapshot) => onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map((item) => mapOccurrence(item.id, item.data()))), (error) => onError?.(error))
+  return subscribeToCollection<RecurringExpenseOccurrence>({
+    name: OCCURRENCES,
+    constraints: [where('year', '==', year)],
+    filter: (data) => !data.deletedAt,
+    map: mapOccurrence,
+    onSuccess,
+    onError,
+  })
 }
 
 export async function addRecurringExpenseSchedule(schedule: Omit<RecurringExpenseSchedule, 'id' | 'createdAt' | 'updatedAt'>) {

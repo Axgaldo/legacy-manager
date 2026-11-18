@@ -3,65 +3,78 @@ import {
   doc,
   addDoc,
   updateDoc,
-  onSnapshot,
-  query,
   getDocs,
+  query,
   where,
   serverTimestamp,
   writeBatch,
   Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { subscribeToCollection } from '@/lib/firestoreSubscriptions'
 import { Contract } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
+import { asBoolean, asNumber, asNumberOr, asString } from '@/utils/coerce'
 
 const COLLECTION_NAME = 'contracts'
+
+function mapContract(id: string, d: Record<string, any>): Contract {
+  return {
+    id,
+    propertyId: asString(d.propertyId),
+    tenantName: asString(d.tenantName),
+    tenantPhone: asString(d.tenantPhone),
+    tenantEmail: asString(d.tenantEmail),
+    tenantNif: asString(d.tenantNif),
+    startDate: asString(d.startDate),
+    endDate: asString(d.endDate),
+    monthlyRent: asNumberOr(d.monthlyRent, 0),
+    depositAmount: asNumber(d.depositAmount),
+    avraReference: asString(d.avraReference),
+    isActive: asBoolean(d.isActive),
+    isDeleted: asBoolean(d.isDeleted),
+    deletedAt: asString(d.deletedAt) || undefined,
+    notes: asString(d.notes),
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
+  }
+}
+
+/** Marca solo el contrato vigente más reciente (datos antiguos podían tener varios). */
+function withSingleActiveContract(items: Contract[]): Contract[] {
+  const selectedActiveId = items.find((contract) => contract.isActive)?.id
+  return items.map((contract) => ({ ...contract, isActive: contract.id === selectedActiveId }))
+}
 
 export function subscribeToPropertyContracts(
   propertyId: string,
   onSuccess: (contracts: Contract[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    where('propertyId', '==', propertyId),
-  )
+  return subscribeToCollection<Contract>({
+    name: COLLECTION_NAME,
+    constraints: [where('propertyId', '==', propertyId)],
+    filter: (data) => !data.isDeleted,
+    map: mapContract,
+    sort: (a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt) || b.startDate.localeCompare(a.startDate),
+    onSuccess: (items) => onSuccess(withSingleActiveContract(items)),
+    onError,
+  })
+}
 
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const items: Contract[] = snapshot.docs.filter((docSnap) => !docSnap.data().isDeleted).map((docSnap) => {
-        const d = docSnap.data()
-        return {
-          id: docSnap.id,
-          propertyId: d.propertyId,
-          tenantName: d.tenantName || '',
-          tenantPhone: d.tenantPhone || '',
-          tenantEmail: d.tenantEmail || '',
-          tenantNif: d.tenantNif || '',
-          startDate: d.startDate || '',
-          endDate: d.endDate || '',
-          monthlyRent: Number(d.monthlyRent) || 0,
-          depositAmount: d.depositAmount ? Number(d.depositAmount) : undefined,
-          avraReference: d.avraReference || '',
-          isActive: Boolean(d.isActive),
-          isDeleted: Boolean(d.isDeleted),
-          notes: d.notes || '',
-          createdAt: d.createdAt,
-          updatedAt: d.updatedAt,
-        }
-      })
-      // Keep newest-created contracts first, falling back to start date for older records.
-      items.sort((a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt) || (b.startDate || '').localeCompare(a.startDate || ''))
-      // Legacy records could contain several active flags; show only the newest as current.
-      const selectedActiveId = items.find((contract) => contract.isActive)?.id
-      onSuccess(items.map((contract) => ({ ...contract, isActive: contract.id === selectedActiveId })))
-    },
-    (err) => {
-      console.error('Error in contracts subscription:', err)
-      if (onError) onError(err)
-    },
-  )
+/** Contratos de todos los inmuebles, para los avisos de Inicio. */
+export function subscribeToAllContracts(
+  onSuccess: (contracts: Contract[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  return subscribeToCollection<Contract>({
+    name: COLLECTION_NAME,
+    filter: (data) => !data.isDeleted,
+    map: mapContract,
+    sort: (a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt),
+    onSuccess,
+    onError,
+  })
 }
 
 function timestampValue(value: any): number {

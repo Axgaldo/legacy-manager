@@ -6,7 +6,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  onSnapshot,
   query,
   serverTimestamp,
   setDoc,
@@ -15,8 +14,10 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { subscribeToCollection } from '@/lib/firestoreSubscriptions'
 import { Property, Tenant, TenantDocument, TenantDocumentKind } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
+import { asNumberOr, asString } from '@/utils/coerce'
 import {
   getPrivateStorageBlob,
   uploadPrivateStorageBlob,
@@ -90,19 +91,19 @@ export function validateTenantDocumentFile(file: File): string | null {
 function mapTenant(id: string, data: Record<string, any>): Tenant {
   return {
     id,
-    name: data.name ?? '',
-    nif: data.nif ?? '',
-    phone: data.phone ?? '',
-    email: data.email ?? '',
-    birthDate: data.birthDate ?? '',
-    address: data.address ?? '',
-    city: data.city ?? '',
-    province: data.province ?? '',
-    postalCode: data.postalCode ?? '',
-    iban: data.iban ?? '',
-    notes: data.notes ?? '',
+    name: asString(data.name),
+    nif: asString(data.nif),
+    phone: asString(data.phone),
+    email: asString(data.email),
+    birthDate: asString(data.birthDate),
+    address: asString(data.address),
+    city: asString(data.city),
+    province: asString(data.province),
+    postalCode: asString(data.postalCode),
+    iban: asString(data.iban),
+    notes: asString(data.notes),
     isActive: data.isActive !== false,
-    deletedAt: data.deletedAt || undefined,
+    deletedAt: asString(data.deletedAt) || undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -111,16 +112,16 @@ function mapTenant(id: string, data: Record<string, any>): Tenant {
 function mapTenantDocument(id: string, data: Record<string, any>): TenantDocument {
   return {
     id,
-    tenantId: data.tenantId,
-    fileName: data.fileName || 'documento',
-    contentType: data.contentType || 'application/octet-stream',
-    sizeBytes: Number(data.sizeBytes) || 0,
-    storedSizeBytes: Number(data.storedSizeBytes ?? data.sizeBytes) || 0,
-    storagePath: data.storagePath || '',
+    tenantId: asString(data.tenantId),
+    fileName: asString(data.fileName, 'documento'),
+    contentType: asString(data.contentType, 'application/octet-stream'),
+    sizeBytes: asNumberOr(data.sizeBytes, 0),
+    storedSizeBytes: asNumberOr(data.storedSizeBytes ?? data.sizeBytes, 0),
+    storagePath: asString(data.storagePath),
     kind: (TENANT_DOCUMENT_KINDS.some((item) => item.value === data.kind) ? data.kind : 'otro') as TenantDocumentKind,
-    label: data.label ?? '',
-    uploadedBy: data.uploadedBy ?? '',
-    deletedAt: data.deletedAt || undefined,
+    label: asString(data.label),
+    uploadedBy: asString(data.uploadedBy),
+    deletedAt: asString(data.deletedAt) || undefined,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   }
@@ -130,16 +131,13 @@ export function subscribeToTenants(
   onSuccess: (tenants: Tenant[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onSnapshot(collection(db, TENANTS_COLLECTION), (snapshot) => {
-    // Tenants in the trash (soft deleted) are hidden from every list.
-    const items = snapshot.docs
-      .filter((item) => !item.data().deletedAt)
-      .map((item) => mapTenant(item.id, item.data()))
-    items.sort((a, b) => a.name.localeCompare(b.name, 'es'))
-    onSuccess(items)
-  }, (error) => {
-    console.error('Error loading tenants:', error)
-    onError?.(error)
+  return subscribeToCollection<Tenant>({
+    name: TENANTS_COLLECTION,
+    filter: (data) => !data.deletedAt,
+    map: mapTenant,
+    sort: (a, b) => a.name.localeCompare(b.name, 'es'),
+    onSuccess,
+    onError,
   })
 }
 
@@ -172,15 +170,14 @@ export function subscribeToTenantDocuments(
   onSuccess: (documents: TenantDocument[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onSnapshot(query(collection(db, DOCUMENTS_COLLECTION), where('tenantId', '==', tenantId)), (snapshot) => {
-    const items = snapshot.docs
-      .filter((item) => !item.data().deletedAt)
-      .map((item) => mapTenantDocument(item.id, item.data()))
-    items.sort((a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt))
-    onSuccess(items)
-  }, (error) => {
-    console.error('Error loading tenant documents:', error)
-    onError?.(error)
+  return subscribeToCollection<TenantDocument>({
+    name: DOCUMENTS_COLLECTION,
+    constraints: [where('tenantId', '==', tenantId)],
+    filter: (data) => !data.deletedAt,
+    map: mapTenantDocument,
+    sort: (a, b) => timestampValue(b.createdAt) - timestampValue(a.createdAt),
+    onSuccess,
+    onError,
   })
 }
 
@@ -188,13 +185,12 @@ export function subscribeToAllTenantDocuments(
   onSuccess: (documents: TenantDocument[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  return onSnapshot(collection(db, DOCUMENTS_COLLECTION), (snapshot) => {
-    onSuccess(snapshot.docs
-      .filter((item) => !item.data().deletedAt)
-      .map((item) => mapTenantDocument(item.id, item.data())))
-  }, (error) => {
-    console.error('Error loading tenant document index:', error)
-    onError?.(error)
+  return subscribeToCollection<TenantDocument>({
+    name: DOCUMENTS_COLLECTION,
+    filter: (data) => !data.deletedAt,
+    map: mapTenantDocument,
+    onSuccess,
+    onError,
   })
 }
 

@@ -1,18 +1,15 @@
 import {
-  collection,
   doc,
   setDoc,
-  onSnapshot,
-  query,
   where,
   serverTimestamp,
   Unsubscribe,
-  DocumentData,
-  QueryDocumentSnapshot,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { subscribeToCollection } from '@/lib/firestoreSubscriptions'
 import { RentPayment, RentPaymentManualStatus } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
+import { asBoolean, asNumber, asNumberOr, asString } from '@/utils/coerce'
 
 const COLLECTION_NAME = 'rentPayments'
 
@@ -20,21 +17,20 @@ function isManualStatus(value: unknown): value is RentPaymentManualStatus {
   return value === 'auto' || value === 'paid' || value === 'partial' || value === 'overdue' || value === 'overpaid' || value === 'rent-change'
 }
 
-function mapRentPayment(docSnap: QueryDocumentSnapshot<DocumentData>): RentPayment {
-  const data = docSnap.data()
+function mapRentPayment(id: string, data: Record<string, any>): RentPayment {
   return {
-    id: docSnap.id,
-    propertyId: data.propertyId,
-    year: Number(data.year),
-    month: Number(data.month),
-    amount: Number(data.amount) || 0,
-    receivedAmount: data.receivedAmount === undefined ? undefined : Number(data.receivedAmount) || 0,
-    isPaid: Boolean(data.isPaid),
-    paidAt: data.paidAt ?? undefined,
-    invoiceIssued: Boolean(data.invoiceIssued),
-    invoiceReceivedDate: data.invoiceReceivedDate ?? undefined,
-    notes: data.notes ?? '',
-    updatedBy: data.updatedBy ?? '',
+    id,
+    propertyId: asString(data.propertyId),
+    year: asNumberOr(data.year, 0),
+    month: asNumberOr(data.month, 0),
+    amount: asNumberOr(data.amount, 0),
+    receivedAmount: asNumber(data.receivedAmount),
+    isPaid: asBoolean(data.isPaid),
+    paidAt: asString(data.paidAt) || undefined,
+    invoiceIssued: asBoolean(data.invoiceIssued),
+    invoiceReceivedDate: asString(data.invoiceReceivedDate) || undefined,
+    notes: asString(data.notes),
+    updatedBy: asString(data.updatedBy),
     manualStatus: isManualStatus(data.manualStatus) ? data.manualStatus : 'auto',
     showWarning: data.showWarning !== false,
     createdAt: data.createdAt,
@@ -48,28 +44,41 @@ export function subscribeToYearPayments(
   onSuccess: (payments: RentPayment[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    where('propertyId', '==', propertyId),
-    where('year', '==', year),
-  )
+  return subscribeToCollection<RentPayment>({
+    name: COLLECTION_NAME,
+    constraints: [where('propertyId', '==', propertyId), where('year', '==', year)],
+    filter: (data) => !data.deletedAt,
+    map: mapRentPayment,
+    onSuccess,
+    onError,
+  })
+}
 
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map(mapRentPayment))
-    },
-    (err) => {
-      console.error('Error in rent payments subscription:', err)
-      if (onError) onError(err)
-    },
-  )
+/** Todos los cobros de un inmueble, para la comparativa anual. */
+export function subscribeToPropertyPayments(
+  propertyId: string,
+  onSuccess: (payments: RentPayment[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  return subscribeToCollection<RentPayment>({
+    name: COLLECTION_NAME,
+    constraints: [where('propertyId', '==', propertyId)],
+    filter: (data) => !data.deletedAt,
+    map: mapRentPayment,
+    onSuccess,
+    onError,
+  })
 }
 
 export function subscribeToAllYearPayments(year: number, onSuccess: (payments: RentPayment[]) => void, onError?: (error: Error) => void): Unsubscribe {
-  return onSnapshot(query(collection(db, COLLECTION_NAME), where('year', '==', year)), (snapshot) => {
-    onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map(mapRentPayment))
-  }, (error) => { console.error('Error loading annual rent matrix:', error); onError?.(error) })
+  return subscribeToCollection<RentPayment>({
+    name: COLLECTION_NAME,
+    constraints: [where('year', '==', year)],
+    filter: (data) => !data.deletedAt,
+    map: mapRentPayment,
+    onSuccess,
+    onError,
+  })
 }
 
 /** Listen to rent records through the selected year to identify accumulated arrears. */
@@ -78,12 +87,13 @@ export function subscribeToPaymentsThroughYear(
   onSuccess: (payments: RentPayment[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(collection(db, COLLECTION_NAME), where('year', '<=', year))
-  return onSnapshot(q, (snapshot) => {
-    onSuccess(snapshot.docs.filter((item) => !item.data().deletedAt).map(mapRentPayment))
-  }, (error) => {
-    console.error('Error fetching rent payment overview:', error)
-    onError?.(error)
+  return subscribeToCollection<RentPayment>({
+    name: COLLECTION_NAME,
+    constraints: [where('year', '<=', year)],
+    filter: (data) => !data.deletedAt,
+    map: mapRentPayment,
+    onSuccess,
+    onError,
   })
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
 import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument, RecurringExpenseSchedule } from '@/types'
 import { subscribeToProperties } from './propertiesService'
-import { subscribeToYearPayments, toggleInvoiceIssued, updateRentNotes, recordRentReceipt, updateRentPaymentMeta } from './paymentsService'
+import { subscribeToPropertyPayments, subscribeToYearPayments, toggleInvoiceIssued, updateRentNotes, recordRentReceipt, updateRentPaymentMeta } from './paymentsService'
 import { subscribeToPropertyExpenses, addExpense, deleteExpense, updateExpenseStatus } from './expensesService'
 import { subscribeToRecurringExpenseSchedules } from './recurringExpensesService'
 import { recurringMonthlyAverageForProperty } from './recurringExpensesLogic'
@@ -17,6 +17,7 @@ import { downloadPropertyDocuments } from '@/features/backup/documentsExport'
 import PropertyModal from './PropertyModal'
 import RecurringExpensesPanel from './RecurringExpensesPanel'
 import ContractsPanel from './ContractsPanel'
+import AnnualComparison from './AnnualComparisonPanel'
 import PropertyTenantsPanel from '@/features/tenants/PropertyTenantsPanel'
 import { countDocumentsByTenant, migratePropertyTenants, subscribeToAllTenantDocuments, subscribeToTenants } from '@/features/tenants/tenantsService'
 import { propertySlug } from '@/utils/slugs'
@@ -76,11 +77,11 @@ export default function PropertyDetailPage() {
   // Selected sub-tab
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
-  const activeTab = tabParam === 'gastos' ? 'expenses' : tabParam === 'recurrentes' ? 'recurring' : tabParam === 'contratos' ? 'contracts' : tabParam === 'inquilinos' ? 'tenants' : 'payments'
-  const setActiveTab = (tab: 'payments' | 'expenses' | 'recurring' | 'contracts' | 'tenants') => {
+  const activeTab = tabParam === 'gastos' ? 'expenses' : tabParam === 'recurrentes' ? 'recurring' : tabParam === 'contratos' ? 'contracts' : tabParam === 'inquilinos' ? 'tenants' : tabParam === 'evolucion' ? 'annual' : 'payments'
+  const setActiveTab = (tab: 'payments' | 'expenses' | 'recurring' | 'contracts' | 'tenants' | 'annual') => {
     const next = new URLSearchParams(searchParams)
     if (tab === 'payments') next.delete('tab')
-    else next.set('tab', tab === 'expenses' ? 'gastos' : tab === 'recurring' ? 'recurrentes' : tab === 'contracts' ? 'contratos' : 'inquilinos')
+    else next.set('tab', tab === 'expenses' ? 'gastos' : tab === 'recurring' ? 'recurrentes' : tab === 'contracts' ? 'contratos' : tab === 'tenants' ? 'inquilinos' : 'evolucion')
     setSearchParams(next)
   }
 
@@ -91,6 +92,7 @@ export default function PropertyDetailPage() {
 
   // Payments, Expenses, Contracts
   const [payments, setPayments] = useState<RentPayment[]>([])
+  const [annualPayments, setAnnualPayments] = useState<RentPayment[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [contracts, setContracts] = useState<Contract[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
@@ -155,6 +157,13 @@ export default function PropertyDetailPage() {
     })
     return () => unsub()
   }, [propertyId, selectedYear])
+
+  // Todos los cobros del inmueble (comparativa anual)
+  useEffect(() => {
+    if (!propertyId) return
+    const unsub = subscribeToPropertyPayments(propertyId, setAnnualPayments)
+    return () => unsub()
+  }, [propertyId])
 
   // Subscribe to expenses
   useEffect(() => {
@@ -523,6 +532,16 @@ export default function PropertyDetailPage() {
         >
           👥 Inquilinos ({linkedTenants.length})
         </button>
+        <button
+          onClick={() => setActiveTab('annual')}
+          className={`pb-3 px-3.5 border-b-2 transition ${
+            activeTab === 'annual'
+              ? 'border-teal-700 text-teal-300'
+              : 'border-transparent text-slate-500 hover:text-slate-200'
+          }`}
+        >
+          📈 Evolución anual
+        </button>
       </div>
 
       {/* ─── TAB 1: COBROS MENSUALES ─────────────────────────────────────── */}
@@ -775,6 +794,15 @@ export default function PropertyDetailPage() {
       {activeTab === 'contracts' && property && <ContractsPanel property={property} contracts={contracts} tenants={linkedTenants} />}
 
       {/* ─── TAB: INQUILINOS ────────────────────────────────────────────── */}
+      {activeTab === 'annual' && property && (
+        <AnnualComparison
+          property={property}
+          payments={annualPayments}
+          expenses={expenses}
+          tenantNames={linkedTenants.map((tenant) => tenant.name)}
+        />
+      )}
+
       {activeTab === 'tenants' && property && (
         <div className="animate-in fade-in duration-150">
           <PropertyTenantsPanel property={property} tenants={tenants} documentCounts={tenantDocumentCounts} />

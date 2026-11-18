@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { AssetItem, Expense, Property, RecurringExpenseOccurrence, RecurringExpenseSchedule, RentPayment } from '@/types'
+import { AssetItem, Contract, Expense, Property, RecurringExpenseOccurrence, RecurringExpenseSchedule, RentPayment } from '@/types'
 import { subscribeToProperties } from '@/features/properties/propertiesService'
 import { subscribeToAllYearPayments } from '@/features/properties/paymentsService'
 import { subscribeToYearExpenses } from '@/features/properties/expensesService'
 import { subscribeToAllRecurringExpenseOccurrences, subscribeToAllRecurringExpenseSchedules } from '@/features/properties/recurringExpensesService'
+import { subscribeToAllContracts } from '@/features/properties/contractsService'
+import { buildPropertyReminders } from '@/features/properties/propertyReminders'
 import { isRentApplicableForMonth, rentAmountForMonth } from '@/features/properties/rentRates'
 import { isScheduleDueInMonth, occurrenceIdFor, recurringMonthlyAverage } from '@/features/properties/recurringExpensesLogic'
 import { subscribeToAssets } from '@/features/collections/assetsService'
@@ -51,6 +53,7 @@ export default function HomePage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [schedules, setSchedules] = useState<RecurringExpenseSchedule[]>([])
   const [occurrences, setOccurrences] = useState<RecurringExpenseOccurrence[]>([])
+  const [contracts, setContracts] = useState<Contract[]>([])
   const [propertiesReady, setPropertiesReady] = useState(false)
   const [assetsReady, setAssetsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,6 +93,12 @@ export default function HomePage() {
   useEffect(() => subscribeToYearExpenses(year, setExpenses, (loadError) => setError(loadError.message)), [year])
   useEffect(() => subscribeToAllRecurringExpenseSchedules(setSchedules, (loadError) => setError(loadError.message)), [])
   useEffect(() => subscribeToAllRecurringExpenseOccurrences(year, setOccurrences, (loadError) => setError(loadError.message)), [year])
+  useEffect(() => subscribeToAllContracts(setContracts, (loadError) => setError(loadError.message)), [])
+
+  const reminders = useMemo(
+    () => buildPropertyReminders({ properties, contracts }),
+    [properties, contracts],
+  )
 
   const paymentByPropertyMonth = useMemo(
     () => new Map(payments.map((payment) => [`${payment.propertyId}_${payment.month}`, payment])),
@@ -322,6 +331,46 @@ export default function HomePage() {
           </p>
         </button>
       </div>
+
+      {/* Avisos: contratos que vencen y revisiones de renta */}
+      {reminders.length > 0 && (
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-base font-bold text-slate-100">⏰ Avisos</h3>
+            <span className="text-xs text-slate-500">Contratos y revisiones de los próximos 60 días</span>
+          </div>
+          <ul className="mt-4 space-y-2">
+            {reminders.map((reminder) => (
+              <li key={reminder.id}>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/inmuebles/${reminder.propertyId}`)}
+                  className={`flex w-full flex-col gap-2 rounded-xl border px-4 py-3 text-left transition sm:flex-row sm:items-center sm:justify-between ${
+                    reminder.overdue
+                      ? 'border-red-900 bg-red-950/40 hover:bg-red-950/60'
+                      : 'border-amber-800 bg-amber-950/30 hover:bg-amber-950/50'
+                  }`}
+                >
+                  <span className="flex min-w-0 items-start gap-3">
+                    <span className="text-lg" aria-hidden="true">{reminder.overdue ? '⚠️' : '⏰'}</span>
+                    <span className="min-w-0">
+                      <span className={`block text-sm font-semibold ${reminder.overdue ? 'text-red-200' : 'text-amber-100'}`}>{reminder.title}</span>
+                      <span className="mt-0.5 block truncate text-xs text-slate-400">{reminder.detail}</span>
+                    </span>
+                  </span>
+                  <span className={`shrink-0 text-[11px] font-semibold ${reminder.overdue ? 'text-red-300' : 'text-amber-300'}`}>
+                    {reminder.daysLeft === 0
+                      ? 'Hoy'
+                      : reminder.overdue
+                        ? `Hace ${Math.abs(reminder.daysLeft)} día${Math.abs(reminder.daysLeft) === 1 ? '' : 's'}`
+                        : `En ${reminder.daysLeft} día${reminder.daysLeft === 1 ? '' : 's'}`}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Inmuebles: calendario y anotaciones del mes */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

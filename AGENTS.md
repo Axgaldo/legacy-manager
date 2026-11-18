@@ -64,6 +64,12 @@
 - **Electrónica y electrodomésticos:** same generic form; no special fields for now.
 - **Common fields:** name, owner, category, tags, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, mint_mark, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes. `location` was removed; coin location is `case_location`/`case_number` in advanced details.
 
+## Acceso a datos (obligatorio)
+
+- **Suscripciones**: todas pasan por `subscribeToCollection` (`src/lib/firestoreSubscriptions.ts`), que aplica mapeo, filtro de papelera, orden y errores en un solo sitio. No volver a escribir `onSnapshot` + `snapshot.docs.map` en cada servicio; si hace falta una consulta nueva, se le pasan `constraints` (`where`, `orderBy`…).
+- **Conversión**: los mappers usan `src/utils/coerce.ts` (`asString`, `asNumber`, `asNumberOr`, `asBoolean`, `asStringArray`, `asIsoDate`). Nunca `Number(valor)` directo sobre un campo de Firestore sin comprobar finitud: un documento antiguo o corrupto no debe pintar `NaN €` en fiscal ni romper una comparación.
+- **Papelera**: el filtro va en la suscripción (`filter: (data) => !data.deletedAt`, o `!data.isDeleted` en contratos), no en cada componente.
+
 ## Papelera (borrado suave, obligatorio)
 
 - **Nada se borra al instante desde la interfaz**: los documentos reciben `deletedAt` (ISO) y los mappers de cada servicio los ignoran (`if (!data.deletedAt)`). Retención: **30 días** (`TRASH_RETENTION_DAYS` en `src/features/trash/trashService.ts`).
@@ -93,7 +99,7 @@
 ## Tests (Vitest)
 
 - `npm test` (una pasada) y `npm run test:watch`. Vitest 3 usa `vite.config.ts` y el alias `@`, sin configuración extra.
-- Cubierto: `recurringExpensesLogic` (prorrateo IBI/12, vencimientos, media mensual), `rentRates` (tramos, meses sin alquiler), `numbers` (miles), `csv` (escapado, BOM, decimales), `money` (formato y máscaras del modo incógnito), `zip` (cabeceras, CRC32, nombres seguros) y `backupReminder` (60 días, fecha inválida, reloj adelantado).
+- Cubierto: `recurringExpensesLogic` (prorrateo IBI/12, vencimientos, media mensual), `rentRates` (tramos, meses sin alquiler), `numbers` (miles), `csv` (escapado, BOM, decimales), `money` (formato y máscaras del modo incógnito), `zip` (cabeceras, CRC32, nombres seguros), `backupReminder` (60 días, fecha inválida, reloj adelantado), `coerce` (conversión defensiva), `propertyReminders` (ventana de 60 días, atrasos) y `annualComparison` (agregados por año).
 - Son tests de **lógica pura**: no tocan Firebase, DOM ni red, y no hay E2E. Hay que lanzarlos a mano antes de commitear cambios de dinero o cálculos.
 - **CI**: `.github/workflows/ci.yml` ejecuta `npm test`, `npm run lint` y `npm run build` en cada push y pull request (independiente del workflow de despliegue).
 - Si un test falla tras un cambio de modelo, se actualiza junto con la lógica y se explica en el commit; nunca se borra el test para "arreglarlo".
@@ -161,6 +167,7 @@
     - **1.20.0:** **Contratos borrables de verdad + P1**. Reglas de Storage: `contracts/` permite `delete` a usuarios autorizados (sigue prohibido `update`; hay que publicar la regla a mano). El botón «Borrar contrato» mueve el contrato a la **papelera** (30 días, con restauración; vuelve inactivo), el borrado del inmueble lo arrastra en cascada y la purga elimina contrato, `contractAddenda`, `contractFileVersions` y los PDFs de `contracts/{propertyId}/...`, avisando de los archivos que no se pudieron borrar (regla sin publicar). **Code splitting** con `React.lazy` por ruta + `manualChunks` (react, firebase y páginas; el arranque pasa de un chunk de ~1,06 MB a chunks cacheables) y **persistencia offline** de Firestore con `persistentLocalCache` multi-pestaña. Las **miniaturas** de fotos quedan como mejora futura. README y AGENTS actualizados.
     - **1.20.1:** **Corregido el remontaje al cambiar de URL**: el `ErrorBoundary` del layout usaba `key={location.pathname}`, así que abrir o cerrar la ficha de un bien (que cambia la URL) desmontaba y remontaba toda la página, releyendo la colección y repintando la lista de 2.084 fichas. Ahora usa `resetKey` (se recupera de un error sin remontar a sus hijos). Medido en Chrome: clic → ficha en ~180 ms y el nodo de búsqueda sobrevive a la navegación. También corregidas las rutas de `favicon`, iconos y manifest en desarrollo (se pedían con `/legacy-manager/legacy-manager/...` por el doble prefijo de `%BASE_URL%`); en el build ya eran correctas.
     - **1.20.2:** **Deuda técnica barata (P3)**. CI nuevo (`.github/workflows/ci.yml`: tests + lint + build en push y PR). Los warnings de `exhaustive-deps` corregidos de verdad: `tenantNamesFor` memoizado en Inmuebles y los efectos de la ficha usan `propertyId` estable en vez del objeto completo (evita datos del inmueble anterior). Quedan 4 avisos de `react-refresh` en los providers, preexistentes y sin impacto en producción. `fixedExpensesMonthly` fuera del modelo y del mapper. Retiradas las funciones de borrado sin uso (`deleteAsset`, `deleteProperty`, `deleteTenantCompletely`, `deleteTenantDocument`) y sus imports. Al purgar un bien se borran también sus `assetPhotoBackups` legacy.
+    - **1.21.0:** **Robustez de datos + producto**. Todas las suscripciones de Firestore pasan por `subscribeToCollection` (`src/lib/firestoreSubscriptions.ts`) y los mappers convierten con `src/utils/coerce.ts`, evitando `NaN` y campos corruptos. **Avisos en Inicio**: contratos que vencen y revisiones de renta en los próximos 60 días (o atrasadas), calculados con `propertyReminders` y enlazados al inmueble. **Pestaña «Evolución anual»** en la ficha del inmueble: ingresos cobrados vs gastos de los últimos 5 ejercicios con barras, totales y valor actual. **PDF resumen anual** para el gestor mediante hoja de impresión propia (blanco y negro, importes sin enmascarar, inquilinos y fecha), con CSS `#property-annual-print`. Tests nuevos de `coerce`, `propertyReminders` y `annualComparison` (79 en total).
 
 ---
 
@@ -179,15 +186,12 @@ Orden aproximado por relación impacto/esfuerzo. No implementar sin necesidad: s
 - Completado en 1.17.0: papelera con borrado suave y purga desde la app, ZIP de documentos por inmueble y de fotos por bien, `aria-label` en los iconos que faltaban y PWA instalable. No repetir estas propuestas.
 
 **P3 — mantenibilidad**
-- Completado en 1.20.2: CI con tests + lint + build en cada push/PR, `exhaustive-deps` corregidos de verdad, `fixedExpensesMonthly` eliminado del modelo y funciones de borrado sin uso retiradas. Además la purga de un bien borra sus `assetPhotoBackups` legacy.
-- **Unificar los `subscribeToX`** en un helper `subscribeCollection<T>(name, mapper)` con manejo de errores homogéneo (hoy se repite el patrón en ~10 servicios).
-- **Validar en la frontera de lectura**: helpers compartidos `num()/str()/bool()` (ya existen en `assetsService`) para que un documento legacy no pinte `NaN €` en fiscal.
+- Completado en 1.20.2 y 1.21.0: CI con tests + lint + build en cada push/PR, `exhaustive-deps` corregidos de verdad, `fixedExpensesMonthly` eliminado, funciones de borrado sin uso retiradas, suscripciones unificadas en `subscribeToCollection` y conversión defensiva con `coerce`. La purga de un bien borra sus `assetPhotoBackups` legacy.
 - **Trocear componentes grandes**: `CollectionsPage` (~960 líneas), `PropertyDetailPage` (~900), `AssetModal` (673), extrayendo hooks (`useAssetForm`, `usePropertyExpenses`).
+- **Pendientes menores**: *focus trap* en modales (accesibilidad) y llevar gastos puntuales y cobros a la papelera. Sin prioridad acordada.
 
 **Ideas de producto (sin prioridad)**
-- Aviso de contrato próximo a vencer y de revisión de renta (usando `rentHistory`).
-- Comparativa anual por inmueble: ingresos vs gastos vs valor en una línea temporal.
-- PDF resumen anual por inmueble para el gestor/asesor, generado en cliente como los CSV.
+- Completado en 1.21.0: avisos de contrato/renta, comparativa anual por inmueble y PDF resumen anual para el gestor. No repetir estas propuestas.
 
 ---
 

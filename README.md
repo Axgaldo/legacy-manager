@@ -11,7 +11,7 @@ Aplicación web **privada** para llevar el inventario patrimonial de una familia
 ## Módulos
 
 ### 🏛 Panel de inicio
-La portada `/` resume todo el patrimonio: calendario del mes con cobros registrados y gastos sin pagar, anotaciones de alquileres, gastos y atrasos, gráfica de cobros vs gastos del año y los últimos bienes añadidos. Desde el panel se descargan la **copia de seguridad completa (JSON)** y los **exportables CSV** (resumen fiscal anual e inventario de bienes).
+La portada `/` resume todo el patrimonio: **avisos** de contratos que vencen y revisiones de renta (60 días o atrasadas), calendario del mes con cobros registrados y gastos sin pagar, anotaciones de alquileres, gastos y atrasos, gráfica de cobros vs gastos del año y los últimos bienes añadidos. Desde el panel se descargan la **copia de seguridad completa (JSON)** y los **exportables CSV** (resumen fiscal anual e inventario de bienes).
 
 ### 🏠 Inmuebles
 - **Propiedades**: fichas con dirección, referencia catastral, inquilinos vinculados, fianza y valor estimado.
@@ -20,6 +20,7 @@ La portada `/` resume todo el patrimonio: calendario del mes con cobros registra
 - **Fiscal**: resumen IRPF de alquileres en la sección general (`/inmuebles/fiscal`): filtros por propietario, provincia y año; ingresos íntegros, gastos deducibles (puntuales y periódicos), rendimiento neto con reducción del 50% y CSV descargable.
 - **Inquilinos**: directorio independiente con documentos (DNI, contratos, nóminas…) y vinculación bidireccional con inmuebles.
 - **Contratos y adendas**: PDF hasta 100 MiB por versión, en Firebase Cloud Storage; activar/deshactivar contratos sin perder el archivo. Los PDFs nunca se sobrescriben y se pueden borrar con la papelera (30 días).
+- **Evolución anual**: pestaña por inmueble con ingresos cobrados vs gastos de los últimos 5 ejercicios, neto y valor actual, además de un **PDF resumen** imprimible para el gestor.
 
 ### 🪙 Bienes y Activos
 - Portada con las colecciones: **Todos**, Numismática, Arte y cuadros, Relojes, Electrónica y electrodomésticos y Objetos diversos.

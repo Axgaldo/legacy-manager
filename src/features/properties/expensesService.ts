@@ -4,37 +4,37 @@ import {
   addDoc,
   deleteDoc,
   updateDoc,
-  onSnapshot,
-  query,
   where,
   serverTimestamp,
   Unsubscribe,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { subscribeToCollection } from '@/lib/firestoreSubscriptions'
 import { Expense } from '@/types'
 import { cleanPayload } from '@/utils/cleanPayload'
+import { asBoolean, asNumberOr, asString } from '@/utils/coerce'
 
 const COLLECTION_NAME = 'expenses'
 
 function mapExpense(id: string, d: Record<string, any>): Expense {
   return {
     id,
-    propertyId: d.propertyId,
-    date: d.date || '',
-    year: Number(d.year) || new Date().getFullYear(),
-    month: Number(d.month) || 1,
+    propertyId: asString(d.propertyId),
+    date: asString(d.date),
+    year: asNumberOr(d.year, new Date().getFullYear()),
+    month: asNumberOr(d.month, 1),
     category: d.category || 'otro',
     kind: d.kind === 'recurring' ? 'recurring' : 'one-off',
     frequency: d.frequency,
-    amount: Number(d.amount) || 0,
-    description: d.description || '',
-    invoiceNumber: d.invoiceNumber || '',
-    invoiceReceived: Boolean(d.invoiceReceived ?? d.invoiceNumber),
-    invoiceReceivedDate: d.invoiceReceivedDate || '',
-    isPaid: Boolean(d.isPaid),
-    paidAt: d.paidAt || '',
+    amount: asNumberOr(d.amount, 0),
+    description: asString(d.description),
+    invoiceNumber: asString(d.invoiceNumber),
+    invoiceReceived: asBoolean(d.invoiceReceived ?? Boolean(d.invoiceNumber)),
+    invoiceReceivedDate: asString(d.invoiceReceivedDate),
+    isPaid: asBoolean(d.isPaid),
+    paidAt: asString(d.paidAt),
     isDeductible: d.isDeductible !== false,
-    notes: d.notes || '',
+    notes: asString(d.notes),
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
   }
@@ -45,26 +45,15 @@ export function subscribeToPropertyExpenses(
   onSuccess: (expenses: Expense[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(
-    collection(db, COLLECTION_NAME),
-    where('propertyId', '==', propertyId),
-  )
-
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const items: Expense[] = snapshot.docs
-        .filter((docSnap) => !docSnap.data().deletedAt)
-        .map((docSnap) => mapExpense(docSnap.id, docSnap.data()))
-      // Sort by date descending in memory
-      items.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-      onSuccess(items)
-    },
-    (err) => {
-      console.error('Error in expenses subscription:', err)
-      if (onError) onError(err)
-    },
-  )
+  return subscribeToCollection<Expense>({
+    name: COLLECTION_NAME,
+    constraints: [where('propertyId', '==', propertyId)],
+    filter: (data) => !data.deletedAt,
+    map: mapExpense,
+    sort: (a, b) => (b.date || '').localeCompare(a.date || ''),
+    onSuccess,
+    onError,
+  })
 }
 
 export function subscribeToYearExpenses(
@@ -72,14 +61,14 @@ export function subscribeToYearExpenses(
   onSuccess: (expenses: Expense[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  const q = query(collection(db, COLLECTION_NAME), where('year', '==', year))
-  return onSnapshot(q, (snapshot) => {
-    const items = snapshot.docs.map((docSnap) => mapExpense(docSnap.id, docSnap.data()))
-    items.sort((a, b) => b.date.localeCompare(a.date))
-    onSuccess(items)
-  }, (error) => {
-    console.error('Error fetching yearly expense overview:', error)
-    onError?.(error)
+  return subscribeToCollection<Expense>({
+    name: COLLECTION_NAME,
+    constraints: [where('year', '==', year)],
+    filter: (data) => !data.deletedAt,
+    map: mapExpense,
+    sort: (a, b) => b.date.localeCompare(a.date),
+    onSuccess,
+    onError,
   })
 }
 
