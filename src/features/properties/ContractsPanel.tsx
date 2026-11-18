@@ -189,12 +189,18 @@ export default function ContractsPanel({ property, contracts, tenants = [] }: Pr
     finally { setBusy(false) }
   }
 
-  const openPdfInCurrentTab = async (version: ContractFileVersion) => {
+  const openPdfInNewTab = async (version: ContractFileVersion) => {
     setError('')
+    // El popup se abre antes del await para que el navegador no lo bloquee.
+    const popup = window.open('', '_blank')
     try {
       const blob = await getContractPdfBlob(version.id)
-      window.location.assign(URL.createObjectURL(blob))
+      const url = URL.createObjectURL(blob)
+      if (popup) popup.location.href = url
+      else window.location.assign(url)
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
     } catch (e) {
+      popup?.close()
       setError(e instanceof Error ? e.message : 'No se pudo abrir el PDF.')
     }
   }
@@ -238,7 +244,7 @@ export default function ContractsPanel({ property, contracts, tenants = [] }: Pr
 
   const renderFilePreview = (key: string, title: string, compact = false) => {
     const latest = versionsByDocument.get(key)?.[0]
-    return latest ? <PdfThumbnail version={latest} title={title} compact={compact} onOpen={() => void openPdfInCurrentTab(latest)} /> : <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-slate-700 text-xs text-slate-500">Todavía no hay PDF asociado.</div>
+    return latest ? <PdfThumbnail version={latest} title={title} compact={compact} onOpen={() => void openPdfInNewTab(latest)} /> : <div className="flex h-28 items-center justify-center rounded-lg border border-dashed border-slate-700 text-xs text-slate-500">Todavía no hay PDF asociado.</div>
   }
 
   const renderFileControls = (key: string, contractId: string, kind: ContractFileKind, addendumId?: string) => {
@@ -345,9 +351,9 @@ function PdfThumbnail({ version, title, compact = false, onOpen }: { version: Co
     }
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl) }
   }, [version.id])
-  return <button ref={thumbnailRef} type="button" onClick={onOpen} className="group block w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-left" title={`Previsualizar ${title}`}>
-    <div className={`relative w-full overflow-hidden bg-slate-800 ${compact ? 'h-[4.5rem]' : 'h-36'}`}>{url ? <iframe title={`Vista previa ${title}`} src={`${url}#zoom=175`} tabIndex={-1} className={`pointer-events-none absolute left-0 top-0 w-[200%] origin-top-left scale-50 ${compact ? 'h-[210px]' : 'h-[420px]'}`} /> : <div className="flex h-full items-center justify-center text-4xl text-teal-300">▤</div>}<span className="absolute inset-0 bg-transparent group-hover:bg-teal-400/5" /></div>
-    <div className="truncate border-t border-slate-800 px-2 py-1.5 text-[10px] text-slate-300">Vista previa · {version.fileName}</div>
+  return <button ref={thumbnailRef} type="button" onClick={onOpen} className="group block w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900 text-left" title={`Abrir ${title} en una pestaña nueva`}>
+    <div className={`relative w-full overflow-hidden bg-slate-800 ${compact ? 'aspect-square' : 'aspect-[3/4]'}`}>{url ? <iframe title={`Vista previa ${title}`} src={`${url}#zoom=page-width&toolbar=0`} tabIndex={-1} className="pointer-events-none absolute inset-x-0 top-0 h-[300%] w-full" /> : <div className="flex h-full items-center justify-center text-4xl text-teal-300">▤</div>}<span className="absolute inset-0 bg-transparent group-hover:bg-teal-400/5" /></div>
+    <div className="truncate border-t border-slate-800 px-2 py-1.5 text-[10px] text-slate-300">Abrir PDF en pestaña nueva · {version.fileName}</div>
   </button>
 }
 function EditorPdfPreview({ version }: { version: ContractFileVersion }) {

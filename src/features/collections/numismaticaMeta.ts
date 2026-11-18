@@ -6,6 +6,8 @@
  * still allowing the UI to show "a.C." / "d.C." labels.
  */
 
+import { groupThousands } from '@/utils/numbers'
+
 export const CONSERVATION_STATES = [
   'Excelente',
   'Muy buena',
@@ -50,6 +52,7 @@ const euroAmountFormatter = new Intl.NumberFormat('es-ES', {
   style: 'currency',
   currency: 'EUR',
   maximumFractionDigits: 2,
+  useGrouping: false,
 })
 
 export function getCurrency(code?: string): CurrencyInfo {
@@ -91,13 +94,13 @@ export function roundEuro(value: number): number {
 }
 
 export function formatEuroAmount(value: number): string {
-  return euroAmountFormatter.format(value)
+  return groupThousands(euroAmountFormatter.format(value))
 }
 
 export function formatCurrencyAmount(amount: number, code?: string): string {
   const currency = getCurrency(code)
   if (currency.code === 'EUR') return formatEuroAmount(amount)
-  const formatted = amount.toLocaleString('es-ES', { maximumFractionDigits: 2 })
+  const formatted = groupThousands(amount.toLocaleString('es-ES', { maximumFractionDigits: 2, useGrouping: false }))
   return currency.code === 'ESP' ? `${formatted} ptas` : `${formatted} ${currency.symbol}`
 }
 

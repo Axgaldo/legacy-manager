@@ -440,6 +440,11 @@ export default function CollectionsPage() {
     setIsModalOpen(true)
   }
 
+  const handleOpenEditModal = (asset: AssetItem) => {
+    setEditingAsset(asset)
+    setIsModalOpen(true)
+  }
+
   const handleOpenDetail = useCallback((asset: AssetItem) => {
     const slug = slugIndex.slugById.get(asset.id)
     if (!slug) return
@@ -604,7 +609,6 @@ export default function CollectionsPage() {
                   <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-teal-200">{collection.count}</span>
                 </div>
                 <p className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-400">Valoración: <span className="font-semibold text-emerald-400">{money.formatEuro(collection.value)}</span></p>
-                <p className="mt-1 text-xs font-semibold text-teal-300 group-hover:text-teal-200">Ver colección →</p>
               </button>
             ))}
           </div>
@@ -813,7 +817,7 @@ export default function CollectionsPage() {
               addLabel={isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
             />
           ) : view === 'grid' ? (
-            <AssetGrid assets={filteredAssets} onOpen={handleOpenDetail} onDelete={setAssetToDelete} />
+            <AssetGrid assets={filteredAssets} onOpen={handleOpenDetail} onEdit={handleOpenEditModal} onDelete={setAssetToDelete} />
           ) : (
             <AssetList
               assets={filteredAssets}
@@ -879,7 +883,7 @@ export default function CollectionsPage() {
 
 const filterInputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-teal-500 focus:outline-none'
 
-function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
+function AssetCard({ asset, onOpen, onEdit, onDelete }: { asset: AssetItem; onOpen: (asset: AssetItem) => void; onEdit: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
   const money = useMoney()
   const category = getCategoryInfo(asset.category)
   const mainPhoto = asset.photos?.[0]
@@ -949,7 +953,7 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/60 p-3 px-4">
-        <button onClick={(event) => { event.stopPropagation(); onOpen(asset) }} className="text-xs font-semibold text-teal-300 transition hover:text-teal-200">Ver detalles</button>
+        <button onClick={(event) => { event.stopPropagation(); onEdit(asset) }} className="text-xs font-semibold text-teal-300 transition hover:text-teal-200" title="Editar este bien directamente">Editar</button>
         <button
           onClick={(event) => { event.stopPropagation(); onDelete(asset) }}
           className="rounded-md p-1 text-slate-400 transition hover:bg-red-950/50 hover:text-red-400"
@@ -966,7 +970,7 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
 }
 
 /** Vista de cuadrícula: tarjetas con foto grande y pintado progresivo. */
-function AssetGrid({ assets, onOpen, onDelete }: { assets: AssetItem[]; onOpen: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
+function AssetGrid({ assets, onOpen, onEdit, onDelete }: { assets: AssetItem[]; onOpen: (asset: AssetItem) => void; onEdit: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
   const PAGE_SIZE = 60
   const [limit, setLimit] = useState(PAGE_SIZE)
 
@@ -981,7 +985,7 @@ function AssetGrid({ assets, onOpen, onDelete }: { assets: AssetItem[]; onOpen: 
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {visible.map((asset) => (
-          <AssetCard key={asset.id} asset={asset} onOpen={onOpen} onDelete={onDelete} />
+          <AssetCard key={asset.id} asset={asset} onOpen={onOpen} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </div>
       {hidden > 0 && (

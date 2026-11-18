@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { getCurrency } from '@/features/collections/numismaticaMeta'
+import { groupThousands } from '@/utils/numbers'
 import { usePrivacy } from './PrivacyProvider'
 
 /**
@@ -9,22 +10,23 @@ import { usePrivacy } from './PrivacyProvider'
  */
 
 const euroFormatters = {
-  0: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }),
-  2: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }),
+  0: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0, useGrouping: false }),
+  2: new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2, useGrouping: false }),
 } as const
 
-/** Importes en euros sin enmascarar. `undefined`/NaN se muestran como «—». */
+/** Importes en euros sin enmascarar, con separador de miles siempre. `undefined`/NaN se muestran como «—». */
 export function formatEuroValue(value?: number, decimals: 0 | 2 = 0): string {
   if (value === undefined || Number.isNaN(value)) return '—'
-  return euroFormatters[decimals].format(value)
+  return groupThousands(euroFormatters[decimals].format(value))
 }
 
-/** Importe original con su divisa (3.500 ptas, 12,50 CHF…). */
+/** Importe original con su divisa (1.000 ptas, 12,50 CHF…). */
 export function formatOriginalValue(amount?: number, currency?: string): string {
   if (amount === undefined || Number.isNaN(amount)) return ''
   const info = getCurrency(currency)
-  const formatted = amount.toLocaleString('es-ES', { maximumFractionDigits: 2 })
-  return currency ? `${formatted} ${info.code === 'ESP' ? 'ptas' : info.symbol}` : formatted
+  const formatted = amount.toLocaleString('es-ES', { maximumFractionDigits: 2, useGrouping: false })
+  const grouped = groupThousands(formatted)
+  return currency ? `${grouped} ${info.code === 'ESP' ? 'ptas' : info.symbol}` : grouped
 }
 
 // Caracteres usados para censurar los importes en modo incógnito.

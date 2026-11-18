@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Property, Tenant } from '@/types'
 import TenantModal from './TenantModal'
 import { linkTenantToProperty, unlinkTenantFromProperty } from './tenantsService'
@@ -15,6 +15,7 @@ interface PropertyTenantsPanelProps {
 }
 
 export default function PropertyTenantsPanel({ property, tenants, documentCounts }: PropertyTenantsPanelProps) {
+  const navigate = useNavigate()
   const [selectedTenantId, setSelectedTenantId] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [error, setError] = useState('')
@@ -99,11 +100,18 @@ export default function PropertyTenantsPanel({ property, tenants, documentCounts
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {linkedTenants.map((tenant) => (
-            <div key={tenant.id} className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xs">
+            <div
+              key={tenant.id}
+              role="link"
+              tabIndex={0}
+              onClick={() => navigate(`/inmuebles/inquilinos/${tenant.id}`)}
+              onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(`/inmuebles/inquilinos/${tenant.id}`) } }}
+              className="group flex cursor-pointer flex-col rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xs transition hover:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-950/60 text-xs font-bold text-teal-300 ring-1 ring-teal-900">{initials(tenant.name)}</span>
                 <div className="min-w-0 flex-1">
-                  <Link to={`/inmuebles/inquilinos/${tenant.id}`} className="block truncate text-sm font-bold text-slate-100 hover:text-teal-300">{tenant.name}</Link>
+                  <p className="block truncate text-sm font-bold text-slate-100 group-hover:text-teal-300">{tenant.name}</p>
                   <p className="mt-0.5 truncate text-[11px] text-slate-500">{tenant.nif ? `DNI/NIF ${tenant.nif}` : 'Sin DNI/NIF'}</p>
                 </div>
                 {tenant.isActive === false && <span className="rounded-full border border-slate-700 bg-slate-950 px-2 py-0.5 text-[10px] font-semibold text-slate-400">Inactivo</span>}
@@ -117,10 +125,15 @@ export default function PropertyTenantsPanel({ property, tenants, documentCounts
 
               <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
                 <span className="text-[11px] text-slate-500">📎 {documentCounts.get(tenant.id) ?? 0} documento(s)</span>
-                <div className="flex items-center gap-1.5">
-                  <Link to={`/inmuebles/inquilinos/${tenant.id}`} className="rounded-lg px-2 py-1 text-[11px] font-semibold text-teal-300 hover:bg-teal-950/40">Abrir ficha</Link>
-                  <button type="button" onClick={() => void handleUnlink(tenant)} disabled={busyTenantId === tenant.id} className="rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-400 hover:bg-red-950/50 hover:text-red-400 disabled:opacity-50">Desvincular</button>
-                </div>
+                <button
+                  type="button"
+                  onClick={(event) => { event.stopPropagation(); void handleUnlink(tenant) }}
+                  disabled={busyTenantId === tenant.id}
+                  className="rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-400 hover:bg-red-950/50 hover:text-red-400 disabled:opacity-50"
+                  title="Quitar la vinculación con este inmueble"
+                >
+                  Desvincular
+                </button>
               </div>
             </div>
           ))}
