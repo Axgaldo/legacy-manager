@@ -16,6 +16,7 @@
 - src/features/properties: Property management, rent rates, expenses.
 - src/features/properties/contracts: Contract management, PDF handling, and addenda.
 - src/features/tenants: Independent tenant directory, documents and property links.
+- src/features/privacy: Modo incógnito (PrivacyProvider) y formato central de importes (`useMoney`).
 - src/lib: Firebase initialization and storage utilities.
 - src/utils: Helper functions (compression, slug generation, etc.).
 
@@ -29,12 +30,13 @@
     - Max Size: 2MB.
     - Format: Auto-compressed to WebP or JPEG before upload.
 - **CORS & Permissions:** Configured for https://axgaldo.github.io, http://localhost:5173, and http://127.0.0.1:5173.
+- **Modo incógnito (obligatorio):** every money figure in the app is formatted through `useMoney()` (`src/features/privacy/money.ts`), never a local `Intl.NumberFormat`. The sidebar toggle (`PrivacyProvider`) masks amounts as `€ ▓#%$&` (random symbols, Trade Republic style) on every page at once. Editing forms keep showing real numbers. The preference persists in `localStorage` (`legacy-manager:modo-incognito`).
 - **Firebase Rules (important):**
     - The GitHub Pages workflow deploys only the frontend. `firestore.rules` and `storage.rules` are **never** deployed automatically.
     - Firestore: a single wildcard rule (`/{collection}/{document=**}`) covers all app collections, so new collections such as `tenants` and `tenantDocuments` need no rule change.
     - Storage: each path needs its own explicit `match` block. Current paths: `contracts/{propertyId}` (PDF ≤ 100 MiB), `assets/{assetId}` (webp/jpeg/png ≤ 2 MiB), `tenants/{tenantId}` (PDF, images, Word/Excel/ODT, TXT, ZIP/RAR ≤ 25 MiB).
     - `storage.rules` is the source of truth; after editing it, publish it in Firebase Console → Storage → Rules (or `firebase deploy --only storage`). Without the `tenants/` block, tenant uploads fail with `storage/unauthorized`.
-    - Full rules table, copy-paste block and publishing steps: README → "Firebase rules (Firestore and Storage)".
+    - Full rules table, copy-paste block and publishing steps: README → "Reglas de Firebase (Firestore y Storage)".
 
 ## Assets Module (Bienes)
 - **Entry Point:** `/bienes` shows **only the collection cards** — no asset previews: **Todos**, Numismática, Arte, Relojes, Electrónica y electrodomésticos and Objetos, each with its count and valoración. Clicking a card opens `/bienes/categoria/:collectionKey` (`todos`, `numismatica`, `arte`, `relojes`, `electronica`, `objetos`).
@@ -104,6 +106,7 @@
     - **1.9.0:** Preferencias de lista por colección (agrupar, ordenar y filtros) guardadas en `localStorage` y en la URL para compartir vistas filtradas; total de la vista visible («Mostrando X de Y · valor») con botón de limpiar filtros; pintado progresivo de 200 en 200; navegación con flechas ↑/↓ por la lista; e impresión de la vista o de un grupo como tabla compacta en blanco y negro.
     - **Medallas:** se descartan los dos archivos ingleses de 2014 por ser un subconjunto incompleto de 2012 (sin números nuevos). Las medallas inglesas de 2012 y las fichas 238-246 de «MEDALLAS VARIOS PAISES» se asignan a Elena Carter; el resto, a Gabriel Galdó.
     - **1.10.0:** Bienes reorganizado: al entrar en `/bienes` solo se ven las colecciones (sin tarjetas de bienes ni estadísticas); nuevas categorías **Relojes** y **Electrónica y electrodomésticos** (alias legacy `watches`→relojes y `electronics`/`computers`→electronica, el resto→objetos); colección **Todos** en `/bienes/categoria/todos` con agrupación por **Categoría** y **Tipo de objeto** y orden por categoría; todas las colecciones usan por defecto la vista de filas (`AssetList`, antes `NumismaticaList`) con selector **Lista / Cuadrícula** (`vista` en URL y localStorage, cuadrícula con foto grande y pintado 60 en 60); la ficha flotante con editar/borrar arriba es el único punto de detalle en todas las colecciones; el formulario genérico gana el campo **Marca / modelo / autor** (`brandOrAuthor`, antes volcado como etiqueta al editar).
+    - **1.11.0:** **Modo incógnito** en la barra lateral (estilo Trade Republic): todas las cifras de dinero de la app se formatean con `useMoney()` (`src/features/privacy/money.ts`) y quedan enmascaradas como «€ ▓#%$&» con caracteres aleatorios al activarlo; se recuerda en `localStorage`. Unifica los 8 formateadores de euros duplicados en uno solo; los formularios de edición siguen mostrando los importes reales; los importes originales con divisa muestran el símbolo (ptas, $…) en vez del código. También: `eslint.config.js` nuevo (ESLint 9 flat config) para que `npm run lint` funcione, y README reescrito en español (módulos, despliegue, reglas y CORS).
 
 ---
 

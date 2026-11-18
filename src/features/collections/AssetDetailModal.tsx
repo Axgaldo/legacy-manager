@@ -1,11 +1,11 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
+import { useMoney } from '@/features/privacy/money'
 import { getCategoryInfo } from './assetCategories'
 import {
   coinValue,
   conservationTone,
-  formatEuro,
   hasValue,
   isMedal,
   locationLabel,
@@ -17,12 +17,6 @@ import {
 function formatText(value?: string | number): string {
   if (value === undefined || value === null) return ''
   return String(value).trim()
-}
-
-function formatOriginal(amount?: number, currency?: string): string {
-  if (amount === undefined) return ''
-  const formatted = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2 }).format(amount)
-  return currency ? `${formatted} ${currency}` : formatted
 }
 
 function Field({ label, value }: { label: string; value?: string | number }) {
@@ -67,6 +61,7 @@ export default function AssetDetailModal({
   onNext?: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  const money = useMoney()
 
   useEffect(() => {
     if (!asset || suspended) return
@@ -242,7 +237,7 @@ export default function AssetDetailModal({
               )}
               <SummaryTile
                 label="Valor"
-                value={hasValue(asset) ? formatEuro(value) : '—'}
+                value={hasValue(asset) ? money.formatEuro(value) : '—'}
                 valueClass={hasValue(asset) ? 'text-emerald-400' : 'text-slate-500'}
               />
             </div>
@@ -294,19 +289,19 @@ export default function AssetDetailModal({
             <div className="grid gap-4 sm:grid-cols-2">
               <Section title="Valoración">
                 <dl className="grid grid-cols-1 gap-3">
-                  <Field label="Valor de mercado" value={asset.market_value !== undefined ? formatEuro(asset.market_value) : ''} />
-                  <Field label="Valor de referencia" value={asset.reference_book_value !== undefined ? formatEuro(asset.reference_book_value) : ''} />
+                  <Field label="Valor de mercado" value={asset.market_value !== undefined ? money.formatEuro(asset.market_value) : ''} />
+                  <Field label="Valor de referencia" value={asset.reference_book_value !== undefined ? money.formatEuro(asset.reference_book_value) : ''} />
                   <Field
                     label="Importe original de referencia"
-                    value={formatOriginal(asset.reference_book_value_original, asset.reference_book_currency)}
+                    value={money.formatOriginal(asset.reference_book_value_original, asset.reference_book_currency)}
                   />
                   <Field label="Libro de referencia" value={asset.reference_book} />
-                  <Field label="Valor declarado" value={asset.value !== undefined ? formatEuro(asset.value) : ''} />
+                  <Field label="Valor declarado" value={asset.value !== undefined ? money.formatEuro(asset.value) : ''} />
                   <Field label="Fuente del valor" value={asset.value_source} />
-                  <Field label="Precio de compra" value={asset.purchase_price !== undefined ? formatEuro(asset.purchase_price) : ''} />
+                  <Field label="Precio de compra" value={asset.purchase_price !== undefined ? money.formatEuro(asset.purchase_price) : ''} />
                   <Field
                     label="Importe original de compra"
-                    value={formatOriginal(asset.purchase_price_original, asset.purchase_currency)}
+                    value={money.formatOriginal(asset.purchase_price_original, asset.purchase_currency)}
                   />
                   <Field label="Año de compra" value={asset.purchase_year} />
                   <Field label="Operación" value={asset.acquisition_operation} />

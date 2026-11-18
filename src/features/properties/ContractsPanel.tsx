@@ -7,6 +7,7 @@ import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAG
 import { updateProperty } from './propertiesService'
 import { normalizeRentHistory } from './rentRates'
 import { ensureTenantFromLegacyData } from '@/features/tenants/tenantsService'
+import { useMoney } from '@/features/privacy/money'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 
 type Props = { property: Property; contracts: Contract[]; tenants?: Tenant[] }
@@ -15,6 +16,8 @@ const fieldClass = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 
 const labelClass = 'mb-1 block text-xs font-medium text-slate-300'
 
 export default function ContractsPanel({ property, contracts, tenants = [] }: Props) {
+  const money = useMoney()
+  const euro = (value: number) => money.formatEuro(value, 2)
   const [versions, setVersions] = useState<ContractFileVersion[]>([])
   const [addenda, setAddenda] = useState<ContractAddendum[]>([])
   const [error, setError] = useState('')
@@ -363,5 +366,5 @@ function EditorPdfPreview({ version }: { version: ContractFileVersion }) {
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className={labelClass}>{label}</span>{children}</label> }
 function ModalActions({ busy, submit, onCancel }: { busy: boolean; submit: string; onCancel: () => void }) { return <div className="flex justify-end gap-2 border-t border-slate-800 pt-4"><button type="button" disabled={busy} onClick={onCancel} className="rounded-lg px-4 py-2 text-xs text-slate-300 hover:bg-slate-800">Cancelar</button><button disabled={busy} type="submit" className="rounded-lg bg-teal-700 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Guardando…' : submit}</button></div> }
-function euro(value: number) { return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value) }
+
 function timestamp(value: any) { if (typeof value?.toMillis === 'function') return value.toMillis(); if (value instanceof Date) return value.getTime(); return Date.parse(String(value || '')) || 0 }

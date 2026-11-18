@@ -5,13 +5,15 @@ import { subscribeToYearExpenses } from './expensesService'
 import { subscribeToAllRecurringExpenseOccurrences, subscribeToAllRecurringExpenseSchedules } from './recurringExpensesService'
 import { EXPENSE_CATEGORIES } from './expenseCategories'
 import { propertySlug } from '@/utils/slugs'
+import { useMoney } from '@/features/privacy/money'
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-const euro = (amount: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 }).format(amount)
 const monthName = (year: number, month: number) => new Intl.DateTimeFormat('es-ES', { month: 'long' }).format(new Date(year, month - 1, 1))
 
 export default function PropertyExpensesOverview({ properties }: { properties: Property[] }) {
   const navigate = useNavigate()
+  const money = useMoney()
+  const euro = (amount: number) => money.formatEuro(amount, 2)
   const currentYear = new Date().getFullYear()
   const now = new Date()
   const [year, setYear] = useState(currentYear)

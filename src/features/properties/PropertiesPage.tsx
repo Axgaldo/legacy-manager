@@ -12,6 +12,7 @@ import { isRentApplicableForMonth, rentAmountForMonth } from './rentRates'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { propertySlug } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
+import { useMoney } from '@/features/privacy/money'
 import TenantsPage from '@/features/tenants/TenantsPage'
 
 export type PropertiesTab = 'properties' | 'rentals' | 'expenses' | 'tenants'
@@ -217,14 +218,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
     }
   }
 
-  const formatEuro = (amount?: number) => {
-    if (amount === undefined || isNaN(amount)) return '—'
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'EUR',
-      maximumFractionDigits: 0,
-    }).format(amount)
-  }
+  const money = useMoney()
 
   return (
     <div className="space-y-7">
@@ -296,7 +290,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
             Ingresos Brutos / Mes
           </p>
           <p className="text-2xl font-bold text-emerald-600 mt-2">
-            {formatEuro(metrics.totalMonthlyRent)}
+            {money.formatEuro(metrics.totalMonthlyRent)}
           </p>
         </div>
 
@@ -306,7 +300,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
             Gastos Fijos / Mes
           </p>
           <p className="text-2xl font-bold text-slate-700 mt-2">
-            {formatEuro(metrics.totalMonthlyExpenses)}
+            {money.formatEuro(metrics.totalMonthlyExpenses)}
           </p>
         </div>
 
@@ -320,15 +314,15 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
               metrics.netMonthly >= 0 ? 'text-teal-200' : 'text-red-600'
             }`}
           >
-            {formatEuro(metrics.netMonthly)}
+            {money.formatEuro(metrics.netMonthly)}
           </p>
         </div>
       </div>
 
       <section aria-label="Resumen de alquileres del mes" className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:grid-cols-3 sm:p-5">
-        <div><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mes actual</p><p className="mt-1 text-base font-semibold capitalize text-slate-100">{currentMonthLabel}</p><p className="mt-1 text-xs text-slate-500">Cobros esperados: {formatEuro(currentMonthSummary.expected)}</p></div>
-        <div className="border-t border-slate-800 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cobrado este mes</p><p className="mt-1 text-xl font-semibold text-teal-300">{formatEuro(currentMonthSummary.collected)}</p><p className="mt-1 text-xs text-slate-500">{currentMonthSummary.expected > 0 ? `${Math.round(currentMonthSummary.collected / currentMonthSummary.expected * 100)}% de lo esperado` : 'Sin rentas previstas'}</p></div>
-        <div className={`border-t border-slate-800 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0 ${currentMonthSummary.arrearsAmount > 0 ? 'text-red-300' : 'text-slate-300'}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Atrasos de meses anteriores</p><p className="mt-1 text-xl font-semibold">{formatEuro(currentMonthSummary.arrearsAmount)}</p><p className="mt-1 text-xs">{currentMonthSummary.arrearsCount ? `⚠ ${currentMonthSummary.arrearsCount} mensualidad(es) pendiente(s)` : '✓ Sin atrasos registrados'}</p></div>
+        <div><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Mes actual</p><p className="mt-1 text-base font-semibold capitalize text-slate-100">{currentMonthLabel}</p><p className="mt-1 text-xs text-slate-500">Cobros esperados: {money.formatEuro(currentMonthSummary.expected)}</p></div>
+        <div className="border-t border-slate-800 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cobrado este mes</p><p className="mt-1 text-xl font-semibold text-teal-300">{money.formatEuro(currentMonthSummary.collected)}</p><p className="mt-1 text-xs text-slate-500">{currentMonthSummary.expected > 0 ? `${Math.round(currentMonthSummary.collected / currentMonthSummary.expected * 100)}% de lo esperado` : 'Sin rentas previstas'}</p></div>
+        <div className={`border-t border-slate-800 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0 ${currentMonthSummary.arrearsAmount > 0 ? 'text-red-300' : 'text-slate-300'}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Atrasos de meses anteriores</p><p className="mt-1 text-xl font-semibold">{money.formatEuro(currentMonthSummary.arrearsAmount)}</p><p className="mt-1 text-xs">{currentMonthSummary.arrearsCount ? `⚠ ${currentMonthSummary.arrearsCount} mensualidad(es) pendiente(s)` : '✓ Sin atrasos registrados'}</p></div>
       </section>
 
       {/* Filter and Search Bar */}
@@ -526,7 +520,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                   <div className="flex items-baseline justify-between">
                     <span className="text-xs text-slate-500">Renta mensual:</span>
                     <span className="text-sm font-bold text-emerald-600">
-                      {formatEuro(rentAmountForMonth(prop, currentYear, currentMonth))}/mes
+                      {money.formatEuro(rentAmountForMonth(prop, currentYear, currentMonth))}/mes
                     </span>
                   </div>
                 ) : (
@@ -538,11 +532,11 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
 
                 {(() => {
                   const paymentStatus = paymentStatusByProperty.get(prop.id)
-                  if (paymentStatus?.arrearsCount) return <div className="mt-2 rounded-lg border border-red-900 bg-red-950/50 px-3 py-2 text-xs text-red-200"><strong>⚠ ATRASOS · {paymentStatus.arrearsCount} mes(es)</strong><span className="ml-2">{formatEuro(paymentStatus.arrearsAmount)} pendiente</span></div>
+                  if (paymentStatus?.arrearsCount) return <div className="mt-2 rounded-lg border border-red-900 bg-red-950/50 px-3 py-2 text-xs text-red-200"><strong>⚠ ATRASOS · {paymentStatus.arrearsCount} mes(es)</strong><span className="ml-2">{money.formatEuro(paymentStatus.arrearsAmount)} pendiente</span></div>
                   if (prop.status !== 'rented') return null
                   if (paymentStatus && !paymentStatus.currentApplicable) return <div className="mt-2 rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">Alquiler no iniciado hasta {prop.rentStartMonth}</div>
-                  if (paymentStatus?.currentPaid) return <div className="mt-2 rounded-lg border border-emerald-900 bg-emerald-950/50 px-3 py-2 text-xs text-emerald-200">✓ Cobro de este mes registrado: {formatEuro(paymentStatus.collected)}</div>
-                  if ((paymentStatus?.collected ?? 0) > 0) return <div className="mt-2 rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs text-red-200">◒ Cobro parcial este mes: {formatEuro(paymentStatus?.collected)} · faltan {formatEuro(Math.max(0, rentAmountForMonth(prop, currentYear, currentMonth) - (paymentStatus?.collected ?? 0)))}</div>
+                  if (paymentStatus?.currentPaid) return <div className="mt-2 rounded-lg border border-emerald-900 bg-emerald-950/50 px-3 py-2 text-xs text-emerald-200">✓ Cobro de este mes registrado: {money.formatEuro(paymentStatus.collected)}</div>
+                  if ((paymentStatus?.collected ?? 0) > 0) return <div className="mt-2 rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-xs text-red-200">◒ Cobro parcial este mes: {money.formatEuro(paymentStatus?.collected)} · faltan {money.formatEuro(Math.max(0, rentAmountForMonth(prop, currentYear, currentMonth) - (paymentStatus?.collected ?? 0)))}</div>
                   return <div className="mt-2 rounded-lg border border-amber-900 bg-amber-950/40 px-3 py-2 text-xs text-amber-200">◷ Cobro de {currentMonthLabel} pendiente · mes en curso</div>
                 })()}
 
@@ -559,7 +553,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                   <div className="flex items-baseline justify-between text-xs">
                     <span className="text-slate-500">Gastos fijos:</span>
                     <span className="font-medium text-slate-600">
-                      {formatEuro(prop.fixedExpensesMonthly)}/mes
+                      {money.formatEuro(prop.fixedExpensesMonthly)}/mes
                     </span>
                   </div>
                 )}
@@ -568,7 +562,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
                   <div className="flex items-baseline justify-between text-xs pt-1 border-t border-slate-200/50">
                     <span className="text-slate-400">Valor tasación:</span>
                     <span className="font-medium text-slate-700">
-                      {formatEuro(prop.currentValue)}
+                      {money.formatEuro(prop.currentValue)}
                     </span>
                   </div>
                 )}

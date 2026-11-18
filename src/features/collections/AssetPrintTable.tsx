@@ -1,5 +1,6 @@
 import { AssetItem } from '@/types'
-import { coinValue, detailLabel, formatEuro, locationLabel, yearLabel } from './numismaticaUi'
+import { useMoney } from '@/features/privacy/money'
+import { coinValue, detailLabel, locationLabel, yearLabel } from './numismaticaUi'
 
 /**
  * Tabla que solo existe para imprimir. En pantalla está oculta; las reglas de
@@ -14,6 +15,7 @@ export default function AssetPrintTable({
   assets: AssetItem[]
   subtitle?: string
 }) {
+  const money = useMoney()
   const total = assets.reduce((sum, asset) => sum + coinValue(asset), 0)
   const date = new Intl.DateTimeFormat('es-ES', { dateStyle: 'long' }).format(new Date())
 
@@ -26,7 +28,7 @@ export default function AssetPrintTable({
             {subtitle ? `${subtitle} · ` : ''}{assets.length} pieza(s) · {date}
           </p>
         </div>
-        <p className="shrink-0 text-sm font-bold">Valoración: {formatEuro(total)}</p>
+        <p className="shrink-0 text-sm font-bold">Valoración: {money.formatEuro(total)}</p>
       </header>
 
       <table className="w-full table-fixed border-collapse text-[9px]">
@@ -65,7 +67,7 @@ export default function AssetPrintTable({
               <td className="border border-slate-300 px-1.5 py-0.5 whitespace-nowrap">{asset.conservationState || '—'}</td>
               <td className="border border-slate-300 px-1.5 py-0.5">{locationLabel(asset)}</td>
               <td className="border border-slate-300 px-1.5 py-0.5">
-                {coinValue(asset) ? formatEuro(coinValue(asset)) : '—'}
+                {coinValue(asset) ? money.formatEuro(coinValue(asset)) : '—'}
               </td>
             </tr>
           ))}

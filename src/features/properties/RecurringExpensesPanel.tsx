@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { ExpenseCategory, RecurringExpenseOccurrence, RecurringExpenseSchedule } from '@/types'
 import { EXPENSE_CATEGORIES } from './expenseCategories'
+import { useMoney } from '@/features/privacy/money'
 import { addRecurringExpenseSchedule, createRecurringExpenseScheduleVersion, endRecurringExpensesFromMonth, subscribeToRecurringExpenseOccurrences, subscribeToRecurringExpenseSchedules, updateRecurringExpenseSchedule, updateRecurringOccurrence } from './recurringExpensesService'
 
 const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
@@ -38,7 +39,8 @@ export default function RecurringExpensesPanel({ propertyId }: { propertyId: str
     const endDelta = (endYear - year) * 12 + endMonth - month
     return monthDelta >= 0 && endDelta >= 0 && monthDelta % Math.max(1, schedule.intervalMonths) === 0
   }
-  const formatEuro = (value: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value)
+  const money = useMoney()
+  const formatEuro = (value: number) => money.formatEuro(value, 2)
 
   const openCreate = () => {
     setEditingSchedule(null)

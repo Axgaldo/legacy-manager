@@ -5,9 +5,9 @@ import { subscribeToAllYearPayments } from './paymentsService'
 import { isRentApplicableForMonth, rentAmountForMonth } from './rentRates'
 import { propertySlug } from '@/utils/slugs'
 import { resolveAutoRentStatus, resolveRentStatus } from './rentPaymentStatus'
+import { useMoney } from '@/features/privacy/money'
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-const euro = (amount: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(amount)
 const STATUS_TEXT: Record<string, string> = {
   paid: 'text-emerald-300',
   partial: 'text-red-300',
@@ -21,6 +21,8 @@ const STATUS_TEXT: Record<string, string> = {
 
 export default function RentPaymentsOverview({ properties }: { properties: Property[] }) {
   const now = new Date()
+  const money = useMoney()
+  const euro = (amount: number) => money.formatEuro(amount)
   const [year, setYear] = useState(now.getFullYear())
   const [payments, setPayments] = useState<RentPayment[]>([])
   useEffect(() => subscribeToAllYearPayments(year, setPayments), [year])

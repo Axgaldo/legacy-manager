@@ -2,8 +2,6 @@ import { AssetItem } from '@/types'
 import { CONSERVATION_STATES, formatSignedYear } from './numismaticaMeta'
 import { ASSET_CATEGORIES, getCategoryInfo, type CollectionKey } from './assetCategories'
 
-const euroFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
-
 export type NumismaticaGroupBy =
   | 'location'
   | 'owner'
@@ -141,10 +139,6 @@ export function conservationRank(state?: string): number {
   const key = normalizeUiText(state)
   const index = CONSERVATION_STATES.findIndex((item) => normalizeUiText(item) === key)
   return index === -1 ? CONSERVATION_STATES.length : index
-}
-
-export function formatEuro(value?: number): string {
-  return value === undefined || Number.isNaN(value) ? '—' : euroFormatter.format(value)
 }
 
 export function coinValue(asset: AssetItem): number {

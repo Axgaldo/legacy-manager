@@ -17,6 +17,7 @@ import PropertyTenantsPanel from '@/features/tenants/PropertyTenantsPanel'
 import { countDocumentsByTenant, migratePropertyTenants, subscribeToAllTenantDocuments, subscribeToTenants } from '@/features/tenants/tenantsService'
 import { propertySlug } from '@/utils/slugs'
 import { useOwnerDirectory } from '@/hooks/useOwnerDirectory'
+import { useMoney } from '@/features/privacy/money'
 import { MANUAL_STATUS_OPTIONS, RENT_STATUS_META, resolveAutoRentStatus, resolveRentStatus } from './rentPaymentStatus'
 
 const MONTH_NAMES = [
@@ -359,13 +360,9 @@ export default function PropertyDetailPage() {
     setExpPaidAt('')
   }
 
-  const formatEuro = (amount?: number) => {
-    if (amount === undefined || isNaN(amount)) return '0,00 €'
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(amount)
-  }
+  const money = useMoney()
+  // Los importes de la ficha del inmueble se muestran con céntimos.
+  const formatEuro = (amount?: number) => money.formatEuro(amount, 2)
 
   if (loading) {
     return (

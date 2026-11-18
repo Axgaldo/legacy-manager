@@ -1,99 +1,123 @@
-# legacy-manager
+# Legacy Manager
+
+> Gestión privada del patrimonio familiar: inmuebles, alquileres, inquilinos, contratos y bienes.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/Axgaldo/legacy-manager/deploy.yml?branch=main&label=build)](https://github.com/Axgaldo/legacy-manager/actions/workflows/deploy.yml)
-[![Version](https://img.shields.io/github/package-json/v/Axgaldo/legacy-manager?label=version)](https://github.com/Axgaldo/legacy-manager/blob/main/package.json)
-[![License](https://img.shields.io/github/license/Axgaldo/legacy-manager?label=license)](https://github.com/Axgaldo/legacy-manager/blob/main/LICENSE)
+[![Version](https://img.shields.io/github/package-json/v/Axgaldo/legacy-manager?label=versión)](https://github.com/Axgaldo/legacy-manager/blob/main/package.json)
+[![License](https://img.shields.io/github/license/Axgaldo/legacy-manager?label=licencia)](https://github.com/Axgaldo/legacy-manager/blob/main/LICENSE)
 
-Private family wealth management app.
+Aplicación web **privada** para llevar el inventario patrimonial de una familia. Corre en GitHub Pages sobre Firebase (Authentication, Firestore y Cloud Storage) dentro de los límites **sin coste** del plan Spark.
 
-## User authorization
+## Módulos
 
-Firebase Authentication handles Google sign-in. Access is granted only when the signed-in user's Firebase UID has an enabled document in Firestore at `authorizedUsers/{uid}`.
+### 🏠 Inmuebles
+- **Propiedades**: fichas con dirección, referencia catastral, inquilinos vinculados, fianza y valor estimado.
+- **Alquileres**: control mensual de cobros por inmueble y año, con estados automáticos (cobrado, parcial, atraso, exceso), colores manuales y cambios de renta con histórico.
+- **Gastos**: vista transversal de gastos puntuales y periódicos con calendario por mes, facturas y resumen fiscal (IRPF).
+- **Inquilinos**: directorio independiente con documentos (DNI, contratos, nóminas…) y vinculación bidireccional con inmuebles.
+- **Contratos y adendas**: PDF hasta 100 MiB por versión, en Firebase Cloud Storage; activar/deshactivar contratos sin perder el archivo.
 
-To authorize a user:
+### 🪙 Bienes y Activos
+- Portada con las colecciones: **Todos**, Numismática, Arte y cuadros, Relojes, Electrónica y electrodomésticos y Objetos diversos.
+- Vista de **filas** (por defecto) o **cuadrícula** con foto grande; agrupación y orden configurables, filtros por propietario, material, estado, época y etiquetas.
+- **Ficha flotante** al pulsar cualquier bien: todos sus datos e imágenes, navegación anterior/siguiente, impresión, editar/borrar (con doble confirmación) y URL propia para compartir.
+- **Numismática** con formulario específico de monedas y medallas (ceca, ensayador, peso, catálogo, divisas originales convertidas a euros…).
+- Listas imprimibles en blanco y negro y vistas filtradas compartibles por URL.
 
-1. Have the user sign in once with Google so Firebase Authentication creates their account.
-2. In Firebase Console, open **Firestore Database → Data** and create a document in the `authorizedUsers` collection. Use the user's Firebase Authentication UID as the document ID and set `enabled` to the boolean value `true`.
-3. The user's document is readable only by that signed-in user. Firestore rules deny client-side creation, edits, and deletion of authorization records, so manage this allowlist in the Firebase Console.
-4. To revoke access, set `enabled` to `false` or delete the authorization document.
+### 🙈 Modo incógnito
+Un interruptor en la barra lateral oculta **todas las cifras de dinero** de la app (rentas, gastos, valoraciones, totales…) sustituyéndolas por caracteres especiales aleatorios, al estilo de las apps de banca. El resto de la app sigue funcionando con normalidad; la preferencia se recuerda entre sesiones.
 
-When migrating from the previous UID-based rules, create enabled authorization documents for every user who should retain access before publishing the updated `firestore.rules`. The GitHub Pages workflow publishes the frontend only; Firestore rules must be published separately from Firebase Console.
+## Stack
 
-## Firebase rules (Firestore and Storage)
+| Capa | Tecnología |
+|---|---|
+| Frontend | React 18 · Vite · TypeScript · Tailwind CSS |
+| Router | React Router (rutas por pestaña, fichas con slug) |
+| Backend | Firebase Authentication (Google) · Firestore · Cloud Storage |
+| Despliegue | GitHub Actions → GitHub Pages |
 
-The GitHub Pages workflow deploys **only the frontend**. Rules are never deployed by it: both `firestore.rules` and `storage.rules` must be copied into Firebase Console (or deployed with the Firebase CLI) whenever they change.
+## Empezar
 
-### Firestore
+Requisitos: Node 20+ y un proyecto de Firebase.
 
-`firestore.rules` uses one wildcard rule that already covers every application collection, including `tenants` and `tenantDocuments`. **No Firestore change is needed for the tenants feature.**
+```bash
+git clone https://github.com/Axgaldo/legacy-manager.git
+cd legacy-manager
+npm install
+cp .env.example .env.local   # y rellena los valores de tu proyecto Firebase
+npm run dev                  # http://localhost:5173
+```
 
-### Storage
+Scripts: `npm run dev` (desarrollo) · `npm run build` (TypeScript + build de producción) · `npm run preview` · `npm run lint`.
 
-The source of truth is [`storage.rules`](storage.rules). The bucket has these path rules:
+Las variables `VITE_FIREBASE_*` se configuran también como **secretos del repositorio** para el despliegue (ver abajo).
 
-| Path | Used by | Max size | Allowed content | Delete |
+## Autorización de usuarios
+
+El acceso se concede solo a usuarios de una lista de permitidos gestionada en Firestore:
+
+1. El usuario inicia sesión una vez con Google para que Firebase Authentication cree su cuenta.
+2. En Firebase Console → **Firestore Database → Data**, crea un documento en la colección `authorizedUsers` con el **UID de autenticación** como ID y `enabled: true`.
+3. Las reglas deniegan crear/editar/borrar esos documentos desde el cliente, así que la lista se administra solo desde la consola. Para revocar el acceso, pon `enabled: false` o borra el documento.
+
+## Reglas de Firebase (Firestore y Storage)
+
+El workflow de GitHub Pages despliega **solo el frontend**; las reglas **nunca** se publican solas. Cuando cambien `firestore.rules` o `storage.rules`, publícalas en Firebase Console o con la CLI de Firebase.
+
+- **Firestore**: una regla wildcard `/{collection}/{document=**}` cubre todas las colecciones de la app (`properties`, `assets`, `tenants`, `tenantDocuments`…). Las colecciones nuevas no necesitan cambios.
+- **Storage**: cada ruta necesita su propio bloque `match`. El origen de la verdad es [`storage.rules`](storage.rules):
+
+| Ruta | Uso | Máx. | Contenido permitido | Borrar |
 |---|---|---|---|---|
-| `contracts/{propertyId}/{fileName}` | Contract PDF versions | 100 MiB | PDF | No (archival) |
-| `assets/{assetId}/{fileName}` | Asset photos | 2 MiB | `image/webp`, `image/jpeg`, `image/png` | Yes |
-| `tenants/{tenantId}/{fileName}` | Tenant documents | 25 MiB | PDF, images (`jpeg`, `png`, `webp`, `gif`, `heic`), Word/Excel/ODT, TXT, ZIP/RAR | Yes |
+| `contracts/{propertyId}/{fileName}` | PDF de contratos/adendas | 100 MiB | PDF | No (archival) |
+| `assets/{assetId}/{fileName}` | Fotos de bienes | 2 MiB | webp, jpeg, png | Sí |
+| `tenants/{tenantId}/{fileName}` | Documentos de inquilinos | 25 MiB | PDF, imágenes, Word/Excel/ODT, TXT, ZIP/RAR | Sí |
 
-Everything else is denied by `match /{allPaths=**} { allow read, write: if false; }`.
+Sin el bloque `tenants/`, subir cualquier documento de inquilino falla con `storage/unauthorized`. El bloque actual está en `storage.rules`; la validación cliente equivalente vive en `src/features/tenants/tenantsService.ts` y `src/lib/storageFiles.ts` (mantenlas sincronizadas con los límites).
 
-If the `tenants/` block is missing, uploading any tenant document fails with `storage/unauthorized` even though the rest of the app works. Current block to paste inside `service firebase.storage { ... }`:
+### Publicación de reglas y CORS
 
-```
-    // Tenant documents: PDFs, images and office files, up to 25 MiB each.
-    match /tenants/{tenantId}/{fileName} {
-      allow read: if isAllowedUser();
-      allow create: if isAllowedUser()
-          && request.resource.size <= 25 * 1024 * 1024
-          && (
-            request.resource.contentType == 'application/pdf'
-            || request.resource.contentType.matches('image/(jpeg|png|webp|gif|heic)')
-            || request.resource.contentType.matches('application/(msword|vnd.openxmlformats-officedocument.wordprocessingml.document|vnd.ms-excel|vnd.openxmlformats-officedocument.spreadsheetml.sheet|vnd.oasis.opendocument.text|zip|vnd.rar)')
-            || request.resource.contentType == 'text/plain'
-          );
-      allow update: if false;
-      allow delete: if isAllowedUser();
-    }
+```bash
+firebase login
+firebase use <project>
+firebase deploy --only firestore:rules,storage
 ```
 
-### Publishing
+O pega el contenido de cada `.rules` en Firebase Console → Firestore/Storage → Reglas → **Publicar**.
 
-- **Console:** Firebase Console → Storage → Rules → paste the content of `storage.rules` → **Publish**. Same for Firestore → Rules with `firestore.rules`.
-- **CLI:** `firebase deploy --only storage` (and/or `--only firestore:rules`) after `firebase login` and `firebase use <project>`.
-- After changing the limits in `storage.rules`, update the client-side validation too (`src/features/tenants/tenantsService.ts`, `src/lib/storageFiles.ts`) so users get a clear message before uploading.
+La configuración CORS de Storage está en [`storage.cors.json`](storage.cors.json) (GitHub Pages, `localhost:5173` y `127.0.0.1:5173`) y se aplica con:
 
-### Notes
+```bash
+gsutil cors set storage.cors.json gs://<bucket>
+```
 
-- Tenant document MIME types are derived from the file **extension** first (see `resolveTenantDocumentContentType`), because browsers often report `application/octet-stream` for Office/ZIP files and Storage rules check the declared MIME type.
-- Storage paths for tenant documents are `tenants/{tenantId}/{documentId}.{extension}`; the metadata lives in Firestore `tenantDocuments`.
-- Any new Storage path (for example a future module) needs its own explicit `match` block; the wildcard at the end denies everything unknown.
+## Despliegue (GitHub Pages)
 
-## Versioning
+1. Configura Pages en el repositorio con la opción **GitHub Actions**.
+2. Añade los secretos `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID` y `VITE_FIREBASE_APP_ID`.
+3. Cada push a `main` ejecuta [`deploy.yml`](.github/workflows/deploy.yml): `npm ci` → `npm run build` → publica `dist/`.
 
-The version lives in `package.json`. At build time, `vite.config.ts` injects three constants used by the sidebar footer:
+## Estructura del proyecto
 
-| Constant | Value | Source |
-|---|---|---|
-| `__APP_VERSION__` | `1.0.0` | `package.json` → `version` |
-| `__APP_COMMIT__` | short git hash (e.g. `a1b2c3d`) or `local` | `git rev-parse --short HEAD` |
-| `__APP_BUILD_DATE__` | ISO timestamp | build time |
+```
+src/
+├── components/            # Layout (barra lateral) y UI compartida
+├── features/
+│   ├── auth/              # Login con Google y ruta privada
+│   ├── collections/       # Bienes: colecciones, listas, fichas, formulario
+│   ├── privacy/           # Modo incógnito y formato central de importes
+│   ├── properties/        # Inmuebles: fichas, alquileres, gastos, contratos
+│   └── tenants/           # Inquilinos y sus documentos
+├── hooks/ lib/ utils/     # Firebase, Storage y utilidades (slugs, compresión…)
+└── types/                 # Modelos compartidos de Firestore
+```
 
-They are declared in `src/vite-env.d.ts` and displayed in `src/components/layout/AppLayout.tsx` above the account block, e.g. `v1.0.0 · a1b2c3d` and the build date. Nothing needs to be edited by hand.
+El contexto del proyecto para agentes de IA (convenciones, reglas de negocio y registro de versiones) está en [`AGENTS.md`](AGENTS.md).
 
-Use [Semantic Versioning](https://semver.org/lang/es/): `MAJOR.MINOR.PATCH`.
+## Versionado
 
-- `npm version patch` — bug fixes (1.0.0 → 1.0.1).
-- `npm version minor` — new features, backwards compatible (1.0.0 → 1.1.0).
-- `npm version major` — breaking changes (1.0.0 → 2.0.0).
+[SemVer](https://semver.org/lang/es/) en `package.json`; la versión, el commit y la fecha de build se inyectan automáticamente en `vite.config.ts` y se muestran en la barra lateral — no se escriben a mano en componentes. `npm version minor --no-git-tag-version` en el mismo commit del cambio (`patch` para correcciones, `minor` para funciones, `major` si rompe algo).
 
-These commands update `package.json` and `package-lock.json`; then `git push` and, if you want a release marker, `git push --tags`. The deploy workflow does not read tags, but the commit hash and version shown in the app always identify the build.
+## Licencia
 
-## License
-
-MIT — see [`LICENSE`](LICENSE).
-
-Copyright (c) 2026 **Antonio Galdó Seiquer**.
-
-MIT is a permissive open-source license: the copyright stays with the author, and anyone who copies or redistributes the software must keep the copyright and license notice. It does allow others to use, modify and redistribute the code. If you later prefer to reserve all rights instead, replace `LICENSE` with an "All rights reserved" notice and remove the `MIT` link in the sidebar footer (`src/components/layout/AppLayout.tsx`).
+MIT — ver [`LICENSE`](LICENSE). Copyright (c) 2026 **Antonio Galdó Seiquer**.

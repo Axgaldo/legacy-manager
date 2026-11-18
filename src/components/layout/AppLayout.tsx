@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
+import { usePrivacy } from '@/features/privacy/PrivacyProvider'
 
 const BUILD_DATE = new Date(__APP_BUILD_DATE__)
 const BUILD_DATE_LABEL = BUILD_DATE.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -29,8 +30,31 @@ const navItems = [
 
 export default function AppLayout() {
   const { user, signOutUser } = useAuth()
+  const { incognito, toggleIncognito } = usePrivacy()
   const [menuOpen, setMenuOpen] = useState(false)
   const location = useLocation()
+
+  const incognitoToggle = (
+    <button
+      type="button"
+      onClick={toggleIncognito}
+      aria-pressed={incognito}
+      title="Oculta todas las cifras de dinero de la app con caracteres aleatorios"
+      className={`flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition ${
+        incognito
+          ? 'border-amber-700 bg-amber-950/40 text-amber-200 hover:bg-amber-950/60'
+          : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'
+      }`}
+    >
+      <span className="flex items-center gap-2">
+        <span aria-hidden="true">{incognito ? '🙈' : '👁'}</span>
+        <span>Modo incógnito</span>
+      </span>
+      <span className={`relative h-4 w-8 shrink-0 rounded-full transition ${incognito ? 'bg-amber-500' : 'bg-slate-700'}`}>
+        <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${incognito ? 'left-4' : 'left-0.5'}`} />
+      </span>
+    </button>
+  )
 
   const sidebar = (
     <aside className="w-64 bg-slate-900 border-r border-slate-700 flex flex-col shadow-xl text-slate-100 h-full">
@@ -41,6 +65,10 @@ export default function AppLayout() {
       <nav className="flex-1 px-4 py-6 space-y-1.5">
         {navItems.map(({ to, label, icon }) => <NavLink key={to} to={to} onClick={() => setMenuOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${isActive ? 'bg-teal-950 text-teal-200 ring-1 ring-teal-900' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>{icon}{label}</NavLink>)}
       </nav>
+      <div className="px-4 pb-3">
+        {incognitoToggle}
+        <p className="mt-1.5 px-1 text-[10px] leading-snug text-slate-500">Con el modo activo, los importes se muestran como «€ ▓#%$&».</p>
+      </div>
       <div className="border-t border-slate-800 px-4 py-3 text-[10px] leading-relaxed text-slate-500">
         <p className="flex flex-wrap items-center gap-x-1.5 font-mono text-slate-400">
           <span>v{__APP_VERSION__}</span>

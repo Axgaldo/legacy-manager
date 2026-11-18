@@ -7,6 +7,7 @@ import PropertiesPage     from '@/features/properties/PropertiesPage'
 import PropertyDetailPage from '@/features/properties/PropertyDetailPage'
 import TenantDetailPage   from '@/features/tenants/TenantDetailPage'
 import CollectionsPage    from '@/features/collections/CollectionsPage'
+import { PrivacyProvider } from '@/features/privacy/PrivacyProvider'
 
 /** Keeps old /inquilinos/:id links working after moving Inquilinos under Inmuebles. */
 function LegacyTenantRedirect() {
@@ -24,7 +25,9 @@ export default function App() {
           <Route
             element={
               <PrivateRoute>
-                <AppLayout />
+                <PrivacyProvider>
+                  <AppLayout />
+                </PrivacyProvider>
               </PrivateRoute>
             }
           >

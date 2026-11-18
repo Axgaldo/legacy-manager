@@ -9,6 +9,7 @@ import { buildAssetSlugIndex } from '@/utils/slugs'
 import { getDefaultOwner, getOwnerOptions } from '@/utils/owners'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
 import { formatStorageBytes, subscribeToAppStorageUsage, AppStorageUsage, STORAGE_NO_COST_STORAGE_BYTES } from '@/lib/storageUsage'
+import { useMoney } from '@/features/privacy/money'
 import {
   DEFAULT_LIST_PREFERENCES,
   loadPreferences,
@@ -48,12 +49,6 @@ const SEARCHABLE_FIELDS = [
   'inventory_number', 'catalog_reference', 'acquisition_source', 'value_source', 'purchase_currency',
   'weight_grams', 'diameter_mm',
 ] as const
-
-const euroFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
-
-function formatEuro(value?: number) {
-  return value === undefined || Number.isNaN(value) ? '—' : euroFormatter.format(value)
-}
 
 function normalizeText(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es')
@@ -114,6 +109,7 @@ export default function CollectionsPage() {
 
   const deferredSearchQuery = useDeferredValue(searchQuery)
   const isSearchPending = deferredSearchQuery !== searchQuery
+  const money = useMoney()
 
   const activeCollection: CollectionKey | undefined = isCollectionKey(collectionKey) ? collectionKey : undefined
   const isLanding = !activeCollection
@@ -504,7 +500,7 @@ export default function CollectionsPage() {
                 <span>{collectionInfo?.label}</span>
               </h2>
               <p className="mt-0.5 text-sm text-slate-500">
-                {collectionInfo?.description} · {metrics.totalCount} pieza(s) · {formatEuro(metrics.totalValue)}
+                {collectionInfo?.description} · {metrics.totalCount} pieza(s) · {money.formatEuro(metrics.totalValue)}
               </p>
             </>
           )}
@@ -584,7 +580,7 @@ export default function CollectionsPage() {
                   </div>
                   <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-teal-200">{collection.count}</span>
                 </div>
-                <p className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-400">Valoración: <span className="font-semibold text-emerald-400">{formatEuro(collection.value)}</span></p>
+                <p className="mt-4 border-t border-slate-800 pt-3 text-xs text-slate-400">Valoración: <span className="font-semibold text-emerald-400">{money.formatEuro(collection.value)}</span></p>
                 <p className="mt-1 text-xs font-semibold text-teal-300 group-hover:text-teal-200">Ver colección →</p>
               </button>
             ))}
@@ -762,7 +758,7 @@ export default function CollectionsPage() {
             <span>
               Mostrando <strong className="text-slate-200">{filteredAssets.length}</strong> de {scopedAssets.length} pieza(s)
               <span className="mx-1.5 text-slate-700">·</span>
-              <span className="font-semibold text-emerald-400">{formatEuro(filteredValue)}</span>
+              <span className="font-semibold text-emerald-400">{money.formatEuro(filteredValue)}</span>
             </span>
             <span className="flex items-center gap-3">
               <button
@@ -860,6 +856,7 @@ export default function CollectionsPage() {
 const filterInputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-teal-500 focus:outline-none'
 
 function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
+  const money = useMoney()
   const category = getCategoryInfo(asset.category)
   const mainPhoto = asset.photos?.[0]
   const yearText = asset.creation_year_range?.trim() || (asset.year !== undefined ? formatSignedYear(asset.year) : '')
@@ -916,12 +913,12 @@ function AssetCard({ asset, onOpen, onDelete }: { asset: AssetItem; onOpen: (ass
         <div className="flex items-baseline justify-between border-t border-slate-800 pt-2">
           <div>
             <p className="text-[10px] font-semibold uppercase text-slate-500">Valor estimado</p>
-            <p className="text-base font-bold text-emerald-400">{formatEuro(assetValue(asset))}</p>
+            <p className="text-base font-bold text-emerald-400">{money.formatEuro(assetValue(asset))}</p>
           </div>
           {asset.acquisitionPrice !== undefined && asset.acquisitionPrice > 0 && (
             <div className="text-right">
               <p className="text-[10px] font-semibold uppercase text-slate-500">Compra</p>
-              <p className="text-xs font-medium text-slate-400">{formatEuro(asset.acquisitionPrice)}</p>
+              <p className="text-xs font-medium text-slate-400">{money.formatEuro(asset.acquisitionPrice)}</p>
             </div>
           )}
         </div>

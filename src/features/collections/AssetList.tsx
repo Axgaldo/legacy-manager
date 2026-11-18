@@ -1,6 +1,7 @@
 import { memo, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AssetItem } from '@/types'
 import PrivateStorageImage from '@/components/ui/PrivateStorageImage'
+import { useMoney } from '@/features/privacy/money'
 import type { CollectionKey } from './assetCategories'
 import {
   assetIcon,
@@ -8,7 +9,6 @@ import {
   coinValue,
   conservationTone,
   detailLabel,
-  formatEuro,
   groupNumismaticaAssets,
   hasValue,
   inventoryNumber,
@@ -63,6 +63,7 @@ function AssetList({
 }) {
   const PAGE_SIZE = 200
   const [limit, setLimit] = useState(PAGE_SIZE)
+  const money = useMoney()
   const isNumismaticaView = collection === 'numismatica'
   const groups = useMemo(
     () => groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy),
@@ -148,7 +149,7 @@ function AssetList({
               )}
             </p>
             <p className="mt-0.5 truncate text-[11px] text-slate-500 lg:hidden">
-              {[year !== '—' ? year : '', detail, location, hasValue(asset) ? formatEuro(value) : ''].filter((part) => part && part !== '—').join(' · ') || 'Sin datos'}
+              {[year !== '—' ? year : '', detail, location, hasValue(asset) ? money.formatEuro(value) : ''].filter((part) => part && part !== '—').join(' · ') || 'Sin datos'}
             </p>
           </div>
 
@@ -167,7 +168,7 @@ function AssetList({
           </span>
           <span className="hidden truncate text-xs text-slate-400 lg:block" title={location}>{location}</span>
           <span className={`hidden text-right text-xs font-semibold lg:block ${value ? 'text-emerald-400' : 'text-slate-600'}`}>
-            {value ? formatEuro(value) : '—'}
+            {value ? money.formatEuro(value) : '—'}
           </span>
 
           <button
@@ -253,7 +254,7 @@ function AssetList({
                 )}
                 <span>{group.items.length + group.hidden} pieza(s)</span>
                 <span className="text-emerald-400">
-                  {formatEuro(group.items.reduce((total, asset) => total + coinValue(asset), 0))}
+                  {money.formatEuro(group.items.reduce((total, asset) => total + coinValue(asset), 0))}
                   {group.hidden > 0 ? ' (visibles)' : ''}
                 </span>
               </span>
