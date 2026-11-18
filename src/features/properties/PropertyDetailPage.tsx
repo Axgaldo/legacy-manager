@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, Link, useSearchParams, useNavigate } from 'react-router-dom'
-import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument, RecurringExpenseOccurrence, RecurringExpenseSchedule } from '@/types'
+import { Property, RentPayment, RentPaymentManualStatus, Expense, Contract, ExpenseCategory, Tenant, TenantDocument, RecurringExpenseSchedule } from '@/types'
 import { subscribeToProperties } from './propertiesService'
 import { subscribeToYearPayments, toggleInvoiceIssued, updateRentNotes, recordRentReceipt, updateRentPaymentMeta } from './paymentsService'
 import { subscribeToPropertyExpenses, addExpense, deleteExpense, updateExpenseStatus } from './expensesService'
-import { subscribeToRecurringExpenseOccurrences, subscribeToRecurringExpenseSchedules } from './recurringExpensesService'
-import { isScheduleDueInMonth, occurrenceIdFor, recurringMonthlyAverageForProperty } from './recurringExpensesLogic'
+import { subscribeToRecurringExpenseSchedules } from './recurringExpensesService'
+import { recurringMonthlyAverageForProperty } from './recurringExpensesLogic'
 import { subscribeToPropertyContracts } from './contractsService'
 import { isRentApplicableForMonth, normalizeRentHistory, rentAmountForMonth } from './rentRates'
 import { updateProperty } from './propertiesService'
@@ -74,11 +74,11 @@ export default function PropertyDetailPage() {
   // Selected sub-tab
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
-  const activeTab = tabParam === 'gastos' ? 'expenses' : tabParam === 'recurrentes' ? 'recurring' : tabParam === 'contratos' ? 'contracts' : tabParam === 'inquilinos' ? 'tenants' : tabParam === 'fiscal' ? 'tax' : 'payments'
-  const setActiveTab = (tab: 'payments' | 'expenses' | 'recurring' | 'contracts' | 'tenants' | 'tax') => {
+  const activeTab = tabParam === 'gastos' ? 'expenses' : tabParam === 'recurrentes' ? 'recurring' : tabParam === 'contratos' ? 'contracts' : tabParam === 'inquilinos' ? 'tenants' : 'payments'
+  const setActiveTab = (tab: 'payments' | 'expenses' | 'recurring' | 'contracts' | 'tenants') => {
     const next = new URLSearchParams(searchParams)
     if (tab === 'payments') next.delete('tab')
-    else next.set('tab', tab === 'expenses' ? 'gastos' : tab === 'recurring' ? 'recurrentes' : tab === 'contracts' ? 'contratos' : tab === 'tenants' ? 'inquilinos' : 'fiscal')
+    else next.set('tab', tab === 'expenses' ? 'gastos' : tab === 'recurring' ? 'recurrentes' : tab === 'contracts' ? 'contratos' : 'inquilinos')
     setSearchParams(next)
   }
 
@@ -94,7 +94,6 @@ export default function PropertyDetailPage() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [tenantDocuments, setTenantDocuments] = useState<TenantDocument[]>([])
   const [recurringSchedules, setRecurringSchedules] = useState<RecurringExpenseSchedule[]>([])
-  const [recurringOccurrences, setRecurringOccurrences] = useState<RecurringExpenseOccurrence[]>([])
 
   // Modal states for new expense / contract
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
@@ -166,14 +165,12 @@ export default function PropertyDetailPage() {
     return () => unsub()
   }, [property?.id])
 
-  // Subscribe to recurring expenses (hero y resumen fiscal)
+  // Subscribe to recurring expenses (hero de la ficha: media mensual)
   useEffect(() => {
     if (!property) return
     const unsubSchedules = subscribeToRecurringExpenseSchedules(property.id, setRecurringSchedules, () => {})
-    const unsubOccurrences = subscribeToRecurringExpenseOccurrences(property.id, setRecurringOccurrences, () => {})
     return () => {
       unsubSchedules()
-      unsubOccurrences()
     }
   }, [property?.id])
 
@@ -244,68 +241,7 @@ export default function PropertyDetailPage() {
     return Array.from(groups.entries()).sort((a, b) => b[0] - a[0])
   }, [visibleExpenses])
 
-  // Tax calculation
-  const taxSummary = useMemo(() => {
-    const totalIncome = paymentsSummary.annualCollected
-
-    // Breakdown of expenses
-    let comunidad = 0
-    let ibi = 0
-    let seguro = 0
-    let reparacion = 0
-    let suministros = 0
-    let administracion = 0
-    let otros = 0
-
-    const addDeductible = (category: string, amount: number) => {
-      switch (category) {
-        case 'comunidad': comunidad += amount; break
-        case 'ibi': ibi += amount; break
-        case 'seguro': seguro += amount; break
-        case 'reparacion': reparacion += amount; break
-        case 'suministros': suministros += amount; break
-        case 'administracion': administracion += amount; break
-        default: otros += amount; break
-      }
-    }
-
-    // Gastos puntuales deducibles
-    yearExpenses.forEach((e) => {
-      if (!e.isDeductible) return
-      addDeductible(e.category, e.amount || 0)
-    })
-
-    // Gastos periódicos deducibles: cada vencimiento del año con su
-    // ocurrencia real (si existe) o el importe previsto del calendario.
-    const recurringOccurrenceById = new Map(recurringOccurrences.map((occurrence) => [occurrence.id, occurrence]))
-    recurringSchedules
-      .filter((schedule) => schedule.isDeductible)
-      .forEach((schedule) => {
-        for (let month = 1; month <= 12; month++) {
-          if (!isScheduleDueInMonth(schedule, selectedYear, month)) continue
-          const occurrence = recurringOccurrenceById.get(occurrenceIdFor(schedule.id, selectedYear, month))
-          addDeductible(schedule.category, occurrence?.amount ?? schedule.amount)
-        }
-      })
-
-    const totalDeductibleExpenses = comunidad + ibi + seguro + reparacion + suministros + administracion + otros
-    const netReturn = totalIncome - totalDeductibleExpenses
-    const reducedReturn50 = Math.max(0, netReturn * 0.5) // Reducción estándar del 50% por arrendamiento vivienda habitual en IRPF
-
-    return {
-      totalIncome,
-      comunidad,
-      ibi,
-      seguro,
-      reparacion,
-      suministros,
-      administracion,
-      otros,
-      totalDeductibleExpenses,
-      netReturn,
-      reducedReturn50,
-    }
-  }, [paymentsSummary, yearExpenses, recurringSchedules, recurringOccurrences, selectedYear])
+  // Tax calculation moved to the general «Fiscal» view (/inmuebles/fiscal).
 
   const handleReceivedSave = async (month: number, expected: number, received: number) => {
     if (!property) return
@@ -548,16 +484,6 @@ export default function PropertyDetailPage() {
           }`}
         >
           👥 Inquilinos ({linkedTenants.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('tax')}
-          className={`pb-3 px-3.5 border-b-2 transition ${
-            activeTab === 'tax'
-              ? 'border-teal-700 text-teal-300'
-              : 'border-transparent text-slate-500 hover:text-slate-200'
-          }`}
-        >
-          📊 Resumen Fiscal (Renta / IRPF)
         </button>
       </div>
 
@@ -814,103 +740,6 @@ export default function PropertyDetailPage() {
       {activeTab === 'tenants' && property && (
         <div className="animate-in fade-in duration-150">
           <PropertyTenantsPanel property={property} tenants={tenants} documentCounts={tenantDocumentCounts} />
-        </div>
-      )}
-
-      {/* ─── TAB 4: RESUMEN FISCAL (RENTA / IRPF) ────────────────────────── */}
-      {activeTab === 'tax' && (
-        <div className="space-y-6 animate-in fade-in duration-150">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800">
-            <div>
-              <h3 className="text-base font-bold text-slate-100">Resumen Fiscal de Rendimiento de Capital Inmobiliario</h3>
-              <p className="text-xs text-slate-500">
-                Cálculo automático de Ingresos íntegros y Gastos deducibles según normativa del IRPF.
-                Incluye tanto los gastos puntuales como los periódicos marcados como deducibles.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="font-bold text-slate-400">Ejercicio Fiscal:</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="px-3 py-1.5 rounded-lg border border-slate-700 font-bold text-sm bg-slate-950 text-slate-100"
-              >
-                {[currentYear - 1, currentYear].map((yr) => (
-                  <option key={yr} value={yr}>{yr}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Tax Breakdown Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {/* Box 1: Ingresos */}
-            <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-800">
-              <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">(+) Ingresos Íntegros</p>
-              <p className="text-3xl font-extrabold text-emerald-300 mt-2">{formatEuro(taxSummary.totalIncome)}</p>
-              <p className="text-xs text-emerald-400/80 mt-1">Total de rentas cobradas en {selectedYear}</p>
-            </div>
-
-            {/* Box 2: Gastos Deducibles */}
-            <div className="p-5 rounded-2xl bg-amber-950/40 border border-amber-800">
-              <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">(-) Gastos Deducibles</p>
-              <p className="text-3xl font-extrabold text-amber-300 mt-2">{formatEuro(taxSummary.totalDeductibleExpenses)}</p>
-              <p className="text-xs text-amber-400/80 mt-1">Comunidad, IBI, seguros y reparaciones</p>
-            </div>
-
-            {/* Box 3: Rendimiento Neto */}
-            <div className="p-5 rounded-2xl bg-slate-800 border border-slate-700">
-              <p className="text-xs font-bold text-teal-200 uppercase tracking-wider">(=) Rendimiento Neto Previo</p>
-              <p className={`text-3xl font-extrabold mt-2 ${taxSummary.netReturn >= 0 ? 'text-teal-200' : 'text-red-400'}`}>
-                {formatEuro(taxSummary.netReturn)}
-              </p>
-              <p className="text-xs text-teal-200/80 mt-1">
-                Con reducción 50% vivienda: ~{formatEuro(taxSummary.reducedReturn50)}
-              </p>
-            </div>
-          </div>
-
-          {/* Detailed Deductible Expenses Table */}
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 p-6 shadow-xs space-y-4">
-            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider">
-              Desglose de Gastos Deducibles para la Declaración de la Renta ({selectedYear})
-            </h4>
-
-            <div className="divide-y divide-slate-800 text-xs">
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400">Comunidad de propietarios</span>
-                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.comunidad)}</span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400">Tributos y tasas (IBI, basura)</span>
-                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.ibi)}</span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400">Primas de seguro (Hogar, impago)</span>
-                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.seguro)}</span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400">Reparación y conservación</span>
-                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.reparacion)}</span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400">Suministros</span>
-                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.suministros)}</span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400">Administración y honorarios</span>
-                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.administracion)}</span>
-              </div>
-              <div className="py-2.5 flex justify-between">
-                <span className="text-slate-400">Otros gastos justificados</span>
-                <span className="font-semibold text-slate-200">{formatEuro(taxSummary.otros)}</span>
-              </div>
-              <div className="py-3 flex justify-between font-bold text-sm text-slate-100 bg-slate-950 px-2 rounded-lg mt-2">
-                <span>TOTAL GASTOS DEDUCIBLES</span>
-                <span>{formatEuro(taxSummary.totalDeductibleExpenses)}</span>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

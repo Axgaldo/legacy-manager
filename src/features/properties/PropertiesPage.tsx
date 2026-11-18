@@ -10,6 +10,7 @@ import { recurringMonthlyAverage, recurringMonthlyAverageForProperty } from './r
 import PropertyModal from './PropertyModal'
 import PropertyExpensesOverview from './PropertyExpensesOverview'
 import RentPaymentsOverview from './RentPaymentsOverview'
+import TaxOverview from './TaxOverview'
 import { isRentApplicableForMonth, rentAmountForMonth } from './rentRates'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { propertySlug } from '@/utils/slugs'
@@ -18,12 +19,13 @@ import { useMoney } from '@/features/privacy/money'
 import { useToast } from '@/components/ui/ToastProvider'
 import TenantsPage from '@/features/tenants/TenantsPage'
 
-export type PropertiesTab = 'properties' | 'rentals' | 'expenses' | 'tenants'
+export type PropertiesTab = 'properties' | 'rentals' | 'expenses' | 'fiscal' | 'tenants'
 
 const OVERVIEW_TABS: Array<{ value: PropertiesTab; label: string; to: string }> = [
   { value: 'properties', label: 'Inmuebles', to: '/inmuebles' },
   { value: 'rentals', label: 'Alquileres', to: '/inmuebles/alquileres' },
   { value: 'expenses', label: 'Gastos', to: '/inmuebles/gastos' },
+  { value: 'fiscal', label: 'Fiscal', to: '/inmuebles/fiscal' },
   { value: 'tenants', label: 'Inquilinos', to: '/inmuebles/inquilinos' },
 ]
 
@@ -620,7 +622,7 @@ export default function PropertiesPage({ tab = 'properties' }: { tab?: Propertie
         </div>
       )}
 
-      </> : overview === 'rentals' ? <RentPaymentsOverview properties={properties} /> : overview === 'expenses' ? <PropertyExpensesOverview properties={properties} /> : <TenantsPage embedded />}
+      </> : overview === 'rentals' ? <RentPaymentsOverview properties={properties} /> : overview === 'expenses' ? <PropertyExpensesOverview properties={properties} /> : overview === 'fiscal' ? <TaxOverview properties={properties} /> : <TenantsPage embedded />}
 
       {/* Property Modal (Create / Edit) */}
       <PropertyModal

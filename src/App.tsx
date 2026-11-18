@@ -41,6 +41,7 @@ export default function App() {
             <Route path="/inmuebles" element={<PropertiesPage tab="properties" />} />
             <Route path="/inmuebles/alquileres" element={<PropertiesPage tab="rentals" />} />
             <Route path="/inmuebles/gastos" element={<PropertiesPage tab="expenses" />} />
+            <Route path="/inmuebles/fiscal" element={<PropertiesPage tab="fiscal" />} />
             <Route path="/inmuebles/inquilinos" element={<PropertiesPage tab="tenants" />} />
             <Route path="/inmuebles/inquilinos/:id" element={<TenantDetailPage />} />
             <Route path="/inmuebles/:id" element={<PropertyDetailPage />} />

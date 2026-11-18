@@ -5,6 +5,7 @@ import { isRentApplicableForMonth } from '@/features/properties/rentRates'
 import { isScheduleDueInMonth, occurrenceIdFor } from '@/features/properties/recurringExpensesLogic'
 import { assetValue, locationLabel, yearLabel } from '@/features/collections/numismaticaUi'
 import { getCategoryInfo } from '@/features/collections/assetCategories'
+import { slugify } from '@/utils/slugs'
 
 /**
  * Copias de seguridad y exportaciones: se generan en el dispositivo del
@@ -72,11 +73,15 @@ export async function downloadFullBackup(): Promise<{ documents: number }> {
 }
 
 /**
- * Resumen fiscal anual en CSV, una fila por inmueble, igual que la pestaña
- * «Resumen Fiscal» de cada ficha: ingresos cobrados y gastos deducibles por
- * categoría (IRPF, rendimiento de capital inmobiliario).
+ * Resumen fiscal anual en CSV, igual que la vista «Fiscal» de Inmuebles:
+ * una fila por inmueble (opcionalmente filtrado por propietario y/o
+ * provincia) con ingresos cobrados y gastos deducibles por categoría,
+ * puntuales y periódicos (IRPF, rendimiento de capital inmobiliario).
  */
-export async function downloadFiscalYearCsv(year: number): Promise<{ properties: number }> {
+export async function downloadFiscalYearCsv(
+  year: number,
+  filters: { owner?: string; province?: string } = {},
+): Promise<{ properties: number }> {
   const [propertiesSnap, paymentsSnap, expensesSnap, schedulesSnap, occurrencesSnap] = await Promise.all([
     getDocs(collection(db, 'properties')),
     getDocs(query(collection(db, 'rentPayments'), where('year', '==', year))),
@@ -85,7 +90,12 @@ export async function downloadFiscalYearCsv(year: number): Promise<{ properties:
     getDocs(query(collection(db, 'recurringExpenseOccurrences'), where('year', '==', year))),
   ])
 
-  const properties = propertiesSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Partial<Property>) }))
+  const properties = propertiesSnap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() as Partial<Property>) }))
+    .filter((property) => (
+      (!filters.owner || (property.owner ?? 'Gabriel') === filters.owner)
+      && (!filters.province || property.province === filters.province)
+    ))
   const payments = paymentsSnap.docs.map((doc) => doc.data())
   const expenses = expensesSnap.docs.map((doc) => doc.data() as Partial<Expense>)
   const schedules = schedulesSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Partial<RecurringExpenseSchedule>) }))
@@ -147,7 +157,7 @@ export async function downloadFiscalYearCsv(year: number): Promise<{ properties:
   })
   const csv = toCsv(header, [...rows, ['TOTAL', '', ...columnTotals.slice(2)] as Array<string | number>])
 
-  downloadFile(`legacy-manager-fiscal-${year}.csv`, csv, 'text/csv;charset=utf-8')
+  downloadFile(`legacy-manager-fiscal-${year}${filters.owner ? `-${slugify(filters.owner)}` : ''}${filters.province ? `-${slugify(filters.province)}` : ''}.csv`, csv, 'text/csv;charset=utf-8')
   return { properties: properties.length }
 }
 
