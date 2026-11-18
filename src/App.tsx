@@ -55,6 +55,9 @@ export default function App() {
             <Route path="/bienes/categoria/:collectionKey" element={<CollectionsPage />} />
             <Route path="/bienes/categoria/:collectionKey/:assetSlug" element={<CollectionsPage />} />
             <Route path="/bienes/:assetSlug" element={<CollectionsPage />} />
+
+            {/* Unknown URLs (old links, typos) fall back to the home panel instead of a blank page. */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
       </AuthProvider>

@@ -119,6 +119,42 @@
     - **1.15.0:** **Resumen fiscal movido a la sección general**: nueva pestaña «Fiscal» en Inmuebles (`/inmuebles/fiscal`, `TaxOverview`) con filtros de propietario, provincia y ejercicio, cajas de ingresos/deducibles/neto (con reducción 50%), desglose por categoría, detalle por inmueble con fila TOTAL y botón de **CSV fiscal que respeta los filtros** (`downloadFiscalYearCsv(year, { owner, province })`, nombre de archivo con sufijos). La pestaña «Resumen Fiscal» desaparece de la ficha individual (el IRPF se declara por contribuyente agregando sus inmuebles, no piso a piso).
     - **1.16.0:** Ajustes de UX: **miniaturas de PDF de contratos en vertical** (cuadradas en compacto, 3:4 en normal, ajustadas al ancho y sin barra) y al pulsarlas el PDF **se abre en una pestaña nueva** (antes sustituía la app); tarjetas de inquilinos del inmueble: **toda la tarjeta abre la ficha**, botón «Abrir ficha» eliminado; Bienes: «Ver colección →» retirado de las tarjetas (ya son pulsables) y en la cuadrícula el botón pasa de «Ver detalles» a **«Editar», que abre el formulario directamente**; cifras de dinero con **separador de miles siempre** («1.000 €», no «1000 €»; Intl es-ES no agrupa las 4 cifras) vía `groupThousands` en `src/utils/numbers.ts`, aplicado a euros e importes originales (CSV y años sin cambios, como debe ser).
     - **1.16.1:** Miniaturas de PDF todavía más discretas: la del contrato pasa a tamaño fijo pequeño (`w-32/36`, 3:4, columna `auto` que abraza la miniatura en vez de media tarjeta) y la de las **adendas aún más pequeña (`w-24/28`) y a la derecha** del bloque de controles (flex con `justify-between`). Panel de inicio: eliminados los «Abrir Inmuebles →» y «Abrir Bienes →» redundantes (la tarjeta entera ya es el botón).
+    - **1.16.2:** Red de seguridad de navegación: ruta comodín que devuelve a Inicio en URLs desconocidas (antes quedaba la pantalla en blanco) y `ErrorBoundary` global + otro por pantalla dentro del layout (conserva la barra lateral) con mensaje de recuperación, «Recargar», «Volver al inicio» y detalles técnicos. Backlog priorizado guardado en AGENTS.md.
+
+---
+
+## Backlog (ideas acordadas, pendientes de implementar)
+
+Orden aproximado por relación impacto/esfuerzo. No implementar sin necesidad: son mejoras, no deuda que bloquee.
+
+**P0 — baratas y de alto impacto**
+- **Tests de la lógica de dinero con Vitest** (`npm i -D vitest`): `recurringExpensesLogic` (prorrateo IBI/12, vencimientos, media mensual), `rentRates` (tramos y meses sin alquiler), reducción del 50 % y agregados de `TaxOverview`, conversión de divisas en `numismaticaMeta`, `groupThousands` y escapado de CSV en `backupService`. Esa lógica alimenta Inicio, KPIs, ficha, fiscal y exportaciones; un fallo silencioso ahí afecta a cuatro pantallas a la vez.
+- **Cache-Control de las fotos**: `uploadPrivateStorageBlob` usa `private, no-store`, así que cada scroll vuelve a descargar la imagen completa. Los nombres son UUID y nunca se sobrescriben (`update: if false` en assets), por lo que se puede usar `private, max-age=31536000, immutable`.
+- **Recordatorio de copia de seguridad**: guardar la fecha del último `downloadFullBackup()` en `localStorage` y mostrar un aviso en Inicio (toast o tarjeta discreta) si han pasado más de 30 días. No sube nada a Firebase: solo recuerda descargar el JSON que ya existe.
+
+**P1 — rendimiento y coste (cero coste)**
+- **Code splitting**: `React.lazy` por ruta + `manualChunks` (vendor react / firebase). Hoy el build es un único chunk de ~1,04 MB (~270 kB gzip).
+- **Miniaturas de fotos**: al subir, generar un WebP de ~400 px (`thumb-*`) y usarlo en listas/cuadrículas; la imagen completa solo en la ficha y el lightbox. Reduce drásticamente el egress de Storage.
+- **Persistencia offline**: `initializeFirestore(app, { localCache: persistentLocalCache(...) })` para arranque instantáneo desde caché, uso sin cobertura y menos lecturas facturables.
+
+**P2 — producto**
+- **Papelera con borrado suave** (`deletedAt`) para inmuebles, bienes, inquilinos y sus documentos: filtro en las consultas normales, pantalla de papelera, restaurar y «Vaciar papelera». Purga manual desde la app (sin Cloud Functions de pago).
+- **Descargar documentos de un inmueble/bien** en ZIP (o manifiesto con los archivos de Storage): el backup JSON cubre 11 colecciones pero no PDFs ni fotos.
+- **Accesibilidad**: `aria-label` en los botones de solo icono que aún no lo tienen (`TenantModal`, `ContractsPanel`, `TenantsPage`, `AssetList`) y `aria-live="polite"` en el contenedor de toasts.
+- **PWA**: manifest + service worker para instalarla en el móvil y tener shell offline (coste cero).
+
+**P3 — mantenibilidad**
+- **Unificar los `subscribeToX`** en un helper `subscribeCollection<T>(name, mapper)` con manejo de errores homogéneo (hoy se repite el patrón en ~10 servicios).
+- **Validar en la frontera de lectura**: helpers compartidos `num()/str()/bool()` (ya existen en `assetsService`) para que un documento legacy no pinte `NaN €` en fiscal.
+- **Trocear componentes grandes**: `CollectionsPage` (956 líneas), `PropertyDetailPage` (810), `AssetModal` (673), extrayendo hooks (`useAssetForm`, `usePropertyExpenses`).
+- **CI**: `.github/workflows/ci.yml` con `npm run lint && npm run build` en push y PR (hoy el lint no se ejecuta en ningún sitio).
+- **Limpiar `fixedExpensesMonthly`** del tipo `Property` y de `propertiesService` (ya no tiene UI).
+- **Revisar los 10 warnings de `exhaustive-deps`**, sobre todo los de `PropertyDetailPage`: efectos que pueden conservar datos del inmueble anterior al cambiar de id.
+
+**Ideas de producto (sin prioridad)**
+- Aviso de contrato próximo a vencer y de revisión de renta (usando `rentHistory`).
+- Comparativa anual por inmueble: ingresos vs gastos vs valor en una línea temporal.
+- PDF resumen anual por inmueble para el gestor/asesor, generado en cliente como los CSV.
 
 ---
 

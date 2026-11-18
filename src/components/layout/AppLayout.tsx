@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { usePrivacy } from '@/features/privacy/PrivacyProvider'
 import GlobalSearch from '@/features/search/GlobalSearch'
+import ErrorBoundary from '@/components/ui/ErrorBoundary'
 
 const BUILD_DATE = new Date(__APP_BUILD_DATE__)
 const BUILD_DATE_LABEL = BUILD_DATE.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -140,7 +141,12 @@ export default function AppLayout() {
           <span className="min-w-0 flex-1 truncate font-semibold">{navItems.find((item) => item.to === '/' ? location.pathname === '/' : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`))?.label ?? 'Legacy Manager'}</span>
           <button onClick={() => setSearchOpen(true)} aria-label="Buscar" className="p-2 rounded-lg hover:bg-slate-800"><span className="text-lg">⌕</span></button>
         </header>
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8"><Outlet /></div>
+        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-6 sm:py-8">
+          {/* Keeps the sidebar alive if one screen fails; the global boundary is the last resort. */}
+          <ErrorBoundary compact key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
+        </div>
       </main>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
