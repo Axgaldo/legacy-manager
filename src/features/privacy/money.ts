@@ -31,7 +31,7 @@ export function formatOriginalValue(amount?: number, currency?: string): string 
 const MASK_CHARACTERS = ['#', '%', '&', '$', '@', '§', '£', '¥', '*', '?', '•', '▓'] as const
 
 function randomMask(): string {
-  const length = 5 + Math.floor(Math.random() * 3)
+  const length = 3 + Math.floor(Math.random() * 2)
   let mask = ''
   for (let index = 0; index < length; index++) {
     mask += MASK_CHARACTERS[Math.floor(Math.random() * MASK_CHARACTERS.length)]
@@ -39,14 +39,17 @@ function randomMask(): string {
   return mask
 }
 
-/** Cifra en euros censurada: «€ ▓#%$&•». */
+/** Cifra en euros censurada, con el símbolo al final como el formato real: «▓#%§ €». */
 export function maskedEuro(): string {
-  return `€ ${randomMask()}`
+  return `${randomMask()} €`
 }
 
-/** Cifra con divisa original censurada: «▓#%$&•». */
-export function maskedAmount(): string {
-  return randomMask()
+/** Cifra con su divisa censurada, manteniendo el símbolo: «▓#%§ ptas», «▓#%§ $»… */
+export function maskedAmount(currency?: string): string {
+  const mask = randomMask()
+  if (!currency) return mask
+  const info = getCurrency(currency)
+  return `${mask} ${info.code === 'ESP' ? 'ptas' : info.symbol}`
 }
 
 export type MoneyFormatter = {
@@ -63,7 +66,7 @@ export function useMoney(): MoneyFormatter {
     formatEuro: (value?: number, decimals: 0 | 2 = 0) => (incognito ? maskedEuro() : formatEuroValue(value, decimals)),
     formatOriginal: (amount?: number, currency?: string) => {
       if (amount === undefined) return ''
-      return incognito ? maskedAmount() : formatOriginalValue(amount, currency)
+      return incognito ? maskedAmount(currency) : formatOriginalValue(amount, currency)
     },
   }), [incognito])
 }

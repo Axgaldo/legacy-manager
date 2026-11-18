@@ -76,7 +76,7 @@ export default function AppLayout() {
       </nav>
       <div className="px-4 pb-3">
         {incognitoToggle}
-        <p className="mt-1.5 px-1 text-[10px] leading-snug text-slate-500">Con el modo activo, los importes se muestran como «€ ▓#%$&».</p>
+        <p className="mt-1.5 px-1 text-[10px] leading-snug text-slate-500">Con el modo activo, los importes se muestran como «▓#%§ €».</p>
       </div>
       <div className="border-t border-slate-800 px-4 py-3 text-[10px] leading-relaxed text-slate-500">
         <p className="flex flex-wrap items-center gap-x-1.5 font-mono text-slate-400">
