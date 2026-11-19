@@ -1,9 +1,9 @@
 {
   "name": "legacy-manager",
   "private": true,
-  "version": "1.22.0",
+  "version": "1.22.1",
   "description": "Gestión privada de patrimonio familiar: inmuebles, alquileres, inquilinos, contratos y bienes.",
-  "author": "Antonio Galdó Seiquer",
+  "author": "Axgaldo (https://github.com/Axgaldo)",
   "license": "MIT",
   "type": "module",
   "scripts": {

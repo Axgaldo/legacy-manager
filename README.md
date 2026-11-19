@@ -131,4 +131,4 @@ El contexto del proyecto para agentes de IA (convenciones, reglas de negocio y r
 
 ## Licencia
 
-MIT — ver [`LICENSE`](LICENSE). Copyright (c) 2026 **Antonio Galdó Seiquer**.
+MIT — ver [`LICENSE`](LICENSE). Copyright (c) 2026 **[Axgaldo](https://github.com/Axgaldo)**.
