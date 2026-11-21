@@ -62,7 +62,7 @@
     - **Impresión de listas:** «Imprimir vista» y el icono 🖨 de cada grupo generan una tabla en blanco y negro (Nº, pieza, año, material, ceca, conservación, ubicación y valor), no una ficha por página.
 - **Relojes:** no dedicated form; the generic asset form is enough: nombre, **marca/modelo/autor** (campo propio guardado en `brandOrAuthor`), año, lugar de origen, valores, fotos y etiquetas.
 - **Electrónica y electrodomésticos:** same generic form; no special fields for now.
-- **Fotos:** el botón «Añadir fotos» abre **siempre** un menú con **hacer la foto** o **elegir de la galería**. En móvil, `capture="environment"` lanza la cámara trasera; en escritorio, los navegadores no permiten lanzar la webcam desde un input file, así que ambas opciones abren el selector (para webcam real haría falta `getUserMedia`). Las dos vías comprimen a WebP (1280 px) y se suben a Storage al guardar.
+- **Fotos:** el botón «Añadir fotos» del formulario abre en móvil un menú para **hacer la foto** (cámara trasera) o **elegir de la galería**; en escritorio abre el selector de archivos. Las dos vías comprimen a WebP (1280 px) y se suben a Storage al guardar.
 - **Common fields:** name, owner, category, tags, description, brandOrAuthor, year, historicalEra, country, placeOfOrigin, ruler, mint, mint_mark, denomination, conservationState, material, acquisitionYear, acquisitionPrice, currentValue, notes, photos, photoSizesBytes. `location` was removed; coin location is `case_location`/`case_number` in advanced details.
 
 ## Acceso a datos (obligatorio)
@@ -178,7 +178,7 @@
     - **1.22.1:** **Identidad pública**: el titular visible pasa a ser **Axgaldo** en `LICENSE`, `package.json`, README y el pie de la barra lateral, con un icono de GitHub enlazado a `https://github.com/Axgaldo`. La licencia sigue siendo MIT (año 2026). Commit de solo marca y documentación salvo el pie de la app.
     - **1.23.0:** **Fotos desde cámara y enlace al repositorio**. En el formulario de bienes, «Añadir fotos» abre un menú en móvil/tablet (`pointer: coarse`) con **Hacer una foto** (`<input capture="environment">`, cámara trasera) o **Elegir de la galería**; en escritorio va directo al selector de archivos. Ambas opciones pasan por la misma compresión WebP y el mismo flujo de guardado. El pie de la barra lateral enlaza «Build del …» al repositorio de GitHub. La detección táctil se actualiza si cambia el puntero.
     - **1.23.1:** **Acciones de la ficha de bien en móvil**. El bloque de botones (flechas, Imprimir, Copiar enlace, Fotos ZIP, Duplicar, Editar, Borrar y cerrar) ocupa ahora el ancho completo y se envuelve en varias filas en vertical; antes se quedaba en la fila del título con `shrink-0` y el `overflow-hidden` de la ficha recortaba los últimos botones. En horizontal/escritorio se mantiene en una sola fila alineada a la derecha.
-    - **1.23.2:** El menú de «Añadir fotos» (hacer foto / galería) aparece también en **escritorio**, no solo con puntero táctil. En PC, «Hacer una foto» abre el selector de archivos porque los navegadores ignoran `capture` fuera del móvil; una cámara web real requeriría `getUserMedia` (no implementado).
+    - **1.23.3:** **Revertido 1.23.2**: el menú de fotos vuelve a mostrarse solo con puntero táctil; en escritorio «Añadir fotos» abre directamente el selector de archivos. La opción «Hacer una foto» en PC abría el mismo selector, así que era un menú inútil. Código idéntico a 1.23.1, versión adelantada para no reescribir el historial ya publicado.
 
 ---
 
