@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { AssetCategory, AssetItem } from '@/types'
 import { createAsset, updateAsset } from './assetsService'
 import { compressImageToWebP } from '@/utils/imageCompression'
@@ -231,6 +231,18 @@ export default function AssetModal({
   const [acquisitionPrice, setAcquisitionPrice] = useState('')
   const [notes, setNotes] = useState('')
   const [photos, setPhotos] = useState<string[]>([])
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const query = window.matchMedia('(pointer: coarse)')
+    const update = () => setIsCoarsePointer(query.matches)
+    update()
+    query.addEventListener?.('change', update)
+    return () => query.removeEventListener?.('change', update)
+  }, [])
   const [numismaticaData, setNumismaticaData] = useState<Record<string, string>>(emptyNumismaticaData)
   const [eraTouched, setEraTouched] = useState(false)
   const [rulerTouched, setRulerTouched] = useState(false)
@@ -265,6 +277,7 @@ export default function AssetModal({
     setTagInput('')
     setErrorMsg('')
     setCompressStatus('')
+    setPhotoMenuOpen(false)
     setEraTouched(Boolean(assetToEdit?.era))
     setRulerTouched(Boolean(assetToEdit?.ruler))
 
@@ -370,6 +383,18 @@ export default function AssetModal({
     }))
     setEraTouched(false)
     setRulerTouched(false)
+  }
+
+  const openPhotoOptions = () => {
+    if (isCompressing) return
+    if (isCoarsePointer) setPhotoMenuOpen((open) => !open)
+    else galleryInputRef.current?.click()
+  }
+
+  const pickPhoto = (source: 'camera' | 'gallery') => {
+    setPhotoMenuOpen(false)
+    const input = source === 'camera' ? cameraInputRef.current : galleryInputRef.current
+    input?.click()
   }
 
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -677,10 +702,63 @@ export default function AssetModal({
                 <p className="mt-1 text-[11px] text-slate-500">La primera imagen es la principal.</p>
                 <p className="mt-1 text-[10px] text-slate-500">Fotos guardadas: {formatStorageBytes(storageUsedBytes)} · margen estimado: {formatStorageBytes(storageFreeBytes)}</p>
               </div>
-              <label className="cursor-pointer rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 hover:border-teal-600">
-                {isCompressing ? 'Comprimiendo…' : 'Añadir fotos'}
-                <input type="file" accept="image/*" multiple onChange={handlePhotoUpload} disabled={isCompressing} className="hidden" />
-              </label>
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={openPhotoOptions}
+                  disabled={isCompressing}
+                  aria-haspopup={isCoarsePointer ? 'menu' : undefined}
+                  aria-expanded={isCoarsePointer ? photoMenuOpen : undefined}
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 transition hover:border-teal-600 disabled:opacity-60"
+                >
+                  {isCompressing ? 'Comprimiendo…' : 'Añadir fotos'}
+                </button>
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handlePhotoUpload}
+                  disabled={isCompressing}
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="hidden"
+                />
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoUpload}
+                  disabled={isCompressing}
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="hidden"
+                />
+                {photoMenuOpen && isCoarsePointer && (
+                  <>
+                  <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setPhotoMenuOpen(false)} />
+                  <div role="menu" aria-label="Añadir fotos" className="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-xl">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => pickPhoto('camera')}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
+                    >
+                      <span aria-hidden="true">📷</span> Hacer una foto
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => pickPhoto('gallery')}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
+                    >
+                      <span aria-hidden="true">🖼️</span> Elegir de la galería
+                    </button>
+                  </div>
+                  </>
+                )}
+              </div>
             </div>
             <div className={`flex items-center justify-center overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 ${isNumismatica ? 'aspect-square w-32' : 'aspect-[4/3]'}`}>
               {photos[0] ? <PrivateStorageImage source={photos[0]} alt={effectiveName || 'Vista principal del bien'} className="h-full w-full object-contain" /> : <div className={`${isNumismatica ? 'text-3xl' : 'text-6xl'} text-slate-700`}>▧</div>}

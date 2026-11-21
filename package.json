@@ -1,7 +1,7 @@
 {
   "name": "legacy-manager",
   "private": true,
-  "version": "1.22.1",
+  "version": "1.23.0",
   "description": "Gestión privada de patrimonio familiar: inmuebles, alquileres, inquilinos, contratos y bienes.",
   "author": "Axgaldo (https://github.com/Axgaldo)",
   "license": "MIT",

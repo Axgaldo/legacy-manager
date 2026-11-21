@@ -131,7 +131,17 @@ export default function AppLayout() {
           <span aria-hidden="true" className="text-slate-600">·</span>
           <span title="Commit de esta build">{__APP_COMMIT__}</span>
         </p>
-        <p>Build del {BUILD_DATE_LABEL}</p>
+        <p>
+          <a
+            href="https://github.com/Axgaldo/legacy-manager"
+            target="_blank"
+            rel="noreferrer"
+            title="Abrir el repositorio en GitHub"
+            className="underline decoration-slate-700 underline-offset-2 transition hover:text-slate-300"
+          >
+            Build del {BUILD_DATE_LABEL}
+          </a>
+        </p>
         <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
           <span>© {BUILD_YEAR}</span>
           <a
