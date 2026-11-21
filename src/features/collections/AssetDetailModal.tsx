@@ -180,7 +180,7 @@ export default function AssetDetailModal({
             </div>
           </div>
 
-          <div className="print-hidden flex shrink-0 flex-wrap items-center gap-2">
+          <div className="print-hidden flex w-full flex-wrap items-center gap-2 [&>*]:shrink-0 sm:w-auto sm:justify-end">
             {(onPrevious || onNext) && (
               <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-950/60 px-1 py-0.5">
                 <button
