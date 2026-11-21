@@ -232,17 +232,8 @@ export default function AssetModal({
   const [notes, setNotes] = useState('')
   const [photos, setPhotos] = useState<string[]>([])
   const [photoMenuOpen, setPhotoMenuOpen] = useState(false)
-  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    const query = window.matchMedia('(pointer: coarse)')
-    const update = () => setIsCoarsePointer(query.matches)
-    update()
-    query.addEventListener?.('change', update)
-    return () => query.removeEventListener?.('change', update)
-  }, [])
   const [numismaticaData, setNumismaticaData] = useState<Record<string, string>>(emptyNumismaticaData)
   const [eraTouched, setEraTouched] = useState(false)
   const [rulerTouched, setRulerTouched] = useState(false)
@@ -387,8 +378,7 @@ export default function AssetModal({
 
   const openPhotoOptions = () => {
     if (isCompressing) return
-    if (isCoarsePointer) setPhotoMenuOpen((open) => !open)
-    else galleryInputRef.current?.click()
+    setPhotoMenuOpen((open) => !open)
   }
 
   const pickPhoto = (source: 'camera' | 'gallery') => {
@@ -707,8 +697,8 @@ export default function AssetModal({
                   type="button"
                   onClick={openPhotoOptions}
                   disabled={isCompressing}
-                  aria-haspopup={isCoarsePointer ? 'menu' : undefined}
-                  aria-expanded={isCoarsePointer ? photoMenuOpen : undefined}
+                  aria-haspopup="menu"
+                  aria-expanded={photoMenuOpen}
                   className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-200 transition hover:border-teal-600 disabled:opacity-60"
                 >
                   {isCompressing ? 'Comprimiendo…' : 'Añadir fotos'}
@@ -735,7 +725,7 @@ export default function AssetModal({
                   tabIndex={-1}
                   className="hidden"
                 />
-                {photoMenuOpen && isCoarsePointer && (
+                {photoMenuOpen && (
                   <>
                   <div className="fixed inset-0 z-10" aria-hidden="true" onClick={() => setPhotoMenuOpen(false)} />
                   <div role="menu" aria-label="Añadir fotos" className="absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 p-1 shadow-xl">
@@ -743,6 +733,7 @@ export default function AssetModal({
                       type="button"
                       role="menuitem"
                       onClick={() => pickPhoto('camera')}
+                      title="En el móvil abre la cámara; en el ordenador, el selector de archivos"
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
                     >
                       <span aria-hidden="true">📷</span> Hacer una foto
