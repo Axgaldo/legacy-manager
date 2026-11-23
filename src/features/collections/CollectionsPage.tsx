@@ -22,7 +22,9 @@ import {
   type ListView,
 } from './listPreferences'
 import AssetList from './AssetList'
+import { buildContainerIndex, containerWithAssets, type AssetContainer } from './containers'
 import {
+  containerLabel,
   groupOptionsForCollection,
   orderNumismaticaAssets,
   sortOptionsForCollection,
@@ -55,6 +57,10 @@ const SEARCHABLE_FIELDS = [
 
 function normalizeText(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es')
+}
+
+function countryLabel(asset: AssetItem): string {
+  return (asset.country || asset.placeOfOrigin || '').trim()
 }
 
 function uniqueValues(values: Array<string | undefined | null>): string[] {
@@ -104,6 +110,8 @@ export default function CollectionsPage() {
   const [selectedMaterial, setSelectedMaterial] = useState('all')
   const [selectedConservationState, setSelectedConservationState] = useState('all')
   const [selectedEra, setSelectedEra] = useState('all')
+  const [selectedCountry, setSelectedCountry] = useState('all')
+  const [selectedAlbum, setSelectedAlbum] = useState('all')
   const [selectedNumismaticaType, setSelectedNumismaticaType] = useState('all')
   const [onlyReview, setOnlyReview] = useState(false)
 
@@ -174,13 +182,16 @@ export default function CollectionsPage() {
     setSelectedMaterial(loaded.material)
     setSelectedConservationState(loaded.conservation)
     setSelectedEra(loaded.era)
+    setSelectedCountry(loaded.country)
+    setSelectedAlbum(loaded.album)
     setSelectedNumismaticaType(loaded.type)
     setOnlyReview(loaded.onlyReview)
     setSearchQuery('')
     setGroupBy(safeGroupBy)
     setSortBy(safeSortBy)
-    setView(loaded.view)
-  }, [collectionKey, defaultPreferences, groupOptions, sortOptions])
+    // La vista de álbumes solo tiene sentido en Numismática.
+    setView(loaded.view === 'albums' && activeCollection !== 'numismatica' ? 'list' : loaded.view)
+  }, [collectionKey, defaultPreferences, groupOptions, sortOptions, activeCollection])
 
   const preferences = useMemo<ListPreferences>(() => ({
     groupBy,
@@ -191,12 +202,14 @@ export default function CollectionsPage() {
     material: selectedMaterial,
     conservation: selectedConservationState,
     era: selectedEra,
+    country: selectedCountry,
+    album: selectedAlbum,
     type: selectedNumismaticaType,
     onlyReview,
     view,
   }), [
     groupBy, sortBy, selectedOwner, selectedCategory, selectedTags, selectedMaterial,
-    selectedConservationState, selectedEra, selectedNumismaticaType, onlyReview, view,
+    selectedConservationState, selectedEra, selectedCountry, selectedAlbum, selectedNumismaticaType, onlyReview, view,
   ])
 
   const [, setSearchParams] = useSearchParams()
@@ -258,6 +271,24 @@ export default function CollectionsPage() {
     () => (activeCollection ? assets.filter((asset) => matchesCollection(asset.category, activeCollection)) : assets),
     [activeCollection, assets],
   )
+
+  const countryOptions = useMemo(
+    () => uniqueValues(scopedAssets.map((asset) => countryLabel(asset))),
+    [scopedAssets],
+  )
+  const containerIndex = useMemo(() => buildContainerIndex(scopedAssets), [scopedAssets])
+  const containerLabelFor = useMemo(
+    () => (isNumismaticaCollection && groupBy === 'location'
+      ? (asset: AssetItem) => containerIndex.labelByKey.get(containerIndex.keyByAssetId.get(asset.id) ?? '') ?? containerLabel(asset)
+      : undefined),
+    [isNumismaticaCollection, groupBy, containerIndex],
+  )
+
+  // Si la URL trae un álbum que ya no existe (o se cambia de colección), se limpia.
+  useEffect(() => {
+    if (loading || selectedAlbum === 'all') return
+    if (!containerIndex.labelByKey.has(selectedAlbum)) setSelectedAlbum('all')
+  }, [loading, containerIndex, selectedAlbum])
 
   const collectionStats = useMemo(() => COLLECTIONS.map((collection) => {
     const items = assets.filter((asset) => matchesCollection(asset.category, collection.key))
@@ -340,7 +371,8 @@ export default function CollectionsPage() {
     [assets],
   )
 
-  const filteredAssets = useMemo(() => {
+  /** Filtros comunes de la lista, sin el de álbum (las tarjetas lo ignoran). */
+  const baseFilteredAssets = useMemo(() => {
     const query = normalizeText(deferredSearchQuery.trim())
     const filtered = scopedAssets.filter((asset) => {
       const matchesOwner = selectedOwner === 'all' || normalizeText(asset.owner || 'Gabriel') === normalizeText(selectedOwner)
@@ -349,11 +381,13 @@ export default function CollectionsPage() {
       const matchesMaterialFilter = matchesSelected(asset.material, selectedMaterial)
       const matchesConservationFilter = matchesSelected(asset.conservationState, selectedConservationState)
       const matchesEraFilter = matchesSelected(asset.era || asset.historicalEra, selectedEra)
+      const matchesCountryFilter = selectedCountry === 'all'
+        || normalizeText(countryLabel(asset)) === normalizeText(selectedCountry)
       const matchesNumismaticaType = selectedNumismaticaType === 'all'
         || (asset.numismatica_type === 'medalla' ? 'medalla' : 'moneda') === selectedNumismaticaType
       const matchesReview = !onlyReview || (asset.tags ?? []).some((tag) => normalizeText(tag) === 'revisar')
 
-      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType && matchesReview
+      if (!query) return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesCountryFilter && matchesNumismaticaType && matchesReview
 
       const haystack = [
         ...SEARCHABLE_FIELDS.map((field) => asset[field]),
@@ -362,7 +396,7 @@ export default function CollectionsPage() {
       ].filter((value): value is string => typeof value === 'string' && value.length > 0).join(' ')
 
       const matchesSearch = normalizeText(haystack).includes(query)
-      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesNumismaticaType && matchesReview && matchesSearch
+      return matchesOwner && matchesCategory && matchesTags && matchesMaterialFilter && matchesConservationFilter && matchesEraFilter && matchesCountryFilter && matchesNumismaticaType && matchesReview && matchesSearch
     })
 
     return filtered.sort((a, b) => {
@@ -370,6 +404,14 @@ export default function CollectionsPage() {
       if (sortBy === 'year-asc') return (a.year ?? Infinity) - (b.year ?? Infinity)
       if (sortBy === 'material') return (a.material ?? '').localeCompare(b.material ?? '', 'es')
       if (sortBy === 'conservation') return (a.conservationState ?? '').localeCompare(b.conservationState ?? '', 'es')
+      if (sortBy === 'country') {
+        const aCountry = countryLabel(a)
+        const bCountry = countryLabel(b)
+        // Los bienes sin país/origen van al final.
+        if (!aCountry !== !bCountry) return aCountry ? -1 : 1
+        return aCountry.localeCompare(bCountry, 'es', { numeric: true })
+          || a.name.localeCompare(b.name, 'es')
+      }
       if (sortBy === 'inventory') {
         const aNumber = Number.parseInt((a.inventory_number ?? a.case_number ?? '').replace(/[^\d]/g, ''), 10)
         const bNumber = Number.parseInt((b.inventory_number ?? b.case_number ?? '').replace(/[^\d]/g, ''), 10)
@@ -380,8 +422,34 @@ export default function CollectionsPage() {
     })
   }, [
     scopedAssets, selectedOwner, selectedCategory, selectedTags, selectedMaterial, selectedConservationState,
-    selectedEra, selectedNumismaticaType, onlyReview, deferredSearchQuery, sortBy,
+    selectedEra, selectedCountry, selectedNumismaticaType, onlyReview, deferredSearchQuery, sortBy,
   ])
+
+  const filteredAssets = useMemo(
+    () => (selectedAlbum === 'all'
+      ? baseFilteredAssets
+      : baseFilteredAssets.filter((asset) => containerIndex.keyByAssetId.get(asset.id) === selectedAlbum)),
+    [baseFilteredAssets, selectedAlbum, containerIndex],
+  )
+
+  /**
+   * Tarjetas de álbum: la identidad viene del índice completo de la colección
+   * (así la clave no cambia al filtrar) y las cifras se recalculan con los
+   * bienes que pasan los filtros activos salvo el de álbum.
+   */
+  const albumCards = useMemo(() => {
+    if (!isNumismaticaCollection) return []
+    const visibleIds = new Set(baseFilteredAssets.map((asset) => asset.id))
+    return containerIndex.containers
+      .map((container) => {
+        const items = container.assets.filter((asset) => visibleIds.has(asset.id))
+        return items.length ? containerWithAssets(container, items) : null
+      })
+      .filter((container): container is AssetContainer => container !== null)
+  }, [isNumismaticaCollection, containerIndex, baseFilteredAssets])
+  const selectedAlbumLabel = selectedAlbum === 'all'
+    ? ''
+    : containerIndex.labelByKey.get(selectedAlbum) ?? 'Álbum'
 
   const filteredValue = useMemo(
     () => filteredAssets.reduce((total, asset) => total + assetValue(asset), 0),
@@ -393,6 +461,8 @@ export default function CollectionsPage() {
     || selectedMaterial !== 'all'
     || selectedConservationState !== 'all'
     || selectedEra !== 'all'
+    || selectedCountry !== 'all'
+    || selectedAlbum !== 'all'
     || selectedNumismaticaType !== 'all'
     || onlyReview
     || searchQuery.trim().length > 0
@@ -404,15 +474,25 @@ export default function CollectionsPage() {
     setSelectedMaterial('all')
     setSelectedConservationState('all')
     setSelectedEra('all')
+    setSelectedCountry('all')
+    setSelectedAlbum('all')
     setSelectedNumismaticaType('all')
     setOnlyReview(false)
     setSearchQuery('')
   }
 
+  const openAlbum = (container: AssetContainer) => {
+    setSelectedAlbum(container.key)
+    setView('list')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   // Orden exacto en pantalla: la lista sigue los grupos, la cuadrícula es plana.
   const displayOrder = useMemo(
-    () => (view === 'grid' ? filteredAssets : orderNumismaticaAssets(filteredAssets, groupBy, sortBy)),
-    [view, filteredAssets, groupBy, sortBy],
+    () => (view === 'grid' || view === 'albums'
+      ? filteredAssets
+      : orderNumismaticaAssets(filteredAssets, groupBy, sortBy, containerLabelFor)),
+    [view, filteredAssets, groupBy, sortBy, containerLabelFor],
   )
   const detailIndex = detailAsset ? displayOrder.findIndex((item) => item.id === detailAsset.id) : -1
 
@@ -663,7 +743,7 @@ export default function CollectionsPage() {
               </div>
             )}
 
-            <div className={`grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-2 ${isNumismaticaCollection ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+            <div className="grid grid-cols-1 gap-2.5 border-t border-slate-800 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-3">
               {isNumismaticaCollection && (
                 <select value={selectedNumismaticaType} onChange={(event) => setSelectedNumismaticaType(event.target.value)} className={filterInputClass}>
                   <option value="all">Tipo: todo</option>
@@ -683,6 +763,26 @@ export default function CollectionsPage() {
                 <option value="all">Época: todas</option>
                 {eraOptions.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
+              <select value={selectedCountry} onChange={(event) => setSelectedCountry(event.target.value)} className={filterInputClass}>
+                <option value="all">{isNumismaticaCollection ? 'País: todos' : 'Origen: todos'}</option>
+                {countryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+              {isNumismaticaCollection && (
+                <select
+                  value={selectedAlbum}
+                  onChange={(event) => {
+                    setSelectedAlbum(event.target.value)
+                    if (event.target.value !== 'all') setView('list')
+                  }}
+                  className={filterInputClass}
+                  aria-label="Álbum"
+                >
+                  <option value="all">Álbum: todos</option>
+                  {containerIndex.containers.map((container) => (
+                    <option key={container.key} value={container.key}>{container.label} ({container.count})</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             <div className="flex flex-col gap-2.5 border-t border-slate-800 pt-4 text-xs sm:flex-row">
@@ -778,15 +878,46 @@ export default function CollectionsPage() {
                 >
                   ▦ Cuadrícula
                 </button>
+                {isNumismaticaCollection && (
+                  <button
+                    type="button"
+                    onClick={() => { setView('albums'); setSelectedAlbum('all') }}
+                    aria-pressed={view === 'albums'}
+                    className={`px-3 py-2 font-semibold transition ${view === 'albums' ? 'bg-teal-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+                  >
+                    ▤ Álbumes
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500">
-            <span>
-              Mostrando <strong className="text-slate-200">{filteredAssets.length}</strong> de {scopedAssets.length} pieza(s)
-              <span className="mx-1.5 text-slate-700">·</span>
-              <span className="font-semibold text-emerald-400">{money.formatEuro(filteredValue)}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              {view === 'albums' ? (
+                <span>
+                  Mostrando <strong className="text-slate-200">{albumCards.length}</strong> álbum(es)
+                  {' '}· {baseFilteredAssets.length} pieza(s)
+                  <span className="mx-1.5 text-slate-700">·</span>
+                  <span className="font-semibold text-emerald-400">{money.formatEuro(albumCards.reduce((total, container) => total + container.value, 0))}</span>
+                </span>
+              ) : (
+                <span>
+                  Mostrando <strong className="text-slate-200">{filteredAssets.length}</strong> de {scopedAssets.length} pieza(s)
+                  <span className="mx-1.5 text-slate-700">·</span>
+                  <span className="font-semibold text-emerald-400">{money.formatEuro(filteredValue)}</span>
+                </span>
+              )}
+              {selectedAlbum !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedAlbum('all')}
+                  className="inline-flex items-center gap-1 rounded-full border border-teal-800 bg-teal-950/60 px-2.5 py-1 font-semibold text-teal-200 transition hover:bg-teal-950"
+                  title="Quitar el filtro de álbum"
+                >
+                  ▤ {selectedAlbumLabel} <span aria-hidden="true">✕</span>
+                </button>
+              )}
             </span>
             <span className="flex items-center gap-3">
               <button
@@ -810,13 +941,19 @@ export default function CollectionsPage() {
 
           {loading ? (
             <LoadingState />
-          ) : filteredAssets.length === 0 ? (
+          ) : (view === 'albums' ? albumCards.length === 0 : filteredAssets.length === 0) ? (
             <EmptyState
               title={scopedAssets.length === 0 ? 'Todavía no hay bienes en esta colección' : 'No hay resultados para estos filtros'}
               description={scopedAssets.length === 0 ? 'Añade el primer bien de esta colección para empezar.' : 'Prueba a cambiar los filtros o a limpiar la búsqueda.'}
               onAdd={scopedAssets.length === 0 ? handleOpenAddModal : undefined}
               addLabel={isNumismaticaCollection ? 'Añadir moneda o medalla' : 'Añadir bien'}
             />
+          ) : view === 'albums' ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {albumCards.map((container) => (
+                <AlbumCard key={container.key} container={container} onOpen={openAlbum} />
+              ))}
+            </div>
           ) : view === 'grid' ? (
             <AssetGrid assets={filteredAssets} onOpen={handleOpenDetail} onEdit={handleOpenEditModal} onDelete={setAssetToDelete} />
           ) : (
@@ -827,6 +964,7 @@ export default function CollectionsPage() {
               groupBy={groupBy}
               sortBy={sortBy}
               collection={activeCollection}
+              containerLabelFor={containerLabelFor}
               onPrintGroup={(label, items) => setPrintJob({
                 title: `${collectionInfo?.label ?? 'Bienes'} · ${label}`,
                 assets: items,
@@ -883,6 +1021,64 @@ export default function CollectionsPage() {
 }
 
 const filterInputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 focus:border-teal-500 focus:outline-none'
+
+/**
+ * Tarjeta de álbum. Toda la tarjeta es el botón: al pulsarla se aplica el
+ * filtro del álbum y se vuelve a la lista. Sin foto de portada a propósito:
+ * las miniaturas siguen pendientes y cargar la foto completa de 100 álbumes
+ * dispararía el egress de Storage.
+ */
+function AlbumCard({ container, onOpen }: { container: AssetContainer; onOpen: (container: AssetContainer) => void }) {
+  const money = useMoney()
+  const icon = container.medals > container.coins ? '🏅' : '🪙'
+  const chips = Array.from(new Set([...container.countries.slice(0, 2), ...container.eras.slice(0, 1)]))
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(container)}
+      aria-label={`Ver el álbum ${container.label}`}
+      title={container.label}
+      className="group flex h-full w-full flex-col rounded-2xl border border-slate-700 bg-slate-900 p-5 text-left shadow-sm transition hover:border-teal-500 hover:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-teal-500"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-950 text-2xl ring-1 ring-teal-900" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-teal-200">
+          {container.count} pieza{container.count === 1 ? '' : 's'}
+        </span>
+      </div>
+
+      <h4 className="mt-3 break-words text-sm font-bold leading-snug text-slate-100">{container.label}</h4>
+      <p className="mt-1 text-[11px] text-slate-500">
+        {container.medals > 0 && container.coins > 0
+          ? `${container.coins} moneda(s) · ${container.medals} medalla(s)`
+          : container.medals > 0
+            ? `${container.medals} medalla(s)`
+            : `${container.coins} moneda(s)`}
+      </p>
+
+      {chips.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {chips.map((chip) => (
+            <span key={chip} className="rounded-full border border-slate-700 bg-slate-950 px-2 py-0.5 text-[10px] text-slate-400">
+              {chip}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-auto flex items-end justify-between gap-2 border-t border-slate-800 pt-3">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Valoración</p>
+          <p className="text-sm font-bold text-emerald-400">{money.formatEuro(container.value)}</p>
+        </div>
+        <span className="text-[11px] font-semibold text-teal-300 transition group-hover:text-teal-200">Ver piezas →</span>
+      </div>
+    </button>
+  )
+}
 
 function AssetCard({ asset, onOpen, onEdit, onDelete }: { asset: AssetItem; onOpen: (asset: AssetItem) => void; onEdit: (asset: AssetItem) => void; onDelete: (asset: AssetItem) => void }) {
   const money = useMoney()

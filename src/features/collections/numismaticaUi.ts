@@ -19,6 +19,7 @@ export type NumismaticaSortBy =
   | 'year-asc'
   | 'material'
   | 'conservation'
+  | 'country'
   | 'category'
 
 const GROUP_LABELS: Record<Exclude<NumismaticaGroupBy, 'none'>, string> = {
@@ -43,6 +44,7 @@ export const NUMISMATICA_SORT_OPTIONS: Array<{ value: NumismaticaSortBy; label: 
   { value: 'year-asc', label: 'Año: más antiguo' },
   { value: 'material', label: 'Material' },
   { value: 'conservation', label: 'Conservación' },
+  { value: 'country', label: 'País / origen' },
 ]
 
 /**
@@ -72,6 +74,7 @@ export function sortOptionsForCollection(collection: CollectionKey): Array<{ val
     { value: 'year-asc', label: 'Año: más antiguo' },
     { value: 'material', label: 'Material' },
     { value: 'conservation', label: 'Conservación' },
+    { value: 'country', label: 'País / origen' },
   ]
   if (collection === 'todos') base.splice(1, 0, { value: 'category', label: 'Categoría' })
   return base
@@ -269,6 +272,11 @@ export function sortNumismaticaAssets(assets: AssetItem[], sortBy: NumismaticaSo
       case 'conservation':
         return conservationRank(a.conservationState) - conservationRank(b.conservationState)
           || a.name.localeCompare(b.name, 'es')
+      case 'country':
+        return compareOptionalText(
+          a.country?.trim() || a.placeOfOrigin?.trim() || 'Sin país',
+          b.country?.trim() || b.placeOfOrigin?.trim() || 'Sin país',
+        ) || a.name.localeCompare(b.name, 'es', { numeric: true })
       case 'category':
         return categoryRank(a.category) - categoryRank(b.category)
           || a.name.localeCompare(b.name, 'es', { numeric: true })
@@ -281,12 +289,17 @@ export function sortNumismaticaAssets(assets: AssetItem[], sortBy: NumismaticaSo
 export function groupNumismaticaAssets(
   assets: AssetItem[],
   groupBy: NumismaticaGroupBy,
+  containerLabelFor?: (asset: AssetItem) => string,
 ): Array<{ label: string; items: AssetItem[] }> {
   if (groupBy === 'none') return [{ label: '', items: assets }]
 
   const map = new Map<string, AssetItem[]>()
   assets.forEach((asset) => {
-    const label = groupLabelFor(asset, groupBy)
+    // En ubicación se puede inyectar la etiqueta única del contenedor para no
+    // mezclar dos álbumes físicos que compartan el mismo nombre.
+    const label = groupBy === 'location' && containerLabelFor
+      ? containerLabelFor(asset)
+      : groupLabelFor(asset, groupBy)
     const list = map.get(label) ?? []
     list.push(asset)
     map.set(label, list)
@@ -310,6 +323,8 @@ export function orderNumismaticaAssets(
   assets: AssetItem[],
   groupBy: NumismaticaGroupBy,
   sortBy: NumismaticaSortBy,
+  containerLabelFor?: (asset: AssetItem) => string,
 ): AssetItem[] {
-  return groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy).flatMap((group) => group.items)
+  return groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy, containerLabelFor)
+    .flatMap((group) => group.items)
 }

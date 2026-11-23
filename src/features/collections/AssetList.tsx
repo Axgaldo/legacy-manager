@@ -52,6 +52,7 @@ function AssetList({
   groupBy = 'none',
   sortBy = 'name',
   collection = 'objetos',
+  containerLabelFor,
 }: {
   assets: AssetItem[]
   onOpen: (asset: AssetItem) => void
@@ -60,14 +61,16 @@ function AssetList({
   groupBy?: NumismaticaGroupBy
   sortBy?: NumismaticaSortBy
   collection?: CollectionKey
+  /** Etiqueta única de contenedor (desambigua álbumes homónimos). */
+  containerLabelFor?: (asset: AssetItem) => string
 }) {
   const PAGE_SIZE = 200
   const [limit, setLimit] = useState(PAGE_SIZE)
   const money = useMoney()
   const isNumismaticaView = collection === 'numismatica'
   const groups = useMemo(
-    () => groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy),
-    [assets, groupBy, sortBy],
+    () => groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy, containerLabelFor),
+    [assets, groupBy, sortBy, containerLabelFor],
   )
 
   useEffect(() => {

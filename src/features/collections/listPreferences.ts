@@ -1,6 +1,6 @@
 import type { NumismaticaGroupBy, NumismaticaSortBy } from './numismaticaUi'
 
-export type ListView = 'list' | 'grid'
+export type ListView = 'list' | 'grid' | 'albums'
 
 export type ListPreferences = {
   groupBy: NumismaticaGroupBy
@@ -11,6 +11,8 @@ export type ListPreferences = {
   material: string
   conservation: string
   era: string
+  country: string
+  album: string
   type: string
   onlyReview: boolean
   view: ListView
@@ -25,15 +27,17 @@ export const DEFAULT_LIST_PREFERENCES: ListPreferences = {
   material: 'all',
   conservation: 'all',
   era: 'all',
+  country: 'all',
+  album: 'all',
   type: 'all',
   onlyReview: false,
   view: 'list',
 }
 
 const GROUP_VALUES: NumismaticaGroupBy[] = ['location', 'owner', 'material', 'conservation', 'era', 'type', 'category', 'none']
-const SORT_VALUES: NumismaticaSortBy[] = ['inventory', 'name', 'value-desc', 'year-asc', 'material', 'conservation', 'category']
+const SORT_VALUES: NumismaticaSortBy[] = ['inventory', 'name', 'value-desc', 'year-asc', 'material', 'conservation', 'country', 'category']
 const TYPE_VALUES = ['all', 'moneda', 'medalla']
-const VIEW_VALUES: ListView[] = ['list', 'grid']
+const VIEW_VALUES: ListView[] = ['list', 'grid', 'albums']
 
 const PARAM = {
   group: 'agrupar',
@@ -44,6 +48,8 @@ const PARAM = {
   material: 'material',
   conservation: 'estado',
   era: 'epoca',
+  country: 'pais',
+  album: 'album',
   type: 'tipo',
   review: 'revisar',
   view: 'vista',
@@ -104,6 +110,16 @@ export function preferencesFromParams(
     preferences.era = era
     hasParams = true
   }
+  const country = params.get(PARAM.country)
+  if (country) {
+    preferences.country = country
+    hasParams = true
+  }
+  const album = params.get(PARAM.album)
+  if (album) {
+    preferences.album = album
+    hasParams = true
+  }
   const type = params.get(PARAM.type)
   if (type && TYPE_VALUES.includes(type)) {
     preferences.type = type
@@ -138,6 +154,8 @@ export function preferencesToParams(preferences: ListPreferences, defaults: List
   if (preferences.material !== defaults.material) params.set(PARAM.material, preferences.material)
   if (preferences.conservation !== defaults.conservation) params.set(PARAM.conservation, preferences.conservation)
   if (preferences.era !== defaults.era) params.set(PARAM.era, preferences.era)
+  if (preferences.country !== defaults.country) params.set(PARAM.country, preferences.country)
+  if (preferences.album !== defaults.album) params.set(PARAM.album, preferences.album)
   if (preferences.type !== defaults.type) params.set(PARAM.type, preferences.type)
   if (preferences.tags.length > 0 && preferences.tags.join(',') !== defaults.tags.join(',')) {
     params.set(PARAM.tags, preferences.tags.join(','))
@@ -159,6 +177,8 @@ export function loadPreferences(collectionKey: string, defaults: ListPreferences
       ...parsed,
       groupBy: parsed.groupBy && isGroup(parsed.groupBy) ? parsed.groupBy : defaults.groupBy,
       sortBy: parsed.sortBy && isSort(parsed.sortBy) ? parsed.sortBy : defaults.sortBy,
+      country: typeof parsed.country === 'string' ? parsed.country : defaults.country,
+      album: typeof parsed.album === 'string' ? parsed.album : defaults.album,
       view: parsed.view && isView(parsed.view) ? parsed.view : defaults.view,
       tags: Array.isArray(parsed.tags) ? parsed.tags.filter((tag): tag is string => typeof tag === 'string') : [],
     }
