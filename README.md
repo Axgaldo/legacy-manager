@@ -24,7 +24,7 @@ La portada `/` resume todo el patrimonio: **avisos** de contratos que vencen y r
 
 ### 🪙 Bienes y Activos
 - Portada con las colecciones: **Todos**, Numismática, Arte y cuadros, Relojes, Electrónica y electrodomésticos y Objetos diversos.
-- Vista de **filas** (por defecto), **cuadrícula** o **álbumes** (tarjetas por contenedor); agrupación y orden configurables, filtros por propietario, material, estado, época, **país/origen** y **álbum**, y etiquetas.
+- Vista de **filas** (por defecto), **cuadrícula** o **álbumes** (tarjetas por álbum, agrupando todas sus hojas); agrupación y orden configurables, filtros por propietario, material, estado, época, **país/origen** y **álbum**, y etiquetas. Si dos álbumes comparten nombre (por ejemplo, Imperio y República), se distinguen por su país/origen.
 - **Ficha flotante** al pulsar cualquier bien: todos sus datos e imágenes, navegación anterior/siguiente, impresión, editar/borrar (con doble confirmación) y URL propia para compartir.
 - **Fotos desde el móvil**: al añadir fotos se puede **hacer la foto** con la cámara o **elegir de la galería**; en escritorio se abre el selector de archivos. Todas se comprimen a WebP antes de subirlas.
 - **Numismática** con formulario específico de monedas y medallas (ceca, ensayador, peso, catálogo, divisas originales convertidas a euros…).

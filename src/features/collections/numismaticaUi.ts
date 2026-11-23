@@ -289,7 +289,7 @@ export function sortNumismaticaAssets(assets: AssetItem[], sortBy: NumismaticaSo
 export function groupNumismaticaAssets(
   assets: AssetItem[],
   groupBy: NumismaticaGroupBy,
-  containerLabelFor?: (asset: AssetItem) => string,
+  pageLabelFor?: (asset: AssetItem) => string,
 ): Array<{ label: string; items: AssetItem[] }> {
   if (groupBy === 'none') return [{ label: '', items: assets }]
 
@@ -297,8 +297,8 @@ export function groupNumismaticaAssets(
   assets.forEach((asset) => {
     // En ubicación se puede inyectar la etiqueta única del contenedor para no
     // mezclar dos álbumes físicos que compartan el mismo nombre.
-    const label = groupBy === 'location' && containerLabelFor
-      ? containerLabelFor(asset)
+    const label = groupBy === 'location' && pageLabelFor
+      ? pageLabelFor(asset)
       : groupLabelFor(asset, groupBy)
     const list = map.get(label) ?? []
     list.push(asset)
@@ -323,8 +323,8 @@ export function orderNumismaticaAssets(
   assets: AssetItem[],
   groupBy: NumismaticaGroupBy,
   sortBy: NumismaticaSortBy,
-  containerLabelFor?: (asset: AssetItem) => string,
+  pageLabelFor?: (asset: AssetItem) => string,
 ): AssetItem[] {
-  return groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy, containerLabelFor)
+  return groupNumismaticaAssets(sortNumismaticaAssets(assets, sortBy), groupBy, pageLabelFor)
     .flatMap((group) => group.items)
 }

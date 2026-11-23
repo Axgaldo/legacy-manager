@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AssetItem } from '@/types'
-import { buildContainerIndex } from './containers'
+import { albumWithAssets, buildAlbumIndex } from './containers'
 
 function coin(overrides: Partial<AssetItem> = {}): AssetItem {
   return {
@@ -15,63 +15,63 @@ function coin(overrides: Partial<AssetItem> = {}): AssetItem {
   }
 }
 
-describe('buildContainerIndex', () => {
-  it('separa dos álbumes con el mismo nombre usando el país dominante', () => {
-    const index = buildContainerIndex([
-      coin({ id: 'rep1', country: 'República Romana', import_source: 'romanos/Denarios república', year: -187 }),
-      coin({ id: 'rep2', country: 'República Romana', import_source: 'romanos/Denarios república', year: -145 }),
-      coin({ id: 'imp1', country: 'Imperio Romano', import_source: 'romanos/Denarios imperio', year: 14 }),
+describe('buildAlbumIndex', () => {
+  it('agrupa todas las hojas de un mismo álbum y separa los homónimos por país', () => {
+    const index = buildAlbumIndex([
+      coin({ id: 'rep1', case_location: 'Álbum 1 · Hoja 1', country: 'República Romana', import_source: 'romanos/Denarios república' }),
+      coin({ id: 'rep2', case_location: 'Álbum 1 · Hoja 2', country: 'República Romana', import_source: 'romanos/Denarios república' }),
+      coin({ id: 'imp1', case_location: 'Álbum 1 · Hoja 1', country: 'Imperio Romano', import_source: 'romanos/Denarios imperio' }),
+      coin({ id: 'imp2', case_location: 'Álbum 1 · Hoja 2', country: 'Imperio Romano', import_source: 'romanos/Denarios imperio' }),
     ])
 
-    expect(index.containers).toHaveLength(2)
-    const labels = index.containers.map((container) => container.label)
-    expect(labels).toEqual([
-      'Álbum 1 · Hoja 1 · Imperio Romano',
-      'Álbum 1 · Hoja 1 · República Romana',
+    expect(index.albums.map((album) => album.label)).toEqual([
+      'Álbum 1 · Imperio Romano',
+      'Álbum 1 · República Romana',
     ])
-    expect(index.keyByAssetId.get('rep1')).not.toBe(index.keyByAssetId.get('imp1'))
+    expect(index.albums[0].pages).toEqual(['Álbum 1 · Hoja 1', 'Álbum 1 · Hoja 2'])
+    expect(index.albums[0].count).toBe(2)
+    expect(index.albumKeyByAssetId.get('rep1')).not.toBe(index.albumKeyByAssetId.get('imp1'))
+    expect(index.pageLabelByAssetId.get('rep1')).toBe('Álbum 1 · Hoja 1 · República Romana')
+    expect(index.pageLabelByAssetId.get('imp2')).toBe('Álbum 1 · Hoja 2 · Imperio Romano')
   })
 
-  it('mantiene un solo álbum si solo hay un origen', () => {
-    const index = buildContainerIndex([
-      coin({ id: 'a', case_location: 'Álbum 2', import_source: 'plata/Álbum 2' }),
-      coin({ id: 'b', case_location: 'Álbum 2', import_source: 'plata/Álbum 2' }),
+  it('distingue un álbum moderno sin hojas de un álbum romano con el mismo nombre', () => {
+    const index = buildAlbumIndex([
+      coin({ id: 'modern', case_location: 'Álbum 1', country: 'España', import_source: 'plata/Álbum 1' }),
+      coin({ id: 'imp', case_location: 'Álbum 1 · Hoja 1', country: 'Imperio Romano', import_source: 'romanos/Denarios imperio' }),
     ])
-    expect(index.containers).toHaveLength(1)
-    expect(index.containers[0].label).toBe('Álbum 2')
-    expect(index.containers[0].count).toBe(2)
+
+    expect(index.albums.map((album) => album.label)).toEqual([
+      'Álbum 1',
+      'Álbum 1 · Imperio Romano',
+    ])
+    expect(index.albums.find((album) => album.label === 'Álbum 1')?.pages).toEqual([])
+    expect(index.albums.find((album) => album.label === 'Álbum 1 · Imperio Romano')?.pageCount).toBe(1)
   })
 
   it('no parte un álbum con nombre propio aunque llegue en varios orígenes', () => {
-    const index = buildContainerIndex([
+    const index = buildAlbumIndex([
       coin({ id: 'uk', case_location: 'Varios países', country: 'Reino Unido', import_source: 'varios/Reino Unido' }),
       coin({ id: 'ch', case_location: 'Varios países', country: 'Suiza', import_source: 'varios/Suiza' }),
       coin({ id: 'es', case_location: 'Varios países', country: 'España', import_source: 'varios/España' }),
     ])
-    expect(index.containers).toHaveLength(1)
-    expect(index.containers[0].label).toBe('Varios países')
-    expect(index.containers[0].count).toBe(3)
+    expect(index.albums).toHaveLength(1)
+    expect(index.albums[0].label).toBe('Varios países')
+    expect(index.albums[0].count).toBe(3)
+    expect(index.albums[0].pageCount).toBe(0)
   })
 
-  it('usa el origen si los países dominantes coinciden', () => {
-    const index = buildContainerIndex([
-      coin({ id: 'a', country: 'España', import_source: 'lote/Álbum 1 · Hoja 1' }),
-      coin({ id: 'b', country: 'España', import_source: 'otro/Álbum 1 · Hoja 1' }),
+  it('recalcula las cifras conservando la identidad al filtrar', () => {
+    const index = buildAlbumIndex([
+      coin({ id: 'a', case_location: 'Álbum 1 · Hoja 1', country: 'Imperio Romano', import_source: 'romanos/Imperio', value: 100 }),
+      coin({ id: 'b', case_location: 'Álbum 1 · Hoja 2', country: 'Imperio Romano', import_source: 'romanos/Imperio', value: 200 }),
     ])
-    expect(index.containers.map((container) => container.label)).toEqual([
-      'Álbum 1 · Hoja 1 · lote',
-      'Álbum 1 · Hoja 1 · otro',
-    ])
-  })
-
-  it('agrupa por ubicación de medallas y calcula recuentos', () => {
-    const index = buildContainerIndex([
-      coin({ id: 'm1', numismatica_type: 'medalla', medal_location: 'Cajón 2', case_location: undefined }),
-      coin({ id: 'm2', numismatica_type: 'medalla', medal_location: 'Cajón 2', case_location: undefined }),
-      coin({ id: 'c1', medal_location: undefined }),
-    ])
-    const medals = index.containers.find((container) => container.label === 'Cajón 2')
-    expect(medals?.medals).toBe(2)
-    expect(medals?.coins).toBe(0)
+    const album = index.albums[0]
+    const filtered = albumWithAssets(album, [album.assets[0]])
+    expect(filtered.key).toBe(album.key)
+    expect(filtered.label).toBe(album.label)
+    expect(filtered.count).toBe(1)
+    expect(filtered.value).toBe(100)
+    expect(filtered.pageCount).toBe(1)
   })
 })

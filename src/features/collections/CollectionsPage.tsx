@@ -22,7 +22,7 @@ import {
   type ListView,
 } from './listPreferences'
 import AssetList from './AssetList'
-import { buildContainerIndex, containerWithAssets, type AssetContainer } from './containers'
+import { albumWithAssets, buildAlbumIndex, type AssetAlbum } from './containers'
 import {
   containerLabel,
   groupOptionsForCollection,
@@ -276,19 +276,19 @@ export default function CollectionsPage() {
     () => uniqueValues(scopedAssets.map((asset) => countryLabel(asset))),
     [scopedAssets],
   )
-  const containerIndex = useMemo(() => buildContainerIndex(scopedAssets), [scopedAssets])
-  const containerLabelFor = useMemo(
+  const albumIndex = useMemo(() => buildAlbumIndex(scopedAssets), [scopedAssets])
+  const pageLabelFor = useMemo(
     () => (isNumismaticaCollection && groupBy === 'location'
-      ? (asset: AssetItem) => containerIndex.labelByKey.get(containerIndex.keyByAssetId.get(asset.id) ?? '') ?? containerLabel(asset)
+      ? (asset: AssetItem) => albumIndex.pageLabelByAssetId.get(asset.id) ?? containerLabel(asset)
       : undefined),
-    [isNumismaticaCollection, groupBy, containerIndex],
+    [isNumismaticaCollection, groupBy, albumIndex],
   )
 
   // Si la URL trae un álbum que ya no existe (o se cambia de colección), se limpia.
   useEffect(() => {
     if (loading || selectedAlbum === 'all') return
-    if (!containerIndex.labelByKey.has(selectedAlbum)) setSelectedAlbum('all')
-  }, [loading, containerIndex, selectedAlbum])
+    if (!albumIndex.albumLabelByKey.has(selectedAlbum)) setSelectedAlbum('all')
+  }, [loading, albumIndex, selectedAlbum])
 
   const collectionStats = useMemo(() => COLLECTIONS.map((collection) => {
     const items = assets.filter((asset) => matchesCollection(asset.category, collection.key))
@@ -428,8 +428,8 @@ export default function CollectionsPage() {
   const filteredAssets = useMemo(
     () => (selectedAlbum === 'all'
       ? baseFilteredAssets
-      : baseFilteredAssets.filter((asset) => containerIndex.keyByAssetId.get(asset.id) === selectedAlbum)),
-    [baseFilteredAssets, selectedAlbum, containerIndex],
+      : baseFilteredAssets.filter((asset) => albumIndex.albumKeyByAssetId.get(asset.id) === selectedAlbum)),
+    [baseFilteredAssets, selectedAlbum, albumIndex],
   )
 
   /**
@@ -440,16 +440,16 @@ export default function CollectionsPage() {
   const albumCards = useMemo(() => {
     if (!isNumismaticaCollection) return []
     const visibleIds = new Set(baseFilteredAssets.map((asset) => asset.id))
-    return containerIndex.containers
+    return albumIndex.albums
       .map((container) => {
         const items = container.assets.filter((asset) => visibleIds.has(asset.id))
-        return items.length ? containerWithAssets(container, items) : null
+        return items.length ? albumWithAssets(container, items) : null
       })
-      .filter((container): container is AssetContainer => container !== null)
-  }, [isNumismaticaCollection, containerIndex, baseFilteredAssets])
+      .filter((container): container is AssetAlbum => container !== null)
+  }, [isNumismaticaCollection, albumIndex, baseFilteredAssets])
   const selectedAlbumLabel = selectedAlbum === 'all'
     ? ''
-    : containerIndex.labelByKey.get(selectedAlbum) ?? 'Álbum'
+    : albumIndex.albumLabelByKey.get(selectedAlbum) ?? 'Álbum'
 
   const filteredValue = useMemo(
     () => filteredAssets.reduce((total, asset) => total + assetValue(asset), 0),
@@ -481,7 +481,7 @@ export default function CollectionsPage() {
     setSearchQuery('')
   }
 
-  const openAlbum = (container: AssetContainer) => {
+  const openAlbum = (container: AssetAlbum) => {
     setSelectedAlbum(container.key)
     setView('list')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -491,8 +491,8 @@ export default function CollectionsPage() {
   const displayOrder = useMemo(
     () => (view === 'grid' || view === 'albums'
       ? filteredAssets
-      : orderNumismaticaAssets(filteredAssets, groupBy, sortBy, containerLabelFor)),
-    [view, filteredAssets, groupBy, sortBy, containerLabelFor],
+      : orderNumismaticaAssets(filteredAssets, groupBy, sortBy, pageLabelFor)),
+    [view, filteredAssets, groupBy, sortBy, pageLabelFor],
   )
   const detailIndex = detailAsset ? displayOrder.findIndex((item) => item.id === detailAsset.id) : -1
 
@@ -778,7 +778,7 @@ export default function CollectionsPage() {
                   aria-label="Álbum"
                 >
                   <option value="all">Álbum: todos</option>
-                  {containerIndex.containers.map((container) => (
+                  {albumIndex.albums.map((container) => (
                     <option key={container.key} value={container.key}>{container.label} ({container.count})</option>
                   ))}
                 </select>
@@ -964,7 +964,7 @@ export default function CollectionsPage() {
               groupBy={groupBy}
               sortBy={sortBy}
               collection={activeCollection}
-              containerLabelFor={containerLabelFor}
+              pageLabelFor={pageLabelFor}
               onPrintGroup={(label, items) => setPrintJob({
                 title: `${collectionInfo?.label ?? 'Bienes'} · ${label}`,
                 assets: items,
@@ -1028,10 +1028,18 @@ const filterInputClass = 'w-full rounded-xl border border-slate-700 bg-slate-950
  * las miniaturas siguen pendientes y cargar la foto completa de 100 álbumes
  * dispararía el egress de Storage.
  */
-function AlbumCard({ container, onOpen }: { container: AssetContainer; onOpen: (container: AssetContainer) => void }) {
+function AlbumCard({ container, onOpen }: { container: AssetAlbum; onOpen: (container: AssetAlbum) => void }) {
   const money = useMoney()
   const icon = container.medals > container.coins ? '🏅' : '🪙'
   const chips = Array.from(new Set([...container.countries.slice(0, 2), ...container.eras.slice(0, 1)]))
+  const typeLabel = container.medals > 0 && container.coins > 0
+    ? `${container.coins} moneda(s) · ${container.medals} medalla(s)`
+    : container.medals > 0
+      ? `${container.medals} medalla(s)`
+      : `${container.coins} moneda(s)`
+  const pageLabel = container.isPaged
+    ? `${container.pageCount} hoja${container.pageCount === 1 ? '' : 's'}`
+    : ''
 
   return (
     <button
@@ -1052,11 +1060,7 @@ function AlbumCard({ container, onOpen }: { container: AssetContainer; onOpen: (
 
       <h4 className="mt-3 break-words text-sm font-bold leading-snug text-slate-100">{container.label}</h4>
       <p className="mt-1 text-[11px] text-slate-500">
-        {container.medals > 0 && container.coins > 0
-          ? `${container.coins} moneda(s) · ${container.medals} medalla(s)`
-          : container.medals > 0
-            ? `${container.medals} medalla(s)`
-            : `${container.coins} moneda(s)`}
+        {[typeLabel, pageLabel].filter(Boolean).join(' · ')}
       </p>
 
       {chips.length > 0 && (
